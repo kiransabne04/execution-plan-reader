@@ -1,0 +1,65 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "orders",
+      "Alias": "orders",
+      "Startup Cost": 0.0,
+      "Total Cost": 500.0,
+      "Plan Rows": 1000,
+      "Plan Width": 32,
+      "Actual Startup Time": 0.02,
+      "Actual Total Time": 12.0,
+      "Actual Rows": 950,
+      "Actual Loops": 1,
+      "Filter": "(total > $0)",
+      "Plans": [
+        {
+          "Node Type": "Aggregate",
+          "Strategy": "Plain",
+          "Parent Relationship": "InitPlan",
+          "Subplan Name": "InitPlan 1 (returns $0)",
+          "Startup Cost": 10.0,
+          "Total Cost": 10.02,
+          "Plan Rows": 1,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.3,
+          "Actual Total Time": 0.31,
+          "Actual Rows": 1,
+          "Actual Loops": 1,
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "order_limits",
+              "Alias": "order_limits",
+              "Startup Cost": 0.0,
+              "Total Cost": 10.0,
+              "Plan Rows": 100,
+              "Plan Width": 8,
+              "Actual Startup Time": 0.01,
+              "Actual Total Time": 0.2,
+              "Actual Rows": 100,
+              "Actual Loops": 1
+            }
+          ]
+        },
+        {
+          "Node Type": "Index Scan",
+          "Parent Relationship": "SubPlan",
+          "Subplan Name": "SubPlan 2",
+          "Index Name": "orders_region_idx",
+          "Startup Cost": 0.29,
+          "Total Cost": 8.31,
+          "Plan Rows": 1,
+          "Plan Width": 4,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 0.01,
+          "Actual Rows": 1,
+          "Actual Loops": 950
+        }
+      ]
+    },
+    "Planning Time": 0.25,
+    "Execution Time": 12.5
+  }
+]

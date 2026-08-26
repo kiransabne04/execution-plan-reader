@@ -1,0 +1,75 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Append",
+      "Startup Cost": 0.0,
+      "Total Cost": 400.0,
+      "Plan Rows": 200,
+      "Plan Width": 16,
+      "Actual Startup Time": 0.05,
+      "Actual Total Time": 5.0,
+      "Actual Rows": 200,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "CTE Scan",
+          "CTE Name": "active_users",
+          "Alias": "active_users",
+          "Startup Cost": 0.0,
+          "Total Cost": 20.0,
+          "Plan Rows": 100,
+          "Plan Width": 16,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 1.0,
+          "Actual Rows": 100,
+          "Actual Loops": 1,
+          "Parent Relationship": "Member"
+        },
+        {
+          "Node Type": "CTE Scan",
+          "CTE Name": "active_users",
+          "Alias": "active_users_2",
+          "Startup Cost": 0.0,
+          "Total Cost": 20.0,
+          "Plan Rows": 100,
+          "Plan Width": 16,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 1.0,
+          "Actual Rows": 100,
+          "Actual Loops": 1,
+          "Parent Relationship": "Member"
+        },
+        {
+          "Node Type": "Hash Join",
+          "Startup Cost": 50.0,
+          "Total Cost": 200.0,
+          "Plan Rows": 300,
+          "Plan Width": 16,
+          "Actual Startup Time": 1.0,
+          "Actual Total Time": 3.0,
+          "Actual Rows": 300,
+          "Actual Loops": 1,
+          "Parent Relationship": "InitPlan",
+          "Subplan Name": "CTE active_users",
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "users",
+              "Alias": "users",
+              "Startup Cost": 0.0,
+              "Total Cost": 50.0,
+              "Plan Rows": 300,
+              "Plan Width": 16,
+              "Actual Startup Time": 0.01,
+              "Actual Total Time": 0.9,
+              "Actual Rows": 300,
+              "Actual Loops": 1
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.15,
+    "Execution Time": 5.2
+  }
+]

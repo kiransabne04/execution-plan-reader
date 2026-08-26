@@ -1,0 +1,40 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Gather",
+      "Startup Cost": 1000.0,
+      "Total Cost": 6000.0,
+      "Plan Rows": 20000,
+      "Plan Width": 20,
+      "Actual Startup Time": 3.0,
+      "Actual Total Time": 120.0,
+      "Actual Rows": 20000,
+      "Actual Loops": 1,
+      "Workers Planned": 3,
+      "Workers Launched": 3,
+      "Workers": [
+        { "Worker Number": 0, "Actual Total Time": 38.0, "Actual Rows": 6666, "Actual Loops": 1 },
+        { "Worker Number": 1, "Actual Total Time": 41.0, "Actual Rows": 6667, "Actual Loops": 1 },
+        { "Worker Number": 2, "Actual Total Time": 39.5, "Actual Rows": 6667, "Actual Loops": 1 }
+      ],
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "events",
+          "Alias": "events",
+          "Startup Cost": 0.0,
+          "Total Cost": 5000.0,
+          "Plan Rows": 6667,
+          "Plan Width": 20,
+          "Actual Startup Time": 0.4,
+          "Actual Total Time": 39.0,
+          "Actual Rows": 6667,
+          "Actual Loops": 3,
+          "Parent Relationship": "Outer"
+        }
+      ]
+    },
+    "Planning Time": 0.3,
+    "Execution Time": 121.0
+  }
+]

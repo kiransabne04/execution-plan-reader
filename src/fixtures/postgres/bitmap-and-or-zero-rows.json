@@ -1,0 +1,58 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Bitmap Heap Scan",
+      "Relation Name": "articles",
+      "Alias": "articles",
+      "Startup Cost": 12.0,
+      "Total Cost": 80.0,
+      "Plan Rows": 40,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.15,
+      "Actual Total Time": 0.4,
+      "Actual Rows": 38,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "BitmapAnd",
+          "Startup Cost": 12.0,
+          "Total Cost": 12.0,
+          "Plan Rows": 40,
+          "Plan Width": 0,
+          "Actual Startup Time": 0.12,
+          "Actual Total Time": 0.12,
+          "Actual Rows": 0,
+          "Actual Loops": 1,
+          "Plans": [
+            {
+              "Node Type": "Bitmap Index Scan",
+              "Index Name": "articles_status_idx",
+              "Startup Cost": 0.0,
+              "Total Cost": 4.0,
+              "Plan Rows": 200,
+              "Plan Width": 0,
+              "Actual Startup Time": 0.05,
+              "Actual Total Time": 0.05,
+              "Actual Rows": 0,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Bitmap Index Scan",
+              "Index Name": "articles_author_idx",
+              "Startup Cost": 0.0,
+              "Total Cost": 4.0,
+              "Plan Rows": 150,
+              "Plan Width": 0,
+              "Actual Startup Time": 0.04,
+              "Actual Total Time": 0.04,
+              "Actual Rows": 0,
+              "Actual Loops": 1
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.1,
+    "Execution Time": 0.45
+  }
+]
