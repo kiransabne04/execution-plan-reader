@@ -5,6 +5,7 @@
 // correcting it. See .claude/skills/rule-engine-authoring/SKILL.md.
 
 import type { PlanNode } from "../parsers/normalize"
+import { formatNumber } from "./format"
 import type { Rule } from "./types"
 
 export const LARGE_TABLE_ROW_THRESHOLD = 10_000
@@ -18,8 +19,8 @@ export const seqScanOnLargeTable: Rule = (node) => {
   }
 
   const relation = pickRelationName(node)
-  const rowsText = rowCount.toLocaleString()
-  const thresholdText = LARGE_TABLE_ROW_THRESHOLD.toLocaleString()
+  const rowsText = formatNumber(rowCount)
+  const thresholdText = formatNumber(LARGE_TABLE_ROW_THRESHOLD)
 
   return [
     {

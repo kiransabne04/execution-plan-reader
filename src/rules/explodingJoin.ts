@@ -1,6 +1,7 @@
 // MVP rule 5: exploding join — output rows far exceeding input rows, the
 // classic signature of an accidental cross join / missing join condition.
 
+import { formatNumber } from "./format"
 import type { Rule } from "./types"
 
 export const EXPLOSION_RATIO_THRESHOLD = 10
@@ -22,16 +23,16 @@ export const explodingJoin: Rule = (node) => {
   const ratio = outputRows / maxInputRows
   if (ratio < EXPLOSION_RATIO_THRESHOLD) return []
 
-  const ratioText = Math.round(ratio).toLocaleString()
+  const ratioText = formatNumber(Math.round(ratio))
 
   return [
     {
       ruleId: "exploding-join",
       severity: node.operatorType === "cartesian_join" ? "critical" : "warning",
-      shortText: `Output (${outputRows.toLocaleString()} rows) is ${ratioText}x its largest input — check the join condition.`,
+      shortText: `Output (${formatNumber(outputRows)} rows) is ${ratioText}x its largest input — check the join condition.`,
       longText:
-        `This ${node.rawOperatorLabel} produced ${outputRows.toLocaleString()} rows from inputs of at most ` +
-        `${maxInputRows.toLocaleString()} rows — a ${ratioText}x multiplication. This pattern usually means a ` +
+        `This ${node.rawOperatorLabel} produced ${formatNumber(outputRows)} rows from inputs of at most ` +
+        `${formatNumber(maxInputRows)} rows — a ${ratioText}x multiplication. This pattern usually means a ` +
         `missing or too-loose join condition (an accidental cross join), causing rows to multiply rather than ` +
         `match one-to-one/one-to-many as intended.`,
     },

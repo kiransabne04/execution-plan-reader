@@ -7,6 +7,7 @@
 //   - Snowflake: Spilled To Local/Remote Storage (already promoted in the parser)
 
 import type { PlanNode } from "../parsers/normalize"
+import { formatNumber } from "./format"
 import type { Rule } from "./types"
 
 function toFiniteNumber(value: unknown): number | undefined {
@@ -24,11 +25,11 @@ function detectSpill(node: PlanNode): SpillDetection {
     case "postgres": {
       if (node.attributes["Sort Space Type"] === "Disk") {
         const kb = toFiniteNumber(node.attributes["Sort Space Used"])
-        return { detected: true, detail: kb !== undefined ? `${kb.toLocaleString()} KB to disk (external sort)` : "to disk (external sort)" }
+        return { detected: true, detail: kb !== undefined ? `${formatNumber(kb)} KB to disk (external sort)` : "to disk (external sort)" }
       }
       const diskUsage = node.operatorType === "hash" ? toFiniteNumber(node.attributes["Disk Usage"]) : undefined
       if (diskUsage !== undefined && diskUsage > 0) {
-        return { detected: true, detail: `${diskUsage.toLocaleString()} KB to disk (hash)` }
+        return { detected: true, detail: `${formatNumber(diskUsage)} KB to disk (hash)` }
       }
       return { detected: false }
     }
@@ -42,8 +43,8 @@ function detectSpill(node: PlanNode): SpillDetection {
       const local = toFiniteNumber(node.attributes["Spilled To Local Storage"])
       const remote = toFiniteNumber(node.attributes["Spilled To Remote Storage"])
       const parts: string[] = []
-      if (local !== undefined && local > 0) parts.push(`${local.toLocaleString()} bytes to local disk`)
-      if (remote !== undefined && remote > 0) parts.push(`${remote.toLocaleString()} bytes to remote disk`)
+      if (local !== undefined && local > 0) parts.push(`${formatNumber(local)} bytes to local disk`)
+      if (remote !== undefined && remote > 0) parts.push(`${formatNumber(remote)} bytes to remote disk`)
       return parts.length > 0 ? { detected: true, detail: parts.join(", ") } : { detected: false }
     }
     default:

@@ -16,6 +16,7 @@ export { highLoopCount } from "./highLoopCount"
 export { explodingJoin } from "./explodingJoin"
 export { missingIndexOpportunity } from "./missingIndexOpportunity"
 export { parameterSensitivityNote } from "./parameterSensitivityNote"
+export { summarizePlan, type PlanSummary, type SummarySeverity } from "./summarize"
 
 export const ALL_RULES: Rule[] = [
   diskSpill,

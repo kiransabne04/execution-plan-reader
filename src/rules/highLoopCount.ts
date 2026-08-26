@@ -12,6 +12,7 @@
 // figure, so this rule must not fire there. See
 // .claude/skills/rule-engine-authoring/SKILL.md.
 
+import { formatNumber } from "./format"
 import type { Rule } from "./types"
 
 export const LOOP_COUNT_THRESHOLD = 1_000
@@ -34,11 +35,11 @@ export const highLoopCount: Rule = (node) => {
     {
       ruleId: "high-loop-count",
       severity: "warning",
-      shortText: `Runs ${loops.toLocaleString()} times at ~${actualTimeMs.toFixed(2)}ms each — ~${Math.round(totalMs).toLocaleString()}ms total.`,
+      shortText: `Runs ${formatNumber(loops)} times at ~${actualTimeMs.toFixed(2)}ms each — ~${formatNumber(Math.round(totalMs))}ms total.`,
       longText:
-        `This ${node.rawOperatorLabel} executes ${loops.toLocaleString()} times — typically once per row from the ` +
+        `This ${node.rawOperatorLabel} executes ${formatNumber(loops)} times — typically once per row from the ` +
         `outer side of a join — each taking about ${actualTimeMs.toFixed(2)}ms, for roughly ` +
-        `${Math.round(totalMs).toLocaleString()}ms total. This is the classic nested-loop-join blowup pattern: cheap ` +
+        `${formatNumber(Math.round(totalMs))}ms total. This is the classic nested-loop-join blowup pattern: cheap ` +
         `per iteration, expensive in aggregate. A different join algorithm, or an index that makes each iteration ` +
         `cheaper, usually helps.`,
     },

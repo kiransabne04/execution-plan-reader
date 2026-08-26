@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`summarizePlan > end-to-end regression snapshot: full multi-issue plan through applyRules -> summarizePlan 1`] = `
+{
+  "severity": "warning",
+  "text": "This plan works, but has room to improve: full scan of events (500,000 rows) — an index could avoid reading every row, which likely contributes to estimate off by 4,900x: expected 100 rows, got 490,000.",
+  "topFindings": [
+    {
+      "longText": "The planner estimated 100 rows for this Hash Join but 490,000 actually came out — 4,900x more than expected. Bad estimates like this often cascade into a worse plan shape further up the tree (e.g. the wrong join algorithm gets picked). Stale table statistics are the most common cause.",
+      "ruleId": "bad-row-estimate",
+      "severity": "warning",
+      "shortText": "Estimate off by 4,900x: expected 100 rows, got 490,000.",
+    },
+    {
+      "longText": "This Seq Scan reads all 500,000 rows of events without an index. On a table this size, a well-chosen index matching the query's filter/join columns usually reads far fewer rows. Small tables are a different story: below roughly 10,000 rows, a full scan is often the fastest plan available, which is why this only fires above that size.",
+      "ruleId": "seq-scan-on-large-table",
+      "severity": "warning",
+      "shortText": "Full scan of events (500,000 rows) — an index could avoid reading every row.",
+    },
+  ],
+}
+`;
+
+exports[`summarizePlan > regression snapshot: zero-warning plan 1`] = `
+{
+  "severity": "none",
+  "text": "This plan looks straightforward — no major issues detected.",
+  "topFindings": [],
+}
+`;
