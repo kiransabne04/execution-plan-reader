@@ -1,0 +1,9 @@
+ Seq Scan on orders  (cost=0.00..500.00 rows=1000 width=32) (actual time=0.020..12.000 rows=950 loops=1)
+   Filter: (total > $0)
+   InitPlan 1 (returns $0)
+     ->  Aggregate  (cost=10.00..10.02 rows=1 width=8) (actual time=0.300..0.310 rows=1 loops=1)
+           ->  Seq Scan on order_limits  (cost=0.00..10.00 rows=100 width=8) (actual time=0.010..0.200 rows=100 loops=1)
+   SubPlan 2
+     ->  Index Scan using orders_region_idx on orders  (cost=0.29..8.31 rows=1 width=4) (actual time=0.010..0.010 rows=1 loops=950)
+ Planning Time: 0.250 ms
+ Execution Time: 12.500 ms

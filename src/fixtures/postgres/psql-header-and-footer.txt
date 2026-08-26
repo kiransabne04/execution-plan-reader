@@ -1,0 +1,6 @@
+                                                    QUERY PLAN
+------------------------------------------------------------------------------------------------------------
+ Seq Scan on users  (cost=0.00..22.00 rows=1200 width=36) (actual time=0.012..0.045 rows=1180 loops=1)
+ Planning Time: 0.123 ms
+ Execution Time: 0.089 ms
+(3 rows)

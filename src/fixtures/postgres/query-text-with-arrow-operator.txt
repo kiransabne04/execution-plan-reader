@@ -1,0 +1,2 @@
+ Seq Scan on data_points  (cost=0.00..50.00 rows=1000 width=16) (actual time=0.010..1.000 rows=1000 loops=1)
+   Filter: ((payload -> 'meta'::text) ->> 'kind'::text) = 'x'::text

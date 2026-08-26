@@ -1,0 +1,7 @@
+ Hash Join  (cost=45.50..210.75 rows=500 width=72) (actual time=1.200..8.400 rows=480 loops=1)
+   Hash Cond: (orders.customer_id = customers.id)
+   ->  Seq Scan on orders  (cost=0.00..120.00 rows=5000 width=24) (actual time=0.020..3.100 rows=5000 loops=1)
+   ->  Hash  (cost=30.00..30.00 rows=800 width=48) (actual time=0.900..0.900 rows=800 loops=1)
+         ->  Seq Scan on customers  (cost=0.00..30.00 rows=800 width=48) (actual time=0.010..0.600 rows=800 loops=1)
+ Planning Time: 0.400 ms
+ Execution Time: 8.900 ms

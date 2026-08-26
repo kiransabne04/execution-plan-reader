@@ -1,0 +1,1 @@
+ Hash Join  (cost=45.50..210.75 rows=500 width=72
