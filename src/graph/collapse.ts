@@ -1,0 +1,57 @@
+// Episode 6 edge case: very large plans (500+ nodes) must not freeze the
+// browser tab. Rather than true virtualization, subtrees that contribute
+// negligible cost are collapsed by default — their descendants are simply
+// left out of the React Flow node/edge arrays entirely, which is what
+// actually keeps render/layout cheap. Collapse state is computed here as
+// pure data; where it *lives* (so the user can expand it back) is local
+// component state keyed by node id, never the PlanNode model itself — see
+// .claude/skills/graph-visualization/SKILL.md.
+
+import type { PlanNode } from "../parsers/normalize"
+import { pickMetricValue, type MetricKey } from "./encoding"
+
+/** Only auto-collapse at all once the plan is large enough that rendering
+ * everything is the actual risk — small/medium plans always render fully
+ * expanded regardless of how "small" any one subtree's cost share is. */
+export const COLLAPSE_NODE_COUNT_THRESHOLD = 500
+
+/** A subtree contributing less than this share of the plan's total metric
+ * is collapsed by default once the plan is large. Tunable constant, not
+ * hardcoded per engine. */
+export const COLLAPSE_SUBTREE_PERCENT_THRESHOLD = 1
+
+function subtreeTotal(node: PlanNode, metric: MetricKey, memo: Map<string, number>): number {
+  const cached = memo.get(node.id)
+  if (cached !== undefined) return cached
+  const total = pickMetricValue(node, metric) + node.children.reduce((sum, c) => sum + subtreeTotal(c, metric, memo), 0)
+  memo.set(node.id, total)
+  return total
+}
+
+/** Returns the set of node ids that should start collapsed — each is the
+ * root of a hidden subtree. Never includes the plan root itself. */
+export function computeDefaultCollapsedIds(
+  root: PlanNode,
+  allNodes: PlanNode[],
+  metric: MetricKey = "actualTimeMs",
+): Set<string> {
+  if (allNodes.length <= COLLAPSE_NODE_COUNT_THRESHOLD) return new Set()
+
+  const memo = new Map<string, number>()
+  const grandTotal = subtreeTotal(root, metric, memo)
+  const collapsed = new Set<string>()
+
+  const walk = (node: PlanNode, isRoot: boolean) => {
+    if (!isRoot) {
+      const share = grandTotal > 0 ? (subtreeTotal(node, metric, memo) / grandTotal) * 100 : 0
+      if (share < COLLAPSE_SUBTREE_PERCENT_THRESHOLD && node.children.length > 0) {
+        collapsed.add(node.id)
+        return // don't also mark descendants — one collapse boundary is enough
+      }
+    }
+    node.children.forEach((child) => walk(child, false))
+  }
+
+  walk(root, true)
+  return collapsed
+}

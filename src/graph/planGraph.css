@@ -1,0 +1,104 @@
+/* Design tokens up front (CSS custom properties), not a late theming
+   retrofit — see .claude/skills/graph-visualization/SKILL.md. */
+.plan-graph {
+  --pg-card-bg: #ffffff;
+  --pg-card-border: #d0d5dd;
+  --pg-card-text: #1a1a1a;
+  --pg-card-text-muted: #667085;
+  --pg-mismatch-border: #b42318;
+  --pg-badge-bg: #1a1a1a;
+  --pg-badge-text: #ffffff;
+  --pg-collapsed-bg: #f2f4f7;
+  --pg-collapsed-border: #98a2b3;
+
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .plan-graph {
+    --pg-card-bg: #1d2129;
+    --pg-card-border: #3a4150;
+    --pg-card-text: #f2f4f7;
+    --pg-card-text-muted: #98a2b3;
+    --pg-mismatch-border: #f97066;
+    --pg-badge-bg: #f2f4f7;
+    --pg-badge-text: #1a1a1a;
+    --pg-collapsed-bg: #262b35;
+    --pg-collapsed-border: #4a5160;
+  }
+}
+
+.plan-node-card {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  border: 2px solid var(--pg-card-border);
+  background: var(--pg-card-bg);
+  color: var(--pg-card-text);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 10px;
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+/* Mismatch is a distinct border treatment, never color alone (colorblind
+   accessibility requirement) — a thicker dashed border plus a text badge. */
+.plan-node-card--mismatch {
+  border-style: dashed;
+  border-width: 3px;
+  border-color: var(--pg-mismatch-border);
+}
+
+.plan-node-card__label {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-node-card__meta {
+  color: var(--pg-card-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-node-card__badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.plan-node-card__badge {
+  display: inline-block;
+  border-radius: 999px;
+  background: var(--pg-badge-bg);
+  color: var(--pg-badge-text);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.collapsed-group-node {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  border: 2px dashed var(--pg-collapsed-border);
+  background: var(--pg-collapsed-bg);
+  color: var(--pg-card-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: center;
+  padding: 4px;
+}
