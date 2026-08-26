@@ -137,7 +137,8 @@ describe("parseSnowflakeOperatorStats", () => {
       const e = err as PlanParseError
       expect(e.code).toBe("NOT_A_PLAN")
       expect(e.message).toContain("GET_QUERY_OPERATOR_STATS")
-      expect(e.message).not.toContain("01b2c3d4")
+      expect(e.message).not.toContain("lifetime_value")
+      expect(e.message).not.toContain("customer_id")
     }
   })
 
