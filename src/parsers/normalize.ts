@@ -12,11 +12,11 @@ export type Engine = "postgres" | "sqlserver" | "snowflake"
 export type PlanNodeRole = "main" | "init" | "sub"
 
 export interface Warning {
-  id: string
+  ruleId: string
   severity: "info" | "warning" | "critical"
-  shortText: string
-  longText: string
-  link?: string
+  shortText: string // beginner-depth default
+  longText: string // expert-depth / detail panel
+  learnMoreUrl?: string // link into existing @scalingbackend content, when available
 }
 
 export interface PlanNode {

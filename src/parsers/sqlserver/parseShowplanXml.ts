@@ -240,6 +240,18 @@ function buildNode(relOp: Element, counter: { next: number }, role: PlanNodeRole
     attributes["Actual Time Is Cumulated Across Threads"] = "true"
   }
 
+  // A tempdb spill (Sort/Hash ran out of memory grant) is reported as a
+  // direct-child <Warnings><SpillOccurred SpillCounter="N"/></Warnings> —
+  // promoted here since the rule engine's disk-spill rule needs an
+  // easily-checkable attribute, same pattern as Snowflake's spill promotion.
+  const warningsEl = findDirectChild(relOp, "Warnings")
+  const spillEl = warningsEl && findDirectChild(warningsEl, "SpillOccurred")
+  if (spillEl) {
+    attributes["Spill Occurred"] = "true"
+    const spillCounter = toFiniteNumber(spillEl.getAttribute("SpillCounter"))
+    if (spillCounter !== undefined) attributes["Spill Count"] = spillCounter
+  }
+
   const children = findChildRelOps(relOp).map((child) => buildNode(child, counter, role))
 
   return {

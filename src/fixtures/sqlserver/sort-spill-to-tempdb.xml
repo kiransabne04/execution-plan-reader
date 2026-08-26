@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM BigTable ORDER BY SomeColumn" StatementId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Sort" LogicalOp="Sort" EstimateRows="5000000" EstimatedTotalSubtreeCost="120.0">
+              <Warnings>
+                <SpillOccurred SpillCounter="1" />
+              </Warnings>
+              <RunTimeInformation>
+                <RunTimeCountersPerThread Thread="0" ActualRows="5000000" ActualExecutions="1" ActualElapsedms="8000" />
+              </RunTimeInformation>
+              <Sort>
+                <RelOp NodeId="1" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="5000000" EstimatedTotalSubtreeCost="40.0">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="5000000" ActualExecutions="1" ActualElapsedms="1500" />
+                  </RunTimeInformation>
+                  <TableScan>
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[BigTable]" />
+                  </TableScan>
+                </RelOp>
+              </Sort>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

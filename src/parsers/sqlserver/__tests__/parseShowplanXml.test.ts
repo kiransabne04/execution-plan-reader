@@ -98,6 +98,19 @@ describe("parseSqlServerShowplanXml", () => {
     expect(result.statements[1].root.rawOperatorLabel).toBe("Clustered Index Scan")
   })
 
+  it("promotes a tempdb spill (Warnings/SpillOccurred) to an easily-checkable attribute", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("sort-spill-to-tempdb.xml"))
+    const root = result.statements[0].root
+    expect(root.operatorType).toBe("sort")
+    expect(root.attributes["Spill Occurred"]).toBe("true")
+    expect(root.attributes["Spill Count"]).toBe(1)
+  })
+
+  it("does not flag a spill when none occurred", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("default-namespace-scan.xml"))
+    expect(result.statements[0].root.attributes["Spill Occurred"]).toBeUndefined()
+  })
+
   it("surfaces missing-index recommendations as a distinct, structured section", () => {
     const result = parseSqlServerShowplanXml(loadFixture("missing-index-recommendation.xml"))
     const [stmt] = result.statements

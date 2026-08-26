@@ -1,0 +1,23 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`applyRules > snapshot: exact warning set produced for a representative multi-issue plan 1`] = `
+[
+  {
+    "id": "join",
+    "ruleIds": [
+      "bad-row-estimate",
+    ],
+  },
+  {
+    "id": "scan",
+    "ruleIds": [
+      "seq-scan-on-large-table",
+      "bad-row-estimate",
+    ],
+  },
+  {
+    "id": "other-side",
+    "ruleIds": [],
+  },
+]
+`;
