@@ -1,0 +1,15 @@
+{
+  "queryText": "<redacted>",
+  "operators": [
+    {
+      "id": 1,
+      "operation": "TableScan",
+      "parentOperators": [],
+      "attributes": {
+        "table_name": "MY_DB.PUBLIC.ORDERS",
+        "sql_text": "<redacted>"
+      },
+      "statistics": { "output_rows": 1000 }
+    }
+  ]
+}

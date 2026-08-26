@@ -45,6 +45,7 @@ export interface PlanNode {
  */
 export type PlanParseErrorCode =
   | "EMPTY_INPUT"
+  | "EMPTY_RESULT"
   | "TRUNCATED_INPUT"
   | "NOT_A_PLAN"
   | "INVALID_JSON"

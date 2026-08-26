@@ -1,0 +1,37 @@
+[
+  {
+    "id": 0,
+    "operation": "TableScan",
+    "parentOperators": [1],
+    "attributes": { "table_name": "MY_DB.PUBLIC.ACTIVE_USERS" },
+    "statistics": { "output_rows": 300 }
+  },
+  {
+    "id": 1,
+    "operation": "WithClause",
+    "parentOperators": [3, 8],
+    "attributes": { "cte_name": "active_users" },
+    "statistics": { "output_rows": 300 }
+  },
+  {
+    "id": 3,
+    "operation": "Filter",
+    "parentOperators": [9],
+    "attributes": { "condition": "REGION = 'US'" },
+    "statistics": { "output_rows": 120 }
+  },
+  {
+    "id": 8,
+    "operation": "Filter",
+    "parentOperators": [9],
+    "attributes": { "condition": "REGION = 'EU'" },
+    "statistics": { "output_rows": 90 }
+  },
+  {
+    "id": 9,
+    "operation": "UnionAll",
+    "parentOperators": [],
+    "attributes": {},
+    "statistics": { "output_rows": 210 }
+  }
+]

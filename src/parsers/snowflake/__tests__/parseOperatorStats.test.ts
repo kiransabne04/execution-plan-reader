@@ -1,0 +1,158 @@
+import { describe, expect, it } from "vitest"
+import { parseSnowflakeOperatorStats } from "../index"
+import { PlanParseError, type PlanNode } from "../../normalize"
+import { loadFixture } from "./testUtils"
+
+function collect(node: PlanNode, out: PlanNode[] = [], seen = new Set<string>()): PlanNode[] {
+  // id-dedup walk — a shared multi-parent node must appear more than once
+  // structurally (once per parent) but should only be *counted* once.
+  if (!seen.has(node.id)) {
+    seen.add(node.id)
+    out.push(node)
+  }
+  node.children.forEach((c) => collect(c, out, seen))
+  return out
+}
+
+describe("parseSnowflakeOperatorStats", () => {
+  it("parses a single-operator plan and promotes output_rows", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
+    expect(root.engine).toBe("snowflake")
+    expect(root.rawOperatorLabel).toBe("TableScan")
+    expect(root.operatorType).toBe("seq_scan")
+    expect(root.actualRows).toBe(1000000)
+    expect(root.attributes["attr.table_name"]).toBe("MY_DB.PUBLIC.ORDERS")
+    // Execution time breakdown preserved per-component, not flattened.
+    expect(root.attributes["time.processing"]).toBe(80)
+    expect(root.attributes["time.local_disk_io"]).toBe(15)
+    expect(root.attributes["time.overall_percentage"]).toBe(100)
+  })
+
+  it("reconstructs a multi-level tree from flat ID/parent references", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("join-filter-aggregate.json"))
+    expect(root.rawOperatorLabel).toBe("Aggregate")
+    expect(root.children).toHaveLength(1)
+    const join = root.children[0]
+    expect(join.rawOperatorLabel).toBe("Join")
+    expect(join.operatorType).toBe("join")
+    expect(join.children).toHaveLength(2)
+    const labels = join.children.map((c) => c.rawOperatorLabel).sort()
+    expect(labels).toEqual(["Filter", "TableScan"])
+    const filter = join.children.find((c) => c.rawOperatorLabel === "Filter")!
+    expect(filter.children).toHaveLength(1)
+    expect(filter.children[0].rawOperatorLabel).toBe("TableScan")
+  })
+
+  it("handles a multi-parent operator (WithClause) without dropping or duplicating data", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("multi-parent-with-clause.json"))
+    expect(root.rawOperatorLabel).toBe("UnionAll")
+    expect(root.children).toHaveLength(2)
+    const [branchA, branchB] = root.children
+    expect(branchA.children).toHaveLength(1)
+    expect(branchB.children).toHaveLength(1)
+    const withClauseViaA = branchA.children[0]
+    const withClauseViaB = branchB.children[0]
+    // Same operator (same id), reachable via both parents — linked, not
+    // duplicated: it's the exact same object, not two independent copies.
+    expect(withClauseViaA.id).toBe("1")
+    expect(withClauseViaB.id).toBe("1")
+    expect(withClauseViaA).toBe(withClauseViaB)
+    expect(withClauseViaA.attributes["Multi Parent"]).toBe("true")
+    expect(withClauseViaA.attributes["Parent Operator Ids"]).toBe('["3","8"]')
+    // Deduplicated node count: 0(scan),1(withclause),3(filter),8(filter),9(union) = 5
+    expect(collect(root)).toHaveLength(5)
+  })
+
+  it("does not infinite-loop reconstructing a multi-parent DAG", () => {
+    const start = Date.now()
+    parseSnowflakeOperatorStats(loadFixture("multi-parent-with-clause.json"))
+    expect(Date.now() - start).toBeLessThan(1000)
+  })
+
+  it("promotes spill-to-remote/local-disk to an easily-checkable attribute", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("spill-to-remote-disk.json"))
+    expect(root.attributes["Spilled To Local Storage"]).toBe(104857600)
+    expect(root.attributes["Spilled To Remote Storage"]).toBe(52428800)
+  })
+
+  it("does not flag spill when none occurred", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
+    expect(root.attributes["Spilled To Local Storage"]).toBeUndefined()
+    expect(root.attributes["Spilled To Remote Storage"]).toBeUndefined()
+  })
+
+  it("detects and cleanly labels redacted query text instead of treating it as literal content", () => {
+    const { root, queryText, queryTextRedacted } = parseSnowflakeOperatorStats(
+      loadFixture("redacted-query-text.json"),
+    )
+    expect(queryText).toBe("<redacted>")
+    expect(queryTextRedacted).toBe(true)
+    expect(root.attributes["Query Text"]).toBe("query text redacted by account policy")
+    expect(root.attributes["Query Text Redacted"]).toBe("true")
+    // Raw value still preserved untouched alongside the promoted, cleaned form.
+    expect(root.attributes["attr.sql_text"]).toBe("<redacted>")
+  })
+
+  it("handles a very-high-partition-count TableScan without breaking numeric fields", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("high-partition-count-scan.json"))
+    expect(root.actualRows).toBe(48213000000)
+    expect(root.attributes["attr.partitions_total"]).toBe(84213)
+  })
+
+  it("tolerates a result-grid-style export with uppercase keys and stringified array/object columns", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("near-miss-grid-export.json"))
+    expect(root.rawOperatorLabel).toBe("Filter")
+    expect(root.children).toHaveLength(1)
+    expect(root.children[0].rawOperatorLabel).toBe("TableScan")
+    expect(root.children[0].attributes["attr.table_name"]).toBe("MY_DB.PUBLIC.ORDERS")
+    expect(root.actualRows).toBe(480)
+  })
+
+  it("falls back to 'unknown' operatorType for an unmapped operation, without throwing", () => {
+    const raw = JSON.stringify([{ id: 1, operation: "SomeBrandNewOperator", parentOperators: [] }])
+    const { root } = parseSnowflakeOperatorStats(raw)
+    expect(root.operatorType).toBe("unknown")
+    expect(root.rawOperatorLabel).toBe("SomeBrandNewOperator")
+  })
+
+  it("throws EMPTY_INPUT on empty/whitespace-only input", () => {
+    try {
+      parseSnowflakeOperatorStats("   \n  ")
+      expect.unreachable()
+    } catch (err) {
+      expect((err as PlanParseError).code).toBe("EMPTY_INPUT")
+    }
+  })
+
+  it("throws EMPTY_RESULT (distinct from EMPTY_INPUT) for a valid-but-empty operator list", () => {
+    try {
+      parseSnowflakeOperatorStats(loadFixture("empty-result.json"))
+      expect.unreachable()
+    } catch (err) {
+      expect(err).toBeInstanceOf(PlanParseError)
+      expect((err as PlanParseError).code).toBe("EMPTY_RESULT")
+    }
+  })
+
+  it("throws NOT_A_PLAN for pasted non-plan text, pointing at the correct function, without echoing raw content", () => {
+    try {
+      parseSnowflakeOperatorStats(loadFixture("non-plan-text.txt"))
+      expect.unreachable()
+    } catch (err) {
+      expect(err).toBeInstanceOf(PlanParseError)
+      const e = err as PlanParseError
+      expect(e.code).toBe("NOT_A_PLAN")
+      expect(e.message).toContain("GET_QUERY_OPERATOR_STATS")
+      expect(e.message).not.toContain("01b2c3d4")
+    }
+  })
+
+  it("throws NOT_A_PLAN for well-formed JSON that isn't operator-stats shaped", () => {
+    try {
+      parseSnowflakeOperatorStats('{"foo": "bar"}')
+      expect.unreachable()
+    } catch (err) {
+      expect((err as PlanParseError).code).toBe("NOT_A_PLAN")
+    }
+  })
+})

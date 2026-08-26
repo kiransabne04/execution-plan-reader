@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "operation": "TableScan",
+    "parentOperators": [],
+    "attributes": {
+      "table_name": "MY_DB.PUBLIC.EVENTS",
+      "partitions_total": 84213,
+      "partitions_assigned": 84213
+    },
+    "statistics": {
+      "output_rows": 48213000000,
+      "io": { "bytes_scanned": 9871234567890 }
+    }
+  }
+]

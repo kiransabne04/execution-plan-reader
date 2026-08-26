@@ -1,0 +1,25 @@
+[
+  {
+    "id": 1,
+    "operation": "Aggregate",
+    "parentOperators": [],
+    "attributes": { "group_by_columns": ["CUSTOMER_ID"] },
+    "statistics": {
+      "output_rows": 4200000,
+      "io": {
+        "bytes_scanned": 0,
+        "bytes_spilled_to_local_storage": 104857600,
+        "bytes_spilled_to_remote_storage": 52428800
+      }
+    },
+    "executionTimeBreakdown": {
+      "overall_percentage": 100,
+      "initialization": 0.5,
+      "processing": 30.0,
+      "synchronization": 1.0,
+      "local_disk_io": 40.0,
+      "remote_disk_io": 28.0,
+      "network_communication": 0.5
+    }
+  }
+]

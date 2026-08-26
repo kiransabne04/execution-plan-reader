@@ -1,0 +1,37 @@
+[
+  {
+    "id": 10,
+    "operation": "TableScan",
+    "parentOperators": [11],
+    "attributes": { "table_name": "MY_DB.PUBLIC.ORDERS" },
+    "statistics": { "output_rows": 5000 }
+  },
+  {
+    "id": 11,
+    "operation": "Filter",
+    "parentOperators": [13],
+    "attributes": { "condition": "TOTAL > 100" },
+    "statistics": { "output_rows": 480 }
+  },
+  {
+    "id": 12,
+    "operation": "TableScan",
+    "parentOperators": [13],
+    "attributes": { "table_name": "MY_DB.PUBLIC.CUSTOMERS" },
+    "statistics": { "output_rows": 800 }
+  },
+  {
+    "id": 13,
+    "operation": "Join",
+    "parentOperators": [14],
+    "attributes": { "join_type": "INNER", "equality_join_condition": "ORDERS.CUSTOMER_ID = CUSTOMERS.ID" },
+    "statistics": { "output_rows": 480 }
+  },
+  {
+    "id": 14,
+    "operation": "Aggregate",
+    "parentOperators": [],
+    "attributes": { "group_by_columns": ["CUSTOMERS.ID"] },
+    "statistics": { "output_rows": 480 }
+  }
+]

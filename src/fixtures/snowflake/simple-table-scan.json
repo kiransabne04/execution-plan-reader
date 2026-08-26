@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "operation": "TableScan",
+    "parentOperators": [],
+    "attributes": {
+      "table_name": "MY_DB.PUBLIC.ORDERS",
+      "columns": ["ID", "TOTAL"]
+    },
+    "statistics": {
+      "output_rows": 1000000,
+      "io": {
+        "bytes_scanned": 52428800,
+        "percentage_scanned_from_cache": 0.8
+      }
+    },
+    "executionTimeBreakdown": {
+      "overall_percentage": 100,
+      "initialization": 1.0,
+      "processing": 80.0,
+      "synchronization": 2.0,
+      "local_disk_io": 15.0,
+      "remote_disk_io": 1.5,
+      "network_communication": 0.5
+    }
+  }
+]

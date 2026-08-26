@@ -1,0 +1,16 @@
+[
+  {
+    "OPERATOR_ID": "1",
+    "PARENT_OPERATORS": "[2]",
+    "OPERATOR_TYPE": "TableScan",
+    "OPERATOR_ATTRIBUTES": "{\"table_name\": \"MY_DB.PUBLIC.ORDERS\"}",
+    "OPERATOR_STATISTICS": "{\"output_rows\": 1000}"
+  },
+  {
+    "OPERATOR_ID": "2",
+    "PARENT_OPERATORS": "",
+    "OPERATOR_TYPE": "Filter",
+    "OPERATOR_ATTRIBUTES": "{\"condition\": \"TOTAL > 100\"}",
+    "OPERATOR_STATISTICS": "{\"output_rows\": 480}"
+  }
+]
