@@ -1,18 +1,14 @@
 import { describe, expect, it } from "vitest"
 import { parsePostgresTextPlan } from "../textParser"
 import { parsePostgresJsonPlan } from "../parseJsonPlan"
-import { PlanParseError, type PlanNode } from "../../normalize"
+import { PlanParseError, collectNodes, type PlanNode } from "../../normalize"
 import { loadFixture } from "./testUtils"
 
 function countNodes(node: PlanNode): number {
-  return 1 + node.children.reduce((sum, child) => sum + countNodes(child), 0)
+  return collectNodes(node).length
 }
 
-function collect(node: PlanNode, out: PlanNode[] = []): PlanNode[] {
-  out.push(node)
-  node.children.forEach((c) => collect(c, out))
-  return out
-}
+const collect = collectNodes
 
 /** Core normalized shape only — attributes bags legitimately differ in
  * per-field type/coverage between JSON and TEXT (e.g. "Startup Cost" is a

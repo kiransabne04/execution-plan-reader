@@ -62,3 +62,23 @@ export class PlanParseError extends Error {
     this.position = position
   }
 }
+
+/**
+ * Depth-first walk collecting each node exactly once, deduped by `id`. Plain
+ * recursion would double-count a node reachable via more than one parent —
+ * Snowflake's multi-parent DAG nodes (see the snowflake-plan-parsing skill)
+ * are the case this matters for, but it's harmless (a no-op dedup) for the
+ * strict trees Postgres and SQL Server always produce.
+ */
+export function collectNodes(root: PlanNode): PlanNode[] {
+  const result: PlanNode[] = []
+  const seen = new Set<string>()
+  const walk = (node: PlanNode) => {
+    if (seen.has(node.id)) return
+    seen.add(node.id)
+    result.push(node)
+    node.children.forEach(walk)
+  }
+  walk(root)
+  return result
+}

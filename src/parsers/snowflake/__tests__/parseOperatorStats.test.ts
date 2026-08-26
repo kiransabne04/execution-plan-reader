@@ -1,18 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { parseSnowflakeOperatorStats } from "../index"
-import { PlanParseError, type PlanNode } from "../../normalize"
+import { PlanParseError, collectNodes } from "../../normalize"
 import { loadFixture } from "./testUtils"
 
-function collect(node: PlanNode, out: PlanNode[] = [], seen = new Set<string>()): PlanNode[] {
-  // id-dedup walk — a shared multi-parent node must appear more than once
-  // structurally (once per parent) but should only be *counted* once.
-  if (!seen.has(node.id)) {
-    seen.add(node.id)
-    out.push(node)
-  }
-  node.children.forEach((c) => collect(c, out, seen))
-  return out
-}
+// collectNodes dedupes by id, exactly what a multi-parent DAG node (a shared
+// reference appearing under more than one parent) needs: counted once, not
+// once per parent.
+const collect = collectNodes
 
 describe("parseSnowflakeOperatorStats", () => {
   it("parses a single-operator plan and promotes output_rows", () => {

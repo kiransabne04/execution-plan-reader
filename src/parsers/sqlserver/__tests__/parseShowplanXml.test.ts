@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { parseSqlServerShowplanXml } from "../parseShowplanXml"
-import { PlanParseError, type PlanNode } from "../../normalize"
+import { PlanParseError, collectNodes } from "../../normalize"
 import { loadFixture } from "./testUtils"
 
-function collect(node: PlanNode, out: PlanNode[] = []): PlanNode[] {
-  out.push(node)
-  node.children.forEach((c) => collect(c, out))
-  return out
-}
+const collect = collectNodes
 
 describe("parseSqlServerShowplanXml", () => {
   it("parses a simple scan and maps standard RelOp fields", () => {
