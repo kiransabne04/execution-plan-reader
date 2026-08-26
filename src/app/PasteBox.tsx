@@ -1,0 +1,42 @@
+import { useState, type FormEvent } from "react"
+import { PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
+
+export interface PasteBoxProps {
+  onAnalyze: (text: string) => void
+}
+
+/**
+ * The privacy statement lives directly above the textarea, not just in a
+ * footer/docs link — the trust decision happens right here (see the PEV2
+ * case in docs/07-additional-tool-limitations.md and the
+ * privacy-architecture skill).
+ */
+export function PasteBox({ onAnalyze }: PasteBoxProps) {
+  const [text, setText] = useState("")
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    if (text.trim().length === 0) return
+    onAnalyze(text)
+  }
+
+  return (
+    <form className="paste-box" onSubmit={handleSubmit}>
+      <p className="paste-box__privacy" data-testid="privacy-statement">
+        {PRIVACY_STATEMENT_SHORT}
+      </p>
+      <textarea
+        className="paste-box__textarea"
+        data-testid="paste-textarea"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        placeholder="Paste a Postgres EXPLAIN, SQL Server Showplan XML, or Snowflake operator-stats JSON…"
+        rows={12}
+        aria-label="Paste your execution plan"
+      />
+      <button type="submit" className="paste-box__submit" disabled={text.trim().length === 0}>
+        Analyze plan
+      </button>
+    </form>
+  )
+}

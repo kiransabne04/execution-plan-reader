@@ -1,0 +1,154 @@
+.plan-reader-page {
+  --pr-bg: #ffffff;
+  --pr-text: #1a1a1a;
+  --pr-text-muted: #667085;
+  --pr-border: #d0d5dd;
+  --pr-accent: #1a56db;
+  --pr-error-bg: #fef3f2;
+  --pr-error-text: #b42318;
+  --pr-badge-bg: #eef2ff;
+  --pr-badge-text: #1a56db;
+
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  color: var(--pr-text);
+  background: var(--pr-bg);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+  .plan-reader-page {
+    --pr-bg: #14161a;
+    --pr-text: #f2f4f7;
+    --pr-text-muted: #98a2b3;
+    --pr-border: #3a4150;
+    --pr-accent: #7fa5ff;
+    --pr-error-bg: #3a1f1d;
+    --pr-error-text: #f97066;
+    --pr-badge-bg: #1d2540;
+    --pr-badge-text: #7fa5ff;
+  }
+}
+
+.plan-reader-page__title {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+
+.plan-reader-page__tagline {
+  margin: 0 0 20px;
+  color: var(--pr-text-muted);
+}
+
+.paste-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.paste-box__privacy {
+  margin: 0;
+  font-size: 13px;
+  color: var(--pr-text-muted);
+}
+
+.paste-box__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 13px;
+  padding: 12px;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  background: var(--pr-bg);
+  color: var(--pr-text);
+  resize: vertical;
+}
+
+.paste-box__submit {
+  align-self: flex-start;
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: none;
+  background: var(--pr-accent);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.paste-box__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.plan-reader-page__error {
+  background: var(--pr-error-bg);
+  color: var(--pr-error-text);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.plan-reader-page__result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-reader-page__engine-badge {
+  align-self: flex-start;
+  background: var(--pr-badge-bg);
+  color: var(--pr-badge-text);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.plan-reader-page__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--pr-text-muted);
+  font-style: italic;
+}
+
+.plan-reader-page__statement-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.plan-reader-page__statement-tab {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--pr-border);
+  background: transparent;
+  color: var(--pr-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plan-reader-page__statement-tab[aria-selected="true"] {
+  background: var(--pr-accent);
+  border-color: var(--pr-accent);
+  color: white;
+}
+
+.plan-reader-page__summary {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.plan-reader-page__graph {
+  height: 520px;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
