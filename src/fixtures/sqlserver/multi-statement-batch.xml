@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Orders" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="100" EstimatedTotalSubtreeCost="0.5">
+              <TableScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+              </TableScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+        <StmtSimple StatementText="SELECT * FROM Customers" StatementId="2" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="800" EstimatedTotalSubtreeCost="0.3">
+              <IndexScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Customers]" Index="[PK_Customers]" />
+              </IndexScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

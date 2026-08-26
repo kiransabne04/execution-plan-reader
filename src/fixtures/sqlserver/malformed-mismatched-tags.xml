@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Orders" StatementId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Table Scan" EstimateRows="100" EstimatedTotalSubtreeCost="0.5">
+            </Batch>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

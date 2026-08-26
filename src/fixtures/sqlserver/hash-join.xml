@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Orders o JOIN Customers c ON c.Id = o.CustomerId" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Hash Match" LogicalOp="Inner Join" EstimateRows="480" EstimatedTotalSubtreeCost="2.1">
+              <Hash>
+                <RelOp NodeId="1" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="5000" EstimatedTotalSubtreeCost="1.2">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="5000" ActualExecutions="1" ActualElapsedms="8" />
+                  </RunTimeInformation>
+                  <TableScan>
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+                  </TableScan>
+                </RelOp>
+                <RelOp NodeId="2" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="800" EstimatedTotalSubtreeCost="0.6">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="800" ActualExecutions="1" ActualElapsedms="3" />
+                  </RunTimeInformation>
+                  <TableScan>
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Customers]" />
+                  </TableScan>
+                </RelOp>
+              </Hash>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

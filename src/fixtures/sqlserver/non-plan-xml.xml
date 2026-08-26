@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Customers>
+  <Customer id="1" name="Acme Corp" />
+  <Customer id="2" name="Globex" />
+</Customers>

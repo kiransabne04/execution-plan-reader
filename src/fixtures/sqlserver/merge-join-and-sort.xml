@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM A JOIN B ON A.Id = B.AId ORDER BY A.Id" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Merge Join" LogicalOp="Inner Join" EstimateRows="200" EstimatedTotalSubtreeCost="1.8">
+              <Merge>
+                <RelOp NodeId="1" PhysicalOp="Sort" LogicalOp="Sort" EstimateRows="1000" EstimatedTotalSubtreeCost="1.0">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="1000" ActualExecutions="1" ActualElapsedms="15" />
+                  </RunTimeInformation>
+                  <Sort>
+                    <RelOp NodeId="2" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="1000" EstimatedTotalSubtreeCost="0.4">
+                      <RunTimeInformation>
+                        <RunTimeCountersPerThread Thread="0" ActualRows="1000" ActualExecutions="1" ActualElapsedms="5" />
+                      </RunTimeInformation>
+                      <TableScan>
+                        <Object Database="[MyDb]" Schema="[dbo]" Table="[A]" />
+                      </TableScan>
+                    </RelOp>
+                  </Sort>
+                </RelOp>
+                <RelOp NodeId="3" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="1000" EstimatedTotalSubtreeCost="0.3">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="1000" ActualExecutions="1" ActualElapsedms="4" />
+                  </RunTimeInformation>
+                  <IndexScan>
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[B]" Index="[PK_B]" />
+                  </IndexScan>
+                </RelOp>
+              </Merge>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>
