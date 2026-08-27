@@ -63,6 +63,32 @@ describe("parseSqlServerShowplanXml", () => {
     expect(root.children[0].index?.type).toBe("nonclustered")
     expect(root.children[0].index?.name).toBe("[IX_Orders_CustomerId]")
     expect(root.children[1].index?.type).toBe("clustered")
+    expect(root.children[1].index?.name).toBe("[PK_Orders]")
+    // The join itself (Nested Loops) has no Object of its own — confirms
+    // findNearestDescendant doesn't cross into a child RelOp's subtree and
+    // leak one child's index onto the parent (docs/11-manual-testing-gaps-
+    // episode8.md's open index-name item).
+    expect(root.index).toBeUndefined()
+  })
+
+  // Same open item, harder case: a DML operator (Update/Insert/Delete/Merge)
+  // nests its own Object as a SIBLING of a child RelOp under one wrapper
+  // element, rather than Object being the child RelOp's only detail content
+  // (as in the Index Seek/Key Lookup fixture above). This is the shape most
+  // likely to leak one node's index onto the other if the RelOp boundary
+  // check were ever off by one level.
+  it("attributes each of an Update's own index and its source seek's index correctly, without cross-contamination", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("update-with-source-seek.xml"))
+    const root = result.statements[0].root
+    expect(root.rawOperatorLabel).toBe("Clustered Index Update")
+    expect(root.index?.name).toBe("[PK_Orders]")
+    expect(root.index?.type).toBe("clustered")
+
+    expect(root.children).toHaveLength(1)
+    const seek = root.children[0]
+    expect(seek.rawOperatorLabel).toBe("Index Seek")
+    expect(seek.index?.name).toBe("[IX_Orders_CustomerId]")
+    expect(seek.index?.type).toBe("nonclustered")
   })
 
   it("extracts predicate.indexCondition from SeekPredicates and predicate.filter from Predicate", () => {

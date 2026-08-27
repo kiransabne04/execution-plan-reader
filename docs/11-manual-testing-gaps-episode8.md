@@ -214,6 +214,12 @@ fix — worth raising with whoever owns that call rather than guessing at new UI
 
 ## Remaining open items
 
-- SQL Server index-name (`Object/@Index`) extraction: not exercised by the Gap 2/3 repro XML
-  (it had no `Object` elements at all). Still worth a dedicated fixture if a future
-  manual-testing pass surfaces that symptom specifically.
+None. The last open item — SQL Server index-name (`Object/@Index`) extraction, unexercised by
+the Gap 2/3 repro XML — was closed by audit: `findNearestDescendant`'s RelOp-boundary logic
+(parseShowplanXml.ts) was already correct, just under-asserted. Strengthened
+`seek-and-key-lookup.xml`'s test with an explicit "parent RelOp has no leaked index" check, and
+added `update-with-source-seek.xml` — a DML operator (Update) whose own `Object` sits as a
+*sibling* of a nested child RelOp under one wrapper, the shape most likely to leak one node's
+index onto the other if the boundary check were ever off by one level. Confirmed no bug:
+parent and child each get their own correct, uncontaminated index name/type. 478/478 tests
+pass, lint clean.
