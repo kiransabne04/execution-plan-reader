@@ -60,8 +60,11 @@ A visual that can't be explored is barely better than a static screenshot — th
 - As a user trying to explain a finding to a teammate, I want to export the current graph view as an image, so I can drop it into Slack or a PR description without needing the full sharing/publish feature.
 - As a user comparing the plan to the query that produced it, I want clicking a node to highlight the relevant part of my original query text, so I don't have to mentally map plan structure back onto SQL myself.
 - As a keyboard-oriented user, I want to navigate between nodes and trigger search without reaching for the mouse, so the tool is fast to use and consistent with accessibility expectations.
+- As a beginner, I want clicking a node to explain what that *type* of operator generally means, not just show me its numbers, so the tool teaches me while it helps me, rather than assuming I already know the vocabulary.
+- As a user reading a node's detail, I want general education about the operator type kept visually distinct from the specific finding about my node, so I don't mistake a general fact for a diagnosis of my actual problem.
+- As a user looking at a node affected by parallelism or repeated loops, I want to see both the raw cumulated time and an approximate per-execution time, clearly labeled as different things, so I never have to guess which number reflects reality.
 
-Full acceptance criteria, testing approach, and edge cases for each of these live in the Episodes & Stories document (Episode 6, extended).
+Full acceptance criteria, testing approach, and edge cases for each of these live in the Episodes & Stories document (Episode 6, Stories 6.1–6.2).
 
 ## 7. Success metrics
 

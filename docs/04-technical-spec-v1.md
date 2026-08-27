@@ -36,6 +36,8 @@ PlanNode {
 ```
 Keeping `rawOperatorLabel` and the full untouched `attributes` bag alongside the normalized fields matters: it means Phase 2 engines (MySQL, etc.) or a Phase 2 "show me the raw engine output for this node" feature never lose information to the normalization step, and it makes the rule engine's job (below) engine-agnostic wherever possible while still allowing engine-specific rules where operator vocabularies diverge too much to unify (e.g. Snowflake's spill/remote-disk-IO breakdown has no clean Postgres or SQL Server equivalent).
 
+**Extended model for predicates, index detail, join type, buffers, spill, and cache**: the base shape above is extended with promoted, normalized sub-fields (`predicate`, `index`, `join`, `io`, `spill`, `pruning`, `parallel`) covering exactly the categories the detail panel (Story 6.2) needs to render without reaching into engine-specific raw keys. The full per-engine field-level mapping — which raw field on each engine maps to which normalized field, and where an engine simply has no equivalent (e.g. Postgres has no reliable index-type field, Snowflake has no abstract cost-unit concept) — is documented in `docs/10-node-stats-field-catalog.md`. Treat that document as the authoritative source for this part of the model; it supersedes the abbreviated `PlanNode` shape shown here.
+
 Each engine parser is a pure function: `rawPlanText -> PlanNode` (or throws a structured parse error with a "here's what looks wrong" message — this itself is a UX opportunity, since malformed pastes are a top source of first-run frustration in every tool reviewed).
 
 **Parsing robustness is not optional polish — it's a Must-have.** Real-world evidence from existing tools' own issue trackers shows naive parsing fails routinely, not rarely:
@@ -89,6 +91,28 @@ The graph is not a static render — interactivity is core to the product, not a
 - **Keyboard navigation**: standard focus-management patterns (arrow keys move a "current node" pointer through the tree, `Enter`/`Space` opens the detail panel, `/` focuses the search input, `Escape` closes overlays) — implemented and tested as its own concern, not assumed to fall out of mouse-oriented component design for free.
 - **Image export**: render the current graph view to canvas/SVG and trigger a download (a well-established browser pattern, no server round-trip needed) — keeps this feature inside the "fully client-side" privacy architecture described in §6.
 - **Theme toggle**: implemented via CSS custom properties / design tokens from the start (per the frontend-design conventions used elsewhere in the stack) so dark/light isn't a late retrofit requiring a full styling pass.
+
+### 3.2 Operator glossary — content architecture
+
+The rich node detail panel (PRD §6a, Episodes doc Story 6.2) depends on a genuine content asset, not just a rendering component: a plain-language definition for every normalized `operatorType`. This is the single biggest lever for making PlanReader's explanation layer better than every competitor reviewed — pgMustard's advice is good but Postgres-only and paywalled after five plans; no tool in the competitive set explains *what an operator is* in addition to *what's wrong with it*.
+
+**Data model:**
+```ts
+interface OperatorGlossaryEntry {
+  operatorType: string              // matches the normalized taxonomy (plan-normalization skill)
+  displayName: string                // "Sequential Scan", not the raw engine label
+  shortDefinition: string            // 1-2 sentences, Beginner-mode default
+  longDefinition: string             // fuller paragraph, Expert-mode default
+  whenItsFine: string                // general "this is often the right choice when..."
+  whenToLookCloser: string           // general "this is worth a second look when..."
+  learnMoreUrl?: string              // link into existing @scalingbackend content
+}
+```
+Kept deliberately separate from `Warning` (rule-engine skill): a `Warning` is a specific finding about *this node in this plan*; a glossary entry is general, static, engine-and-plan-independent education about the operator type itself. The detail panel renders both, but must never let their content blur together (see Story 6.2's explicit "In general" vs. "Why this might matter here" section split) — conflating a general fact with a specific diagnosis is the same false-confidence failure mode the parameter-sensitivity honesty note exists to prevent elsewhere in the rule engine.
+
+**Coverage strategy**: author glossary entries for the highest-frequency operator types first (scans, all join types, sort, aggregate, filter, limit — roughly the same set the MVP rule engine already covers in Episode 5), then expand using the same "seen but unmapped" tracking mechanism already used for the operator-mapping tables (`plan-normalization` skill) — an operator type showing up in real fixture or soft-launch traffic without a glossary entry is a tracked content gap, same discipline as a tracked mapping gap. Any `operatorType` without a glossary entry (including the explicit `unknown` fallback from the normalization layer) must render a graceful fallback state in the panel, never a blank or broken section.
+
+**Authoring approach**: this is credibility-bearing content — it's reasonable to draft entries quickly with LLM assistance for a first pass, but each entry should get a real review pass against Kiran's own working DBA knowledge before shipping, the same way the MVP rule set gets a manual review pass in Episode 5's testing approach. Getting an operator's plain-language definition subtly wrong is a worse outcome than not having an entry yet (the fallback state is honest; a confidently wrong definition isn't).
 
 ## 4. Recommended tech stack
 

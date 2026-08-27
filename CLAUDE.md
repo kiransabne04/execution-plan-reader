@@ -26,6 +26,7 @@ discussion first — see `.claude/skills/privacy-architecture/SKILL.md`.**
 - `.claude/skills/plan-normalization/` — `src/parsers/normalize.ts`, operator mapping tables
 - `.claude/skills/rule-engine-authoring/` — `src/rules/`
 - `.claude/skills/graph-visualization/` — `src/graph/`
+- `.claude/skills/operator-glossary-content/` — `src/graph/glossary/` (plain-language operator definitions)
 - `.claude/skills/privacy-architecture/` — any network call, logging, or error-handling change, anywhere
 
 ## Conventions
@@ -50,3 +51,4 @@ treat the edge-case table as a checklist, not optional background reading.
 - `docs/07-additional-tool-limitations.md` — real-world evidence behind many edge cases
 - `docs/08-episodes-and-stories.md` — the buildable backlog
 - `docs/09-local-dev-setup.md`
+- `docs/10-node-stats-field-catalog.md` — per-engine field mapping for predicates, indexes, joins, costs, buffers, spill, cache, time, rows; authoritative source for the detail panel's data model

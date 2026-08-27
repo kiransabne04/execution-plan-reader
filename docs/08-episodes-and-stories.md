@@ -216,6 +216,49 @@ As a user, I want to see the plan as a visual tree where the "hot" nodes are imm
 | Mobile/narrow viewport rendering | The product must be usable from a phone (per positioning brief mobile-usability requirement) | Test dagre layout and pan/zoom interaction specifically at mobile widths, not just desktop |
 | Single-node plans (trivial queries) | Degenerate case for a layout engine built for trees | Still renders cleanly, no layout engine errors on a 1-node graph |
 
+### Story 6.2 — Rich node detail panel with operator glossary
+
+**Goal**: When a node is clicked, the detail panel becomes the tool's single best differentiator — not just a dump of raw stats, but a genuine explanation of *what this operator is*, *what this specific node's numbers mean*, and *why it matters here*. This is where "eliminate the limitations found in every competitor reviewed" concentrates: node-to-query correlation that every existing tool calls "rudimentary," the cumulated-timing confusion no tool labels clearly, and the beginner-vs-expert gap no single tool bridges.
+
+As a beginner, I want clicking a node to explain what that operator type actually *is* in plain language, not just show me its numbers, so I can learn while I debug instead of having to look the term up elsewhere.
+
+As any user, I want the panel to clearly separate "what this operator generally means" from "what's notable about *this specific node*," so I don't confuse general education with a diagnosis of my actual problem.
+
+As a user looking at a node with `loops > 1` or parallel-worker data, I want the panel to show both the raw cumulated figure and the per-execution figure side by side, explicitly labeled, so I never have to wonder which number is the "real" one.
+
+**Panel structure (in display order)**
+1. **Header**: normalized display name + `rawOperatorLabel` + engine badge (so a user always sees both the friendly name and exactly what their engine called it).
+2. **What this does**: 1–2 sentence plain-language definition from the operator glossary (see below), expandable to a fuller paragraph. Collapsed by default in Beginner mode, expanded by default in Expert mode.
+3. **This node's numbers**: a stats table — estimated vs. actual rows (with the percentage deviation highlighted if it crosses the mismatch threshold used by the rule engine), cost (startup/total, where the engine has a comparable concept), time, loop count, buffer/IO/cache stats where available, predicates and filter/index conditions, index name and type where available, and logical join type where applicable. The full per-field, per-engine mapping — including which fields each engine simply doesn't expose, and how the panel should honestly state that — is specified in `docs/10-node-stats-field-catalog.md`; this section's implementation must follow that catalog exactly rather than improvising field names or filling gaps with guesses. Any cumulated parallel-worker or multi-thread timing (see the field catalog's precision note — this is primarily a worker/thread-summation concern, most pronounced on SQL Server's per-thread `ActualElapsedms`, not a Postgres loop-averaging concern) is shown as **two explicit rows**, never one ambiguous number: "Total (cumulated across N workers/threads): Xms" and "Per-execution (approx): Yms."
+4. **Why this might matter here**: the specific `Warning[]` that fired for *this* node, reusing `Warning.shortText`/`longText` from the rule engine (Beginner/Expert toggle applies here, same as the walkthrough mode). This section is empty/absent when no warning fired for the node — not padded with generic content to avoid looking empty.
+5. **In general**: the glossary's "when this is typically fine" / "when this is typically worth a second look" content — kept visually and structurally distinct from section 4, since one is general education and the other is a specific finding about this plan. Conflating them is exactly the kind of false-confidence problem the parameter-sensitivity honesty note (Episode 5) already guards against elsewhere.
+6. **Contribution to the plan**: this node's cost/time as a percentage of the total plan — a number no competitor tool surfaces clearly, and a fast answer to "how much does fixing this actually matter."
+7. **Query correlation**: highlights the corresponding clause in the original query text when available (see `graph-visualization` skill — additive, not required). When unavailable (no query text captured, or Snowflake redaction), the panel states plainly *why* it's unavailable rather than just omitting the section silently.
+8. **Raw attributes**: the untouched `attributes` bag, collapsed by default, Expert-mode-visible — the escape hatch for anyone who wants to see exactly what the engine reported with nothing normalized away.
+
+**Acceptance criteria**
+- Every normalized `operatorType` has a glossary entry; any `operatorType` resolving to `unknown` (see `plan-normalization` skill) shows the raw label plus a plain "we don't have a detailed explanation for this operator yet" state — never blank, broken, or silently missing the section.
+- Sections 4 and 5 are visually distinct enough that a usability read-through confirms testers don't confuse "general fact about this operator type" with "something specific is wrong with my plan."
+- Contribution-to-plan percentage never renders as `NaN%` or a nonsensical value on trivial/degenerate plans (single-node plans show 100% by definition; zero-total-cost plans show a graceful fallback, not a divide-by-zero artifact).
+- Cumulated vs. per-execution time distinction renders correctly against the parallel-worker and multi-loop fixtures already in the library from Episodes 1–3.
+
+**Testing approach**
+- Snapshot/unit tests: for a representative fixture per engine, assert the panel renders all eight sections with the expected content for at least one node with warnings and one node without.
+- Glossary coverage test: every `operatorType` value appearing anywhere in the fixture library resolves to a real glossary entry or the explicit fallback state — run as a suite-wide check, same pattern as the normalization-layer's "seen but unmapped" tracking (a glossary gap and a normalization gap are different kinds of gaps, but both should be tracked from the same "operator seen without full support" signal).
+- Manual usability pass: have a non-DBA read sections 4 and 5 on the same node and confirm they can articulate the difference between them in their own words.
+- Accessibility test: panel opens via `Enter`/`Space` on a focused node (per the keyboard-navigation requirement), each section has a proper heading level for screen readers, and the panel doesn't trap focus.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| `operatorType: "unknown"` (unmapped operator) | No glossary entry exists yet | Graceful fallback state, never a blank/broken panel; logged to the same "seen but unmapped" tracking used by the normalization layer |
+| Node with zero fired warnings | Section 4 would otherwise look broken/empty | Section 4 omitted entirely for that node, not padded with filler text |
+| Trivial single-node plan | Contribution-to-plan percentage is degenerate (100% by definition, or undefined if total cost is 0) | Explicit handling, never `NaN%` |
+| Node from an estimate-only plan (no `ANALYZE`) | No actual time/rows to show | Stats table explicitly states "no actual run data available for this node" rather than showing blank or zero values that look like real data |
+| `BitmapAnd`/`BitmapOr` nodes with `actual rows = 0` | Known benign Postgres quirk (see `postgres-plan-parsing` skill) | Glossary/stats section proactively explains this is expected behavior for this operator type, so it doesn't read as missing data |
+| Redacted Snowflake query text | Section 7 (query correlation) has nothing to correlate against | State the reason plainly ("query text redacted by account policy") rather than silently omitting the section |
+| Rapid clicking across many nodes in a large plan | Panel re-render performance | Panel content should be cheap to swap (derive from already-computed `PlanNode`/`Warning[]` data, no re-computation of layout or re-fetch of glossary content per click) |
+
 ---
 
 ## Episode 7 — Privacy & client-side architecture

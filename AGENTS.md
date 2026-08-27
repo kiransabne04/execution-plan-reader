@@ -26,6 +26,7 @@ discussion first.**
 - `.claude/skills/plan-normalization/` — `src/parsers/normalize.ts`, operator mapping tables
 - `.claude/skills/rule-engine-authoring/` — `src/rules/`
 - `.claude/skills/graph-visualization/` — `src/graph/`
+- `.claude/skills/operator-glossary-content/` — `src/graph/glossary/` (plain-language operator definitions)
 - `.claude/skills/privacy-architecture/` — any network call, logging, or error-handling change, anywhere
 
 ## Review guidelines
@@ -40,6 +41,7 @@ When reviewing a PR in this repository:
   without a corresponding negative-case test (a rule that only proves it *can*
   fire, not that it doesn't misfire, is incompletely tested).
 - Confirm the LLM narrative mode's opt-in default is not flipped to "on" by any change.
+- Flag any glossary entry (`src/graph/glossary/`) that references a specific plan's numbers or "this node" rather than staying general — that content belongs in a rule's `Warning` text, not the glossary (see `operator-glossary-content` skill).
 
 ## Conventions
 - Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`)
