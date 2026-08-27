@@ -3,24 +3,39 @@
   <BatchSequence>
     <Batch>
       <Statements>
-        <StmtSimple StatementText="SELECT * FROM Orders WHERE CustomerId = 42" StatementId="1" StatementCompId="1">
+        <StmtSimple StatementText="SELECT * FROM Orders o LEFT JOIN Notes n ON n.OrderId = o.Id WHERE o.CustomerId = 42" StatementId="1" StatementCompId="1">
           <QueryPlan>
-            <RelOp NodeId="0" PhysicalOp="Nested Loops" LogicalOp="Inner Join" EstimateRows="5" EstimatedTotalSubtreeCost="0.9">
+            <RelOp NodeId="0" PhysicalOp="Nested Loops" LogicalOp="Left Outer Join" EstimateRows="5" EstimatedTotalSubtreeCost="0.9">
               <NestedLoops>
                 <RelOp NodeId="1" PhysicalOp="Index Seek" LogicalOp="Index Seek" EstimateRows="5" EstimatedTotalSubtreeCost="0.3">
                   <RunTimeInformation>
-                    <RunTimeCountersPerThread Thread="0" ActualRows="5" ActualExecutions="1" ActualElapsedms="1" />
+                    <RunTimeCountersPerThread Thread="0" ActualRows="5" ActualExecutions="1" ActualElapsedms="1" ActualLogicalReads="12" ActualPhysicalReads="2" />
                   </RunTimeInformation>
                   <IndexScan Lookup="0">
-                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[IX_Orders_CustomerId]" />
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[IX_Orders_CustomerId]" IndexKind="NonClustered" />
+                    <SeekPredicates>
+                      <SeekPredicateNew>
+                        <Prefix>
+                          <RangeColumns>
+                            <ColumnReference Column="CustomerId" />
+                          </RangeColumns>
+                          <RangeExpressions>
+                            <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[CustomerId]=(42)" />
+                          </RangeExpressions>
+                        </Prefix>
+                      </SeekPredicateNew>
+                    </SeekPredicates>
                   </IndexScan>
                 </RelOp>
                 <RelOp NodeId="2" PhysicalOp="Key Lookup" LogicalOp="Key Lookup" EstimateRows="1" EstimatedTotalSubtreeCost="0.5">
                   <RunTimeInformation>
-                    <RunTimeCountersPerThread Thread="0" ActualRows="5" ActualExecutions="5" ActualElapsedms="4" />
+                    <RunTimeCountersPerThread Thread="0" ActualRows="5" ActualRowsRead="8" ActualExecutions="5" ActualElapsedms="4" />
                   </RunTimeInformation>
                   <IndexScan Lookup="1">
-                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[PK_Orders]" />
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[PK_Orders]" IndexKind="Clustered" />
+                    <Predicate>
+                      <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[Status]='active'" />
+                    </Predicate>
                   </IndexScan>
                 </RelOp>
               </NestedLoops>

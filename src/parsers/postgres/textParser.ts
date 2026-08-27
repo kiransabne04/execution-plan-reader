@@ -11,6 +11,7 @@
 
 import { PlanParseError, type PlanNode, type PlanNodeRole } from "../normalize"
 import { cleanup } from "./cleanup"
+import { derivePostgresExtendedFields } from "./extendedFields"
 import { mapPostgresOperatorType } from "./operatorMap"
 
 interface ParsedHeader {
@@ -122,7 +123,23 @@ export function parsePostgresTextPlan(rawInput: string): PlanNode {
     )
   }
 
+  // Detail lines (Filter:, Hash Cond:, Rows Removed by Filter:, ...) attach
+  // to a node's attributes AFTER it's created (they're separate lines
+  // following the header) — so the extended-field derivation has to run as
+  // a post-pass over the finished tree, once every node's attributes bag
+  // is actually complete, not at node-creation time.
+  applyExtendedFieldsToTree(root)
+
   return root
+}
+
+function applyExtendedFieldsToTree(root: PlanNode): void {
+  const stack = [root]
+  while (stack.length > 0) {
+    const node = stack.pop()!
+    Object.assign(node, derivePostgresExtendedFields(node.attributes, node.actualTimeMs))
+    stack.push(...node.children)
+  }
 }
 
 /** A line with an opening "(cost=" but a mismatched paren count is a strong,

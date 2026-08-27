@@ -5,6 +5,7 @@
 
 import { PlanParseError, type PlanNode, type PlanNodeRole } from "../normalize"
 import { cleanup } from "./cleanup"
+import { derivePostgresExtendedFields } from "./extendedFields"
 import { isDuplicateKeyMerge, parseLosslessJson } from "./losslessJsonParse"
 import { mapPostgresOperatorType } from "./operatorMap"
 
@@ -129,6 +130,8 @@ function buildNode(raw: RawPlan, counter: { next: number }, role: PlanNodeRole):
     attributes[key] = toAttributeValue(value)
   }
 
+  const extended = derivePostgresExtendedFields(attributes, actualTimeMs)
+
   return {
     id,
     engine: "postgres",
@@ -143,6 +146,7 @@ function buildNode(raw: RawPlan, counter: { next: number }, role: PlanNodeRole):
     children,
     attributes,
     warnings: [],
+    ...extended,
   }
 }
 

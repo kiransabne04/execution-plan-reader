@@ -7,7 +7,7 @@
           <QueryPlan>
             <RelOp NodeId="0" PhysicalOp="Sort" LogicalOp="Sort" EstimateRows="5000000" EstimatedTotalSubtreeCost="120.0">
               <Warnings>
-                <SpillOccurred SpillCounter="1" />
+                <SpillToTempDb SpillLevel="1" />
               </Warnings>
               <RunTimeInformation>
                 <RunTimeCountersPerThread Thread="0" ActualRows="5000000" ActualExecutions="1" ActualElapsedms="8000" />

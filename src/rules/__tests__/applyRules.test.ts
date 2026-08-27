@@ -42,7 +42,8 @@ describe("applyRules", () => {
       operatorType: "seq_scan",
       actualRows: 1_000_000,
       // seq-scan-on-large-table (warning) + disk-spill (critical) on the same node
-      attributes: { "Object.Table": "[T]", "Spill Occurred": "true" },
+      attributes: { "Object.Table": "[T]" },
+      spill: { occurred: true },
     })
     applyRules(node, buildPlanContext(node))
     expect(node.warnings.map((w) => w.severity)).toEqual(["critical", "warning"])

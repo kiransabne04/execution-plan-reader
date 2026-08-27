@@ -52,6 +52,40 @@ describe("parseSqlServerShowplanXml", () => {
     expect(root.children[1].loops).toBe(5) // ActualExecutions
   })
 
+  it("normalizes join.logicalType from LogicalOp text", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
+    expect(result.statements[0].root.join?.logicalType).toBe("left_outer")
+  })
+
+  it("promotes index.type from the Object element's IndexKind attribute", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
+    const root = result.statements[0].root
+    expect(root.children[0].index?.type).toBe("nonclustered")
+    expect(root.children[0].index?.name).toBe("[IX_Orders_CustomerId]")
+    expect(root.children[1].index?.type).toBe("clustered")
+  })
+
+  it("extracts predicate.indexCondition from SeekPredicates and predicate.filter from Predicate", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
+    const root = result.statements[0].root
+    expect(root.children[0].predicate?.indexCondition).toContain("CustomerId]=(42)")
+    expect(root.children[1].predicate?.filter).toContain("Status]='active'")
+  })
+
+  it("promotes io.bufferHits/bufferReads (derived from logical/physical reads) with an approximate cacheHitRatio", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
+    const seek = result.statements[0].root.children[0]
+    expect(seek.io?.bufferReads).toBe(2)
+    expect(seek.io?.bufferHits).toBe(10) // 12 logical - 2 physical
+    expect(seek.io?.cacheHitRatio).toBeCloseTo(10 / 12)
+  })
+
+  it("derives rowsRemovedByFilter from ActualRowsRead vs ActualRows", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
+    const keyLookup = result.statements[0].root.children[1]
+    expect(keyLookup.rowsRemovedByFilter).toBe(3) // 8 read - 5 returned
+  })
+
   it("disambiguates Hash Match into hash_join via LogicalOp", () => {
     const result = parseSqlServerShowplanXml(loadFixture("hash-join.xml"))
     const root = result.statements[0].root
@@ -81,6 +115,20 @@ describe("parseSqlServerShowplanXml", () => {
     expect(scan.actualTimeMs).toBe(38 + 41 + 39)
   })
 
+  it("promotes parallel.workersLaunched and derives an approximate per-execution time from the thread count", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("parallelism-multi-thread.xml"))
+    const scan = result.statements[0].root.children[0]
+    expect(scan.parallel?.workersLaunched).toBe(3)
+    const totalMs = 38 + 41 + 39
+    expect(scan.actualTimePerExecutionMs).toBeCloseTo(totalMs / 3)
+  })
+
+  it("sets actualTimePerExecutionMs equal to actualTimeMs when there's no parallelism or looping", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("default-namespace-scan.xml"))
+    const root = result.statements[0].root
+    expect(root.actualTimePerExecutionMs).toBe(root.actualTimeMs)
+  })
+
   it("does not crash when RunTimeInformation is entirely absent (estimated plan)", () => {
     const result = parseSqlServerShowplanXml(loadFixture("estimated-plan-only.xml"))
     const root = result.statements[0].root
@@ -98,17 +146,20 @@ describe("parseSqlServerShowplanXml", () => {
     expect(result.statements[1].root.rawOperatorLabel).toBe("Clustered Index Scan")
   })
 
-  it("promotes a tempdb spill (Warnings/SpillOccurred) to an easily-checkable attribute", () => {
+  it("promotes a tempdb spill (Warnings/SpillToTempDb) to an easily-checkable attribute and spill.occurred", () => {
     const result = parseSqlServerShowplanXml(loadFixture("sort-spill-to-tempdb.xml"))
     const root = result.statements[0].root
     expect(root.operatorType).toBe("sort")
     expect(root.attributes["Spill Occurred"]).toBe("true")
-    expect(root.attributes["Spill Count"]).toBe(1)
+    expect(root.attributes["Spill Level"]).toBe(1)
+    expect(root.spill?.occurred).toBe(true)
+    expect(root.spill?.detail).toBe("spill level 1")
   })
 
   it("does not flag a spill when none occurred", () => {
     const result = parseSqlServerShowplanXml(loadFixture("default-namespace-scan.xml"))
     expect(result.statements[0].root.attributes["Spill Occurred"]).toBeUndefined()
+    expect(result.statements[0].root.spill).toBeUndefined()
   })
 
   it("surfaces missing-index recommendations as a distinct, structured section", () => {

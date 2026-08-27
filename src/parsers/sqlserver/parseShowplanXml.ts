@@ -13,7 +13,14 @@
 // by the time they reach this function — file-vs-paste is a UI-layer
 // concern, not a parser one.
 
-import { PlanParseError, type PlanNode, type PlanNodeRole } from "../normalize"
+import {
+  computeCacheHitRatio,
+  normalizeJoinLogicalType,
+  PlanParseError,
+  type IndexInfo,
+  type PlanNode,
+  type PlanNodeRole,
+} from "../normalize"
 import { mapSqlServerOperatorType } from "./operatorMap"
 
 export interface MissingIndexRecommendation {
@@ -241,16 +248,70 @@ function buildNode(relOp: Element, counter: { next: number }, role: PlanNodeRole
   }
 
   // A tempdb spill (Sort/Hash ran out of memory grant) is reported as a
-  // direct-child <Warnings><SpillOccurred SpillCounter="N"/></Warnings> —
+  // direct-child <Warnings><SpillToTempDb SpillLevel="N"/></Warnings> —
   // promoted here since the rule engine's disk-spill rule needs an
   // easily-checkable attribute, same pattern as Snowflake's spill promotion.
   const warningsEl = findDirectChild(relOp, "Warnings")
-  const spillEl = warningsEl && findDirectChild(warningsEl, "SpillOccurred")
+  const spillEl = warningsEl && findDirectChild(warningsEl, "SpillToTempDb")
+  const spillLevel = spillEl ? toFiniteNumber(spillEl.getAttribute("SpillLevel")) : undefined
   if (spillEl) {
     attributes["Spill Occurred"] = "true"
-    const spillCounter = toFiniteNumber(spillEl.getAttribute("SpillCounter"))
-    if (spillCounter !== undefined) attributes["Spill Count"] = spillCounter
+    if (spillLevel !== undefined) attributes["Spill Level"] = spillLevel
   }
+
+  const predicateText = extractScalarString(findNearestDescendant(relOp, "Predicate"))
+  const seekPredicateText = extractScalarString(findNearestDescendant(relOp, "SeekPredicates"))
+  // Join condition extraction (HashKeysBuild/HashKeysProbe for hash joins,
+  // InnerSideJoinColumns/OuterReferences for nested loop) varies enough by
+  // join algorithm that a generic extraction risks silently grabbing the
+  // wrong element — left as an honest gap for SQL Server rather than a
+  // fragile guess (see docs/10-node-stats-field-catalog.md §1).
+  const predicate =
+    predicateText || seekPredicateText ? { filter: predicateText, indexCondition: seekPredicateText } : undefined
+
+  const indexType = mapIndexKind(objectEl?.getAttribute("IndexKind") ?? undefined)
+  const indexName = objectEl?.getAttribute("Index") ?? undefined
+  const index = indexName || indexType ? { name: indexName ?? undefined, type: indexType } : undefined
+
+  const join = operatorType.includes("join")
+    ? (() => {
+        const logicalType = normalizeJoinLogicalType(logicalOp)
+        return logicalType ? { logicalType } : undefined
+      })()
+    : undefined
+
+  // Approximate only: SQL Server doesn't cleanly separate "from cache" vs
+  // "from disk" the way Postgres's Shared Hit/Read Blocks split does.
+  // Logical reads include cache hits; hits = logical - physical.
+  const bufferReads = runtime.physicalReads
+  const bufferHits =
+    runtime.logicalReads !== undefined && runtime.physicalReads !== undefined
+      ? Math.max(0, runtime.logicalReads - runtime.physicalReads)
+      : undefined
+  const io =
+    bufferHits !== undefined || bufferReads !== undefined
+      ? { bufferHits, bufferReads, cacheHitRatio: computeCacheHitRatio(bufferHits, bufferReads) }
+      : undefined
+
+  const spill: PlanNode["spill"] = spillEl
+    ? { occurred: true, detail: spillLevel !== undefined ? `spill level ${spillLevel}` : undefined }
+    : undefined
+
+  const parallel =
+    runtime.threadCount !== undefined && runtime.threadCount > 1 ? { workersLaunched: runtime.threadCount } : undefined
+
+  // SQL Server's per-thread ActualElapsedms is genuinely summed with no
+  // built-in averaging (unlike Postgres's already-loop-averaged figure) —
+  // approximate per-execution by dividing the cumulated total across
+  // whichever axis actually multiplied it (threads, then loops).
+  const actualTimePerExecutionMs =
+    runtime.actualTimeMs === undefined
+      ? undefined
+      : runtime.threadCount && runtime.threadCount > 1
+        ? runtime.actualTimeMs / runtime.threadCount
+        : runtime.loops && runtime.loops > 1
+          ? runtime.actualTimeMs / runtime.loops
+          : runtime.actualTimeMs
 
   const children = findChildRelOps(relOp).map((child) => buildNode(child, counter, role))
 
@@ -261,21 +322,78 @@ function buildNode(relOp: Element, counter: { next: number }, role: PlanNodeRole
     rawOperatorLabel: physicalOp,
     estimatedRows,
     actualRows: runtime.actualRows,
+    rowsRemovedByFilter: subtractDefined(runtime.actualRowsRead, runtime.actualRows),
     estimatedCost,
     actualTimeMs: runtime.actualTimeMs,
+    actualTimePerExecutionMs,
     loops: runtime.loops,
     role,
+    predicate,
+    index,
+    join,
+    io,
+    spill,
+    parallel,
     children,
     attributes,
     warnings: [],
   }
 }
 
+const INDEX_KIND_MAP: Record<string, NonNullable<IndexInfo["type"]>> = {
+  Clustered: "clustered",
+  NonClustered: "nonclustered",
+  Heap: "heap",
+  Columnstore: "columnstore",
+}
+
+function mapIndexKind(raw: string | undefined): IndexInfo["type"] {
+  if (!raw) return undefined
+  return INDEX_KIND_MAP[raw]
+}
+
+/** Real Showplan XML nests the human-readable predicate text inside a
+ * `ScalarOperator`'s `ScalarString` attribute, potentially several levels
+ * deep under `Predicate`/`SeekPredicates` — take the first one found. */
+function extractScalarString(container: Element | undefined): string | undefined {
+  if (!container) return undefined
+  const scalarOp = findAllByLocalName(container, "ScalarOperator").find((el) => el.hasAttribute("ScalarString"))
+  return scalarOp?.getAttribute("ScalarString") ?? undefined
+}
+
+function subtractDefined(a: number | undefined, b: number | undefined): number | undefined {
+  if (a === undefined || b === undefined || a < b) return undefined
+  return a - b
+}
+
 interface RuntimeSummary {
   actualRows?: number
+  actualRowsRead?: number
   actualTimeMs?: number
   loops?: number
   threadCount?: number
+  /** Logical reads = physical (disk) reads + reads satisfied from cache —
+   * NOT the same as "hits" on its own (see field catalog §5's note that
+   * this split is only approximate on SQL Server, unlike Postgres's clean
+   * Shared Hit/Read Blocks separation). */
+  logicalReads?: number
+  physicalReads?: number
+}
+
+/** Sums a numeric attribute across all per-thread elements, returning
+ * `undefined` (not 0) if the attribute never appeared on any of them —
+ * absence must stay distinguishable from a real zero. */
+function sumThreadAttr(threads: Element[], attrName: string): number | undefined {
+  let sum = 0
+  let seen = false
+  for (const thread of threads) {
+    const value = toFiniteNumber(thread.getAttribute(attrName))
+    if (value !== undefined) {
+      sum += value
+      seen = true
+    }
+  }
+  return seen ? sum : undefined
 }
 
 /** `RunTimeInformation`/`RunTimeCountersPerThread` may be entirely absent
@@ -287,35 +405,13 @@ function readRunTimeInformation(relOp: Element): RuntimeSummary {
   const perThread = Array.from(rtiEl.children).filter((c) => localName(c) === "RunTimeCountersPerThread")
   if (perThread.length === 0) return {}
 
-  let rowsSum = 0
-  let rowsSeen = false
-  let elapsedSum = 0
-  let elapsedSeen = false
-  let execSum = 0
-  let execSeen = false
-
-  for (const thread of perThread) {
-    const rows = toFiniteNumber(thread.getAttribute("ActualRows"))
-    if (rows !== undefined) {
-      rowsSum += rows
-      rowsSeen = true
-    }
-    const elapsed = toFiniteNumber(thread.getAttribute("ActualElapsedms"))
-    if (elapsed !== undefined) {
-      elapsedSum += elapsed
-      elapsedSeen = true
-    }
-    const exec = toFiniteNumber(thread.getAttribute("ActualExecutions"))
-    if (exec !== undefined) {
-      execSum += exec
-      execSeen = true
-    }
-  }
-
   return {
-    actualRows: rowsSeen ? rowsSum : undefined,
-    actualTimeMs: elapsedSeen ? elapsedSum : undefined,
-    loops: execSeen ? execSum : undefined,
+    actualRows: sumThreadAttr(perThread, "ActualRows"),
+    actualRowsRead: sumThreadAttr(perThread, "ActualRowsRead"),
+    actualTimeMs: sumThreadAttr(perThread, "ActualElapsedms"),
+    loops: sumThreadAttr(perThread, "ActualExecutions"),
+    logicalReads: sumThreadAttr(perThread, "ActualLogicalReads"),
+    physicalReads: sumThreadAttr(perThread, "ActualPhysicalReads"),
     threadCount: perThread.length,
   }
 }

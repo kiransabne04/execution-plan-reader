@@ -8,7 +8,7 @@
 // rollup. Downstream (graph layer) is expected to render shared references
 // distinctly rather than assume a strict single-parent tree.
 
-import { PlanParseError, type PlanNode } from "../normalize"
+import { normalizeJoinLogicalType, PlanParseError, type PlanNode } from "../normalize"
 import { coerceRecord, getField, toAttributeValue, toFiniteNumber } from "./caseInsensitive"
 import { mapSnowflakeOperatorType } from "./operatorMap"
 import type { OperatorRow } from "./rows"
@@ -89,7 +89,7 @@ function makeNode(row: OperatorRow): PlanNode {
     }
   }
 
-  promoteSpill(row, attributes)
+  const spill = deriveSpill(row, attributes)
   promoteRedactedQueryText(row, attributes)
 
   if (row.parentIds.length > 1) {
@@ -98,6 +98,18 @@ function makeNode(row: OperatorRow): PlanNode {
   attributes["Parent Operator Ids"] = JSON.stringify(row.parentIds)
 
   const outputRows = toFiniteNumber(getField(row.statistics, "output_rows", "outputRows"))
+
+  const filterText = toText(getField(row.attributes, "filter_condition", "condition"))
+  const joinCondition = toText(
+    getField(row.attributes, "equality_join_condition", "additional_join_condition"),
+  )
+  const predicate = filterText || joinCondition ? { filter: filterText, joinCondition } : undefined
+
+  const logicalType = normalizeJoinLogicalType(toText(getField(row.attributes, "join_type")))
+  const join = logicalType ? { logicalType } : undefined
+
+  const io = deriveIo(row)
+  const pruning = derivePruning(row)
 
   return {
     id: row.id,
@@ -108,21 +120,48 @@ function makeNode(row: OperatorRow): PlanNode {
     // pre-execution estimate to report, unlike Postgres/SQL Server.
     actualRows: outputRows,
     role: "main",
+    predicate,
+    join,
+    io,
+    spill,
+    pruning,
     children: [],
     attributes,
     warnings: [],
   }
 }
 
+function toText(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
 /** Spill is nested inside an IO detail object and easy to overlook — promote
  * its presence to an easily-checkable top-level attribute (a first-class
- * rule-engine signal), without removing the raw nested data above. */
-function promoteSpill(row: OperatorRow, attributes: Record<string, string | number>): void {
+ * rule-engine signal) AND the normalized `spill` sub-object, without
+ * removing the raw nested data preserved generically above. */
+function deriveSpill(row: OperatorRow, attributes: Record<string, string | number>): PlanNode["spill"] {
   const io = coerceRecord(getField(row.statistics, "io"))
   const local = toFiniteNumber(getField(io, "bytes_spilled_to_local_storage"))
   const remote = toFiniteNumber(getField(io, "bytes_spilled_to_remote_storage"))
   if (local !== undefined && local > 0) attributes["Spilled To Local Storage"] = local
   if (remote !== undefined && remote > 0) attributes["Spilled To Remote Storage"] = remote
+  const occurred = (local !== undefined && local > 0) || (remote !== undefined && remote > 0)
+  return occurred ? { occurred: true, bytesLocal: local, bytesRemote: remote } : undefined
+}
+
+function deriveIo(row: OperatorRow): PlanNode["io"] {
+  const io = coerceRecord(getField(row.statistics, "io"))
+  const bytesScanned = toFiniteNumber(getField(io, "bytes_scanned"))
+  return bytesScanned !== undefined ? { bytesScanned } : undefined
+}
+
+/** Snowflake-specific — no Postgres/SQL Server equivalent. */
+function derivePruning(row: OperatorRow): PlanNode["pruning"] {
+  const partitionsScanned = toFiniteNumber(getField(row.attributes, "partitions_assigned"))
+  const partitionsTotal = toFiniteNumber(getField(row.attributes, "partitions_total"))
+  return partitionsScanned !== undefined || partitionsTotal !== undefined
+    ? { partitionsScanned, partitionsTotal }
+    : undefined
 }
 
 /** Organizations with query-text redaction enabled show `<redacted>` for

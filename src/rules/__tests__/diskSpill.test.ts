@@ -2,58 +2,44 @@ import { describe, expect, it } from "vitest"
 import { diskSpill } from "../diskSpill"
 import { makeContext, makeNode } from "./testHelpers"
 
+// The rule itself is now engine-agnostic — each parser's own tests prove it
+// correctly derives `spill` from that engine's raw signal (Postgres's Sort
+// Space Type/Disk Usage, SQL Server's SpillToTempDb, Snowflake's bytes-
+// spilled stats). This suite only needs to test the one normalized field.
 describe("diskSpill", () => {
-  it("fires on Postgres Sort spilling to disk", () => {
-    const node = makeNode({
-      engine: "postgres",
-      rawOperatorLabel: "Sort",
-      attributes: { "Sort Space Type": "Disk", "Sort Space Used": 25000 },
-    })
+  it("fires when spill.occurred is true", () => {
+    const node = makeNode({ rawOperatorLabel: "Sort", spill: { occurred: true, detail: "external sort" } })
     const warnings = diskSpill(node, makeContext(node))
     expect(warnings).toHaveLength(1)
     expect(warnings[0].ruleId).toBe("disk-spill")
     expect(warnings[0].severity).toBe("critical")
+    expect(warnings[0].shortText).toContain("external sort")
   })
 
-  it("does NOT fire on Postgres Sort using memory", () => {
-    const node = makeNode({ engine: "postgres", rawOperatorLabel: "Sort", attributes: { "Sort Method": "quicksort" } })
+  it("does NOT fire when spill is absent", () => {
+    const node = makeNode({ rawOperatorLabel: "Sort" })
     expect(diskSpill(node, makeContext(node))).toEqual([])
   })
 
-  it("fires on Postgres Hash with Disk Usage > 0", () => {
-    const node = makeNode({
-      engine: "postgres",
-      operatorType: "hash",
-      rawOperatorLabel: "Hash",
-      attributes: { "Disk Usage": 5000 },
-    })
-    expect(diskSpill(node, makeContext(node))).toHaveLength(1)
-  })
-
-  it("fires on SQL Server Spill Occurred", () => {
-    const node = makeNode({ engine: "sqlserver", rawOperatorLabel: "Sort", attributes: { "Spill Occurred": "true" } })
-    expect(diskSpill(node, makeContext(node))).toHaveLength(1)
-  })
-
-  it("does NOT fire on SQL Server without a spill", () => {
-    const node = makeNode({ engine: "sqlserver", rawOperatorLabel: "Sort", attributes: {} })
+  it("does NOT fire when spill.occurred is explicitly false", () => {
+    const node = makeNode({ rawOperatorLabel: "Sort", spill: { occurred: false } })
     expect(diskSpill(node, makeContext(node))).toEqual([])
   })
 
-  it("fires on Snowflake local/remote spill", () => {
+  it("prefers reporting byte counts (local/remote) over the generic detail string when both are available", () => {
     const node = makeNode({
-      engine: "snowflake",
       rawOperatorLabel: "Aggregate",
-      attributes: { "Spilled To Local Storage": 1024, "Spilled To Remote Storage": 2048 },
+      spill: { occurred: true, bytesLocal: 1024, bytesRemote: 2048, detail: "should not appear" },
     })
-    const warnings = diskSpill(node, makeContext(node))
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0].shortText).toContain("local disk")
-    expect(warnings[0].shortText).toContain("remote disk")
+    const [warning] = diskSpill(node, makeContext(node))
+    expect(warning.shortText).toContain("1,024 bytes to local disk")
+    expect(warning.shortText).toContain("2,048 bytes to remote disk")
+    expect(warning.shortText).not.toContain("should not appear")
   })
 
-  it("does NOT fire on Snowflake without spill attributes", () => {
-    const node = makeNode({ engine: "snowflake", rawOperatorLabel: "TableScan", attributes: {} })
-    expect(diskSpill(node, makeContext(node))).toEqual([])
+  it("falls back to a generic 'to disk' when no detail is available at all", () => {
+    const node = makeNode({ rawOperatorLabel: "Sort", spill: { occurred: true } })
+    const [warning] = diskSpill(node, makeContext(node))
+    expect(warning.shortText).toContain("Spilled to disk")
   })
 })

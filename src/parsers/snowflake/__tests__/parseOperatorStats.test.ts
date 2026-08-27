@@ -63,16 +63,42 @@ describe("parseSnowflakeOperatorStats", () => {
     expect(Date.now() - start).toBeLessThan(1000)
   })
 
-  it("promotes spill-to-remote/local-disk to an easily-checkable attribute", () => {
+  it("promotes spill-to-remote/local-disk to an easily-checkable attribute and spill.occurred", () => {
     const { root } = parseSnowflakeOperatorStats(loadFixture("spill-to-remote-disk.json"))
     expect(root.attributes["Spilled To Local Storage"]).toBe(104857600)
     expect(root.attributes["Spilled To Remote Storage"]).toBe(52428800)
+    expect(root.spill?.occurred).toBe(true)
+    expect(root.spill?.bytesLocal).toBe(104857600)
+    expect(root.spill?.bytesRemote).toBe(52428800)
   })
 
   it("does not flag spill when none occurred", () => {
     const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
     expect(root.attributes["Spilled To Local Storage"]).toBeUndefined()
     expect(root.attributes["Spilled To Remote Storage"]).toBeUndefined()
+    expect(root.spill).toBeUndefined()
+  })
+
+  it("promotes join.logicalType and predicate.filter/joinCondition from operator attributes", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("join-filter-aggregate.json"))
+    const join = root.children[0]
+    expect(join.rawOperatorLabel).toBe("Join")
+    expect(join.join?.logicalType).toBe("inner")
+    expect(join.predicate?.joinCondition).toBe("ORDERS.CUSTOMER_ID = CUSTOMERS.ID")
+
+    const filter = join.children.find((c) => c.rawOperatorLabel === "Filter")!
+    expect(filter.predicate?.filter).toBe("TOTAL > 100")
+  })
+
+  it("promotes io.bytesScanned from the nested io stats object", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
+    expect(root.io?.bytesScanned).toBe(52428800)
+  })
+
+  it("promotes pruning.partitionsScanned/partitionsTotal for a high-partition-count TableScan", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("high-partition-count-scan.json"))
+    expect(root.pruning?.partitionsScanned).toBe(84213)
+    expect(root.pruning?.partitionsTotal).toBe(84213)
   })
 
   it("detects and cleanly labels redacted query text instead of treating it as literal content", () => {
