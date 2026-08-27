@@ -121,7 +121,26 @@ is correctly absent. `buildStatRows`'s gap-row behavior (Gap 4) was working exac
 designed the whole time. **No parser or panel change made.** Index name specifically wasn't
 exercised by this repro (the real XML had no `Object`/`@Index` data to test either way) —
 still worth a dedicated fixture if a future manual-testing pass surfaces that specific symptom
-in isolation. Postgres/Snowflake re-verification (below) is still open.
+in isolation.
+
+**Postgres re-verified — no bug.** `actualRows`/`actualTimeMs`/`index.name` are all already
+extracted (`parseJsonPlan.ts`) and asserted against real fixtures (`parseJsonPlan.test.ts`,
+`extendedFields.test.ts`), including the estimate-only case (no gap-row regression risk here).
+Correction to this doc's own earlier claim below: `tests/postgres/` (209-fixture `expected.json`
+suite) **does not exist in this repo** — the real Postgres coverage is `src/fixtures/postgres/`
+(20 fixtures) plus the parser test files above. Don't trust that stale claim if reading the
+original trace in the collapsed section.
+
+**Snowflake re-verified — found and fixed a real bug**, distinct from Gap 3's SQL Server cause.
+Snowflake's execution-time breakdown (`overall_percentage` and friends) was parsed correctly
+but only ever reached the raw `attributes` bag (`time.*` keys) — `buildStatRows.ts` only reads
+typed `PlanNode` fields, never raw attribute keys, so Snowflake nodes got **no Time row at all**,
+not even an honest gap row. Genuinely silently missing, the exact thing Story 6.2's acceptance
+criterion rules out. Fixed: added `PlanNode.timeBreakdown` (normalize.ts), populated it in
+`buildTree.ts`'s `deriveTimeBreakdown()`, and added a Snowflake branch in `buildStatRows.ts`'s
+`rowsTime()` rendering `"Time (% of query)"` when present, an honest gap row otherwise. Index
+name doesn't apply to Snowflake at all (no index concept) — confirmed correct as designed, not
+a gap. 476/476 tests pass, lint clean.
 
 <details>
 <summary>Original trace (kept for context)</summary>
@@ -153,9 +172,10 @@ Most likely explanations, in order:
 **Before writing any fix**: same as Gap 2 — reproduce with the real pasted XML, add a fixture
 and a failing test for the specific field(s) that didn't show, then fix. Also explicitly
 **re-verify Postgres and Snowflake** the same way — the original testing note asked to check
-all variants, not just SQL Server. `tests/postgres/` (209 real Postgres `EXPLAIN` outputs
-across every node type, each with an `expected.json` naming exactly which fields that scenario
-should surface) is built for this exact per-field regression check on the Postgres side.
+all variants, not just SQL Server. (This paragraph originally claimed a `tests/postgres/`
+209-fixture suite as the mechanism for that — **that directory doesn't exist in this repo**;
+see the correction above. The real Postgres coverage is `src/fixtures/postgres/` plus
+`parseJsonPlan.test.ts`/`extendedFields.test.ts`.)
 
 </details>
 
@@ -186,7 +206,14 @@ fix — worth raising with whoever owns that call rather than guessing at new UI
    `src/fixtures/sqlserver/real-world-large-parallel-estimated.xml`, asserted in
    `parseShowplanXml.test.ts` (26/26 pass). Both confirmed as data-source limitations (estimated
    plan, source-truncated statement text), not bugs — no parser or UI code changed.
-3. Re-verify the same fields (actual rows/time/index name/full query) against Postgres and
-   Snowflake plans too, per the original testing note — **still open**, no Postgres/Snowflake
-   repro data supplied yet.
+3. ✅ Re-verified the same fields against Postgres and Snowflake. Postgres: no bug, already
+   covered. Snowflake: found and fixed a real gap — execution-time breakdown was reaching
+   `attributes` but never the normalized field the panel reads, so Snowflake nodes silently got
+   no Time row at all. See `PlanNode.timeBreakdown` / `buildStatRows.ts`'s `rowsTime()`.
 4. **Gap 4** — ✅ re-assessed after Gap 3 closed: no code change, confirmed working as designed.
+
+## Remaining open items
+
+- SQL Server index-name (`Object/@Index`) extraction: not exercised by the Gap 2/3 repro XML
+  (it had no `Object` elements at all). Still worth a dedicated fixture if a future
+  manual-testing pass surfaces that symptom specifically.

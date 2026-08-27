@@ -22,6 +22,22 @@ describe("parseSnowflakeOperatorStats", () => {
     expect(root.attributes["time.overall_percentage"]).toBe(100)
   })
 
+  // Re-verifying docs/11-manual-testing-gaps-episode8.md's Gap 3 against
+  // Snowflake surfaced a real gap: the same breakdown data above was only
+  // ever reaching the raw attributes bag, never the normalized field the
+  // detail panel actually reads (buildStatRows.ts works off typed PlanNode
+  // fields, not attribute keys) — so Snowflake nodes silently never got a
+  // Time row in the panel at all. Fixed by promoting it to `timeBreakdown`.
+  it("promotes execution time breakdown to the normalized timeBreakdown field the detail panel reads", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
+    expect(root.timeBreakdown?.overallPercentage).toBe(100)
+    expect(root.timeBreakdown?.processingPercentage).toBe(80)
+    expect(root.timeBreakdown?.localDiskIoPercentage).toBe(15)
+    // Snowflake never reports a comparable actualTimeMs figure (field
+    // catalog §7) — timeBreakdown is the honest equivalent, not a stand-in.
+    expect(root.actualTimeMs).toBeUndefined()
+  })
+
   it("reconstructs a multi-level tree from flat ID/parent references", () => {
     const { root } = parseSnowflakeOperatorStats(loadFixture("join-filter-aggregate.json"))
     expect(root.rawOperatorLabel).toBe("Aggregate")

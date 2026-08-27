@@ -81,6 +81,23 @@ export interface ParallelInfo {
   workersPlanned?: number
 }
 
+/** Snowflake-specific — no Postgres/SQL Server equivalent. Snowflake doesn't
+ * report a per-node elapsed-ms figure (see field catalog §7); instead each
+ * component is a percentage of the *query's* total elapsed time. `actualTimeMs`
+ * intentionally stays undefined for Snowflake nodes rather than misrepresent
+ * a percentage as milliseconds — this is the honest, comparable-across-nodes
+ * figure Snowflake actually gives you. */
+export interface TimeBreakdownInfo {
+  /** This node's share of the whole query's elapsed time, 0-100. */
+  overallPercentage?: number
+  initializationPercentage?: number
+  processingPercentage?: number
+  synchronizationPercentage?: number
+  localDiskIoPercentage?: number
+  remoteDiskIoPercentage?: number
+  networkCommunicationPercentage?: number
+}
+
 export interface PlanNode {
   id: string
   engine: Engine
@@ -118,6 +135,7 @@ export interface PlanNode {
   spill?: SpillInfo
   pruning?: PruningInfo
   parallel?: ParallelInfo
+  timeBreakdown?: TimeBreakdownInfo
 
   children: PlanNode[]
   // Engine-specific extras, untouched. Non-primitive raw values (arrays/objects,
