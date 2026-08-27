@@ -75,3 +75,42 @@ test("zero outbound requests even on a parse failure (no accidental error-teleme
 
   expect(requestsDuringAnalysis).toEqual([])
 })
+
+// Story 11.2: loading a client-side-only shareable link must never send its
+// fragment content in any network request — this is structurally guaranteed
+// by the URL fragment itself (browsers never include it in a request line),
+// but this test makes that guarantee explicit and regression-checkable
+// rather than merely assumed. Uses the real UI end-to-end (paste -> copy
+// link -> read from clipboard -> open in a fresh page) rather than
+// hand-building a fragment, so it also exercises the actual "copy shareable
+// link" button, not just the underlying encode function.
+test("Story 11.2: a real copied share link decodes/renders locally with the fragment never appearing in any request", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+
+  await page.goto("/")
+  await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "seek-and-key-lookup.xml"))
+  await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+
+  await page.getByRole("button", { name: /copy shareable link/i }).click()
+  const copiedUrl = await page.evaluate(() => navigator.clipboard.readText())
+  expect(copiedUrl).toContain("#plan=")
+  const compressedValue = copiedUrl.split("#plan=")[1]
+
+  const allRequestUrls: string[] = []
+  page.on("request", (req) => allRequestUrls.push(req.url()))
+
+  await page.goto(copiedUrl)
+  // Renders directly from the fragment — no re-paste, no re-click.
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+  await expect(page.getByTestId("detected-engine-badge")).toHaveText("SQL Server")
+  await page.waitForTimeout(500)
+
+  for (const url of allRequestUrls) {
+    expect(url).not.toContain(compressedValue)
+    expect(url).not.toContain("plan=")
+  }
+})

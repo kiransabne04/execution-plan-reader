@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react"
 import { PasteBox } from "./PasteBox"
+import { ShareLinkButton } from "./ShareLinkButton"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
+import { decodeShareLink } from "./shareLink"
 import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
 import { PlanGraph } from "../graph"
 import { PlanParseError } from "../parsers/normalize"
@@ -12,12 +14,54 @@ const ENGINE_LABEL: Record<AnalyzedPlan["engine"], string> = {
   snowflake: "Snowflake",
 }
 
+interface InitialState {
+  rawText: string
+  analyzed: AnalyzedPlan | null
+  error: string | null
+}
+
+/** Story 11.2: a shareable link's fragment is decoded and re-parsed
+ * synchronously on first render (no loading gate, no async round trip —
+ * decoding/parsing is entirely local) so the very first paint already
+ * shows the recovered plan, exactly like a normal paste would. Returns
+ * `null` when there's no fragment at all — the ordinary "fresh visit" case,
+ * not an error. */
+function loadFromLocationHash(): InitialState | null {
+  const hash = window.location.hash.slice(1)
+  if (!hash) return null
+
+  const decoded = decodeShareLink(hash)
+  if (!decoded.ok) {
+    const message =
+      decoded.reason === "unsupported_version"
+        ? "This link was created by a different version of PlanReader and can't be opened here."
+        : "This link looks incomplete or corrupted — it may have been cut off when it was shared."
+    return { rawText: "", analyzed: null, error: message }
+  }
+
+  try {
+    return { rawText: decoded.text, analyzed: analyzePlanText(decoded.text), error: null }
+  } catch (err) {
+    // The link decoded fine, but the recovered text itself doesn't parse —
+    // treat exactly like a normal paste failure, not a share-link-specific
+    // one, since that's genuinely what's happened by this point.
+    return {
+      rawText: decoded.text,
+      analyzed: null,
+      error: err instanceof PlanParseError ? err.message : "Something went wrong reading this plan.",
+    }
+  }
+}
+
 export function PlanReaderPage() {
-  const [analyzed, setAnalyzed] = useState<AnalyzedPlan | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [initial] = useState(loadFromLocationHash)
+  const [analyzed, setAnalyzed] = useState<AnalyzedPlan | null>(initial?.analyzed ?? null)
+  const [error, setError] = useState<string | null>(initial?.error ?? null)
+  const [rawText, setRawText] = useState(initial?.rawText ?? "")
   const [activeStatementIndex, setActiveStatementIndex] = useState(0)
 
   const handleAnalyze = useCallback((text: string) => {
+    setRawText(text)
     try {
       const result = analyzePlanText(text)
       setAnalyzed(result)
@@ -53,7 +97,7 @@ export function PlanReaderPage() {
         </ul>
       </header>
 
-      <PasteBox onAnalyze={handleAnalyze} />
+      <PasteBox onAnalyze={handleAnalyze} initialText={initial?.rawText} />
 
       {error && (
         <p className="plan-reader-page__error" role="alert" data-testid="parse-error">
@@ -63,9 +107,12 @@ export function PlanReaderPage() {
 
       {analyzed && activeStatement && (
         <section className="plan-reader-page__result" data-testid="plan-result">
-          <span className="plan-reader-page__engine-badge" data-testid="detected-engine-badge">
-            {ENGINE_LABEL[analyzed.engine]}
-          </span>
+          <div className="plan-reader-page__result-header">
+            <span className="plan-reader-page__engine-badge" data-testid="detected-engine-badge">
+              {ENGINE_LABEL[analyzed.engine]}
+            </span>
+            <ShareLinkButton rawText={rawText} />
+          </div>
 
           {analyzed.queryTextRedacted && (
             <p className="plan-reader-page__note">Query text redacted by account policy.</p>

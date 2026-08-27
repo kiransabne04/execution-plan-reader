@@ -24,6 +24,8 @@ import { buildPlanContext } from "../../rules/types"
 import { summarizePlan } from "../../rules/summarize"
 import { buildGraphElements } from "../../graph/buildGraphElements"
 import type { PlanNode } from "../../parsers/normalize"
+import { analyzePlanText } from "../../app/analyzePlan"
+import { decodeShareLink, encodeShareLink } from "../../app/shareLink"
 
 function loadFixture(engine: string, filename: string): string {
   const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), `../../fixtures/${engine}`)
@@ -80,6 +82,31 @@ describe("zero outbound network calls in the rule-based path", () => {
         // triggers a network call as a side effect (e.g. accidental
         // telemetry in a catch block).
       }
+    }).not.toThrow()
+  })
+
+  // Story 11.2's own network-call-guarding requirement, extending this
+  // suite: encoding a shareable link, and — the actually privacy-sensitive
+  // direction — loading one, must both stay entirely within this same
+  // zero-network guarantee. Nothing about the fragment ever needs a server,
+  // by construction, but this proves it rather than assuming it.
+  it("Story 11.2: encoding a shareable link makes no network call", () => {
+    const text = loadFixture("postgres", "multi-way-join.json")
+    expect(() => encodeShareLink(text, "https://example.com/")).not.toThrow()
+  })
+
+  it("Story 11.2: decoding + fully re-rendering a shared link makes no network call", () => {
+    const text = loadFixture("sqlserver", "sort-spill-to-tempdb.xml")
+    const encoded = encodeShareLink(text, "https://example.com/")
+    expect(encoded.ok).toBe(true)
+    if (!encoded.ok) return
+    const fragment = encoded.url.split("#")[1]
+
+    expect(() => {
+      const decoded = decodeShareLink(fragment)
+      if (!decoded.ok) throw new Error("expected a valid decode in this test")
+      const analyzed = analyzePlanText(decoded.text)
+      for (const stmt of analyzed.statements) buildGraphElements(stmt.root)
     }).not.toThrow()
   })
 })

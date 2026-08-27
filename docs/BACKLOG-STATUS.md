@@ -65,7 +65,7 @@ _Last audited against `src/` and git history on 2026-08-27 (506/506 tests passin
 | Story | Status | Notes |
 |---|---|---|
 | 11.1 — Explicit opt-in plan publishing (backend-based) | blocked | No backend exists in this repo (by design — 100% client-side). Needs an explicit infra decision before any code; user declined to provide one this session. Only a defensive default-off constant exists (`PLAN_PUBLISHING_DEFAULT_ENABLED` in `src/privacy/config.ts`) |
-| 11.2 — Client-side-only shareable link (no backend) | not started | New story (added this session). No blocker — genuinely buildable now, just not started yet |
+| 11.2 — Client-side-only shareable link (no backend) | done | `src/app/shareLink.ts` (`lz-string` compression, versioned envelope, URL fragment not query param), `ShareLinkButton.tsx`, wired into `PlanReaderPage.tsx` (decodes+renders on load, no re-paste needed). Honest "too large" state (>2000 chars) and "link looks incomplete" state for truncated/mangled fragments. Network-call-guarding tests extend the Episode 7 suite; e2e test drives the real "copy shareable link" button end-to-end |
 
 ## Episode 12 — Launch readiness & content tie-in
 | Story | Status | Notes |
