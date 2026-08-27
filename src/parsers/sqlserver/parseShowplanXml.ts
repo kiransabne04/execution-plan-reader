@@ -260,7 +260,7 @@ function buildNode(relOp: Element, counter: { next: number }, role: PlanNodeRole
   }
 
   const predicateText = extractScalarString(findNearestDescendant(relOp, "Predicate"))
-  const seekPredicateText = extractScalarString(findNearestDescendant(relOp, "SeekPredicates"))
+  const seekPredicateText = extractSeekPredicateText(findNearestDescendant(relOp, "SeekPredicates"))
   // Join condition extraction (HashKeysBuild/HashKeysProbe for hash joins,
   // InnerSideJoinColumns/OuterReferences for nested loop) varies enough by
   // join algorithm that a generic extraction risks silently grabbing the
@@ -359,6 +359,31 @@ function extractScalarString(container: Element | undefined): string | undefined
   if (!container) return undefined
   const scalarOp = findAllByLocalName(container, "ScalarOperator").find((el) => el.hasAttribute("ScalarString"))
   return scalarOp?.getAttribute("ScalarString") ?? undefined
+}
+
+/** A composite (multi-column) index seek's `SeekPredicates` is structurally
+ * different from `Predicate`/`Filter`: rather than one `ScalarOperator`
+ * whose `ScalarString` already spells out the whole boolean expression,
+ * SQL Server emits one `ScalarOperator` PER seek column, as direct children
+ * of each `Prefix`/`StartRange`/`EndRange`'s `RangeExpressions` element —
+ * `extractScalarString`'s "take the first ScalarString found anywhere"
+ * approach silently drops every column after the first for any seek on more
+ * than one key column. Multiple sibling seek-predicate groups (e.g. a
+ * compiled IN-list) are alternatives, joined with " OR "; columns within one
+ * group are joined with " AND ", matching how the condition actually reads. */
+function extractSeekPredicateText(seekPredicatesEl: Element | undefined): string | undefined {
+  if (!seekPredicatesEl) return undefined
+  const groupTexts = Array.from(seekPredicatesEl.children)
+    .map((group) => {
+      const columnTexts = findAllByLocalName(group, "RangeExpressions").flatMap((rangeExpressions) =>
+        Array.from(rangeExpressions.children)
+          .filter((child) => localName(child) === "ScalarOperator" && child.hasAttribute("ScalarString"))
+          .map((child) => child.getAttribute("ScalarString")!),
+      )
+      return columnTexts.join(" AND ")
+    })
+    .filter((text) => text.length > 0)
+  return groupTexts.length > 0 ? groupTexts.join(" OR ") : undefined
 }
 
 function subtractDefined(a: number | undefined, b: number | undefined): number | undefined {

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Orders WHERE CustomerId = 42 AND OrderDate = '2024-01-01'" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <!-- A seek on a 2-column composite index emits one ScalarOperator
+                 PER seek column under RangeExpressions, not one pre-combined
+                 string the way Predicate/Filter does — the shape that exposed
+                 a real bug where only the first column's condition survived. -->
+            <RelOp NodeId="0" PhysicalOp="Index Seek" LogicalOp="Index Seek" EstimateRows="1" EstimatedTotalSubtreeCost="0.1">
+              <IndexScan Lookup="0">
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[IX_Orders_CustomerId_OrderDate]" IndexKind="NonClustered" />
+                <SeekPredicates>
+                  <SeekPredicateNew>
+                    <Prefix>
+                      <RangeColumns>
+                        <ColumnReference Column="CustomerId" />
+                        <ColumnReference Column="OrderDate" />
+                      </RangeColumns>
+                      <RangeExpressions>
+                        <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[CustomerId]=(42)" />
+                        <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[OrderDate]=('2024-01-01')" />
+                      </RangeExpressions>
+                    </Prefix>
+                  </SeekPredicateNew>
+                </SeekPredicates>
+              </IndexScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

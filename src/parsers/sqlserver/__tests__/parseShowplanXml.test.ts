@@ -98,6 +98,17 @@ describe("parseSqlServerShowplanXml", () => {
     expect(root.children[1].predicate?.filter).toContain("Status]='active'")
   })
 
+  // Real bug found manually verifying seek-predicate capture: SeekPredicates
+  // emits one ScalarOperator PER seek column, unlike Predicate/Filter's one
+  // pre-combined string — the naive "first ScalarString found" approach
+  // silently dropped every column after the first on a composite seek.
+  it("captures every column of a composite (multi-column) index seek, not just the first", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("composite-index-seek.xml"))
+    const condition = result.statements[0].root.predicate?.indexCondition
+    expect(condition).toContain("CustomerId]=(42)")
+    expect(condition).toContain("OrderDate]=('2024-01-01')")
+  })
+
   it("promotes io.bufferHits/bufferReads (derived from logical/physical reads) with an approximate cacheHitRatio", () => {
     const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
     const seek = result.statements[0].root.children[0]
