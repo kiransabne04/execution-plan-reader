@@ -211,6 +211,29 @@
   font-weight: 600;
 }
 
+/* A long free-text value (predicate/seek/join condition) — full-width and
+   wrapped, not squeezed into the stats table's narrow value column. Stays
+   visible in Beginner mode, unlike Raw Attributes (Expert-only, collapsed). */
+.detail-panel__stat-block {
+  margin: 4px 0 8px;
+}
+
+.detail-panel__stat-block-label {
+  color: var(--dp-text-muted);
+  margin-bottom: 2px;
+}
+
+.detail-panel__stat-block-value {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--dp-gap-bg);
+  border-radius: 6px;
+  padding: 8px;
+  margin: 0;
+}
+
 .detail-panel__query-text {
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   font-size: 12px;
