@@ -100,7 +100,7 @@ export function DetailPanel({ node, context, onClose }: DetailPanelProps) {
 
       <OperatorEducation operatorType={node.operatorType} rawOperatorLabel={node.rawOperatorLabel} expertMode={expertMode} />
       <StatsTable node={node} />
-      <WarningsSection warnings={node.warnings} expertMode={expertMode} />
+      <WarningsSection warnings={node.warnings} expertMode={expertMode} engine={node.engine} />
 
       <section className="detail-panel__section" data-testid="contribution-summary">
         <h3 className="detail-panel__section-heading">Contribution to the plan</h3>
