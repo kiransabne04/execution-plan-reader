@@ -55,7 +55,23 @@ sanity check that nothing about it fights React Flow's internal pan once minZoom
 
 ---
 
-## Gap 2 — Full query text not visible in the details page (traced, not reproduced)
+## Gap 2 — Full query text not visible in the details page (RESOLVED: not a bug)
+
+**Reproduced with the actual manual-testing XML**, saved as
+`src/fixtures/sqlserver/real-world-large-parallel-estimated.xml`, asserted in
+`parseShowplanXml.test.ts`. The pasted plan's own `StatementText` attribute
+was `"SELECT ENTERPRISE_MASSIVE_ANALYTICS..."` — already truncated at the
+capture source, ellipsis and all. The parser passes it through unmodified
+(possibility 1 from below, confirmed). **No parser or UI change made** —
+there is no more query text in the source data to surface. If this recurs,
+it's worth an honest "query text may be truncated by the capture source"
+UI note, but that's a product-copy call (a false positive is possible for a
+query that itself legitimately ends in `...`), not an obvious mechanical
+fix — flag for product judgment before adding it, don't guess at the wording.
+
+<details>
+<summary>Original trace (kept for context)</summary>
+
 
 Traced the whole path; it looks correct end to end:
 - `src/parsers/sqlserver/parseShowplanXml.ts` captures the complete `StatementText` attribute
@@ -90,9 +106,26 @@ one assertion on the full statement text. If the fixture's own `StatementText` a
 already short, that confirms possibility 1 — message it honestly in the UI instead of chasing
 a parser bug that isn't there.
 
+</details>
+
 ---
 
-## Gap 3 — SQL Server node details (actual rows, time, filtered rows, index name) not populating (traced, not reproduced — re-check all three engines)
+## Gap 3 — SQL Server node details (actual rows, time, filtered rows, index name) not populating (RESOLVED: not a bug)
+
+**Reproduced with the same real XML.** It has no `RunTimeInformation` element anywhere in the
+entire plan — possibility 1 from below, confirmed: this was an *estimated* plan (no execution
+occurred), not an actual one. Extended the existing single-node `estimated-plan-only.xml`
+coverage with a full-tree assertion (every node across a genuinely large, 16-way-parallel,
+deeply-nested real plan, not just the root) — every node's `actualRows`/`actualTimeMs`/`loops`
+is correctly absent. `buildStatRows`'s gap-row behavior (Gap 4) was working exactly as
+designed the whole time. **No parser or panel change made.** Index name specifically wasn't
+exercised by this repro (the real XML had no `Object`/`@Index` data to test either way) —
+still worth a dedicated fixture if a future manual-testing pass surfaces that specific symptom
+in isolation. Postgres/Snowflake re-verification (below) is still open.
+
+<details>
+<summary>Original trace (kept for context)</summary>
+
 
 `parseShowplanXml.ts`'s `readRunTimeInformation()` + `buildNode()` already extract exactly
 these fields — `RunTimeInformation/RunTimeCountersPerThread/@ActualRows`, `@ActualElapsedms`,
@@ -124,36 +157,36 @@ all variants, not just SQL Server. `tests/postgres/` (209 real Postgres `EXPLAIN
 across every node type, each with an `expected.json` naming exactly which fields that scenario
 should surface) is built for this exact per-field regression check on the Postgres side.
 
+</details>
+
 ---
 
 ## Gap 4 — Details page should render fields dynamically per variant
 
-**Already implemented as designed.** `buildStatRows.ts` builds its row list conditionally per
-field (`if (node.actualRows !== undefined) rows.push(...)`, and so on for every category —
-cost, time, predicates, index, join, I/O, spill, pruning, parallel), with an explicit,
-distinctly-styled `isGap` state (`.detail-panel__stat-gap`) for a field that's honestly
-unavailable, never a blank row. This matches Story 6.2's stated intent exactly (see
-`docs/10-node-stats-field-catalog.md` and the story's "never blank, broken, or silently
-missing" acceptance criterion) — there's no fixed template with empty slots in this component.
-
-Given that, "many things were empty" during manual testing is best explained by Gap 3, not by
-this component: if the underlying `PlanNode` genuinely lacks a field — because the parser
-didn't extract it, or the source plan is estimate-only — `buildStatRows` will *correctly* show
-the honest gap state for it, which looks exactly like "this is empty and something's wrong"
-to someone who doesn't know why. **No code change proposed here.** Closing Gap 3 (plus making
-the estimate-vs-actual distinction more visually prominent than a small gray italic row, if
-manual testing confirms an estimate-only plan was in play) is very likely sufficient — worth
-re-assessing this gap only after Gap 3 is closed, not in parallel with it.
+**Already implemented as designed, and now confirmed by Gap 3's resolution.** `buildStatRows.ts`
+builds its row list conditionally per field (`if (node.actualRows !== undefined) rows.push(...)`,
+and so on for every category — cost, time, predicates, index, join, I/O, spill, pruning,
+parallel), with an explicit, distinctly-styled `isGap` state (`.detail-panel__stat-gap`) for a
+field that's honestly unavailable, never a blank row. This matches Story 6.2's stated intent
+exactly (see `docs/10-node-stats-field-catalog.md` and the story's "never blank, broken, or
+silently missing" acceptance criterion) — there's no fixed template with empty slots in this
+component. Gap 3's repro proved the underlying cause: the manual-testing plan was genuinely
+estimate-only, so every gap row shown was correct behavior, not a bug in this component.
+**No code change made here.** Whether to make the estimate-vs-actual distinction more visually
+prominent than today's small gray italic row is a real product-copy question, not a mechanical
+fix — worth raising with whoever owns that call rather than guessing at new UI text.
 
 ---
 
 ## Suggested order
 
-1. **Gap 1** — confirmed root cause, no reproduction needed, ready to fix directly.
-2. **Reproduce Gaps 2 and 3** with the actual SQL Server XML from manual testing (or a fresh
-   capture) before writing any code for either — save it as a fixture regardless of which way
-   it turns out, since both a real bug and a data-source limitation are worth a permanent
-   regression test.
+1. **Gap 1** — ✅ fixed (`fix/gap1-fitview-zoom-floor`): `fitView`/`<ReactFlow>` `minZoom` both
+   floored at `MIN_LEGIBLE_ZOOM = 0.5`. 197/197 `src/graph` tests pass, lint clean.
+2. **Gaps 2 and 3** — ✅ reproduced with the actual SQL Server XML from manual testing, saved as
+   `src/fixtures/sqlserver/real-world-large-parallel-estimated.xml`, asserted in
+   `parseShowplanXml.test.ts` (26/26 pass). Both confirmed as data-source limitations (estimated
+   plan, source-truncated statement text), not bugs — no parser or UI code changed.
 3. Re-verify the same fields (actual rows/time/index name/full query) against Postgres and
-   Snowflake plans too, per the original testing note.
-4. **Gap 4** — no code change on its own; re-assess after Gap 3 closes.
+   Snowflake plans too, per the original testing note — **still open**, no Postgres/Snowflake
+   repro data supplied yet.
+4. **Gap 4** — ✅ re-assessed after Gap 3 closed: no code change, confirmed working as designed.
