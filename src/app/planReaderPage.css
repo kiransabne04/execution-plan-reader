@@ -36,9 +36,44 @@
   }
 }
 
+.plan-reader-page__hero {
+  margin-bottom: 20px;
+}
+
 .plan-reader-page__title {
-  margin: 0 0 4px;
+  margin: 0 0 8px;
   font-size: 28px;
+  line-height: 1.25;
+}
+
+.plan-reader-page__engine-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.plan-reader-page__hero-engine-badge {
+  background: var(--pr-badge-bg);
+  color: var(--pr-badge-text);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.plan-reader-page__footer {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--pr-border);
+  color: var(--pr-text-muted);
+  font-size: 13px;
+}
+
+.plan-reader-page__footer p {
+  margin: 0;
 }
 
 .plan-reader-page__tagline {

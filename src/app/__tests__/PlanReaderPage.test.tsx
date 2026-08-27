@@ -16,6 +16,25 @@ function pasteAndAnalyze(text: string) {
 }
 
 describe("PlanReaderPage", () => {
+  it("renders the h1 headline containing 'execution plan', not just the brand name", () => {
+    render(<PlanReaderPage />)
+    const heading = screen.getByRole("heading", { level: 1 })
+    expect(heading).toHaveTextContent(/execution plan/i)
+  })
+
+  it("shows the subheadline and all three supported engine names above the fold, immediately (no loading gate)", () => {
+    render(<PlanReaderPage />)
+    expect(screen.getByText(/Works with Postgres, SQL Server, and Snowflake/)).toBeInTheDocument()
+    expect(screen.getByText("Postgres")).toBeInTheDocument()
+    expect(screen.getByText("SQL Server")).toBeInTheDocument()
+    expect(screen.getByText("Snowflake")).toBeInTheDocument()
+  })
+
+  it("shows a footer connecting the tool to Kiran's existing content, for first-time-visitor credibility", () => {
+    render(<PlanReaderPage />)
+    expect(screen.getByText(/scalingbackend/i)).toBeInTheDocument()
+  })
+
   it("shows the privacy statement (and the browser-extension caveat) at the paste box before anything is analyzed", () => {
     render(<PlanReaderPage />)
     expect(screen.getByTestId("privacy-statement")).toBeInTheDocument()
@@ -28,7 +47,7 @@ describe("PlanReaderPage", () => {
     pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
 
     expect(screen.getByTestId("plan-result")).toBeInTheDocument()
-    expect(screen.getByText("Postgres")).toBeInTheDocument()
+    expect(screen.getByTestId("detected-engine-badge")).toHaveTextContent("Postgres")
     expect(screen.getByTestId("plan-summary")).toBeInTheDocument()
     expect(screen.getAllByTestId("plan-node-card").length).toBeGreaterThan(0)
     expect(screen.queryByTestId("parse-error")).not.toBeInTheDocument()

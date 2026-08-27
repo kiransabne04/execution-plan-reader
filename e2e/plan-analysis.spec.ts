@@ -9,7 +9,7 @@ test("analyzes a pasted Postgres plan and renders the summary + graph", async ({
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
   await expect(page.getByTestId("plan-result")).toBeVisible()
-  await expect(page.getByText("Postgres", { exact: true })).toBeVisible()
+  await expect(page.getByTestId("detected-engine-badge")).toHaveText("Postgres")
   await expect(page.getByTestId("plan-summary")).toBeVisible()
   await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
   await expect(page.getByTestId("parse-error")).toHaveCount(0)

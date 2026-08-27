@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { PRIVACY_CAVEAT_NOTE, PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
+import { PASTE_BOX_PLACEHOLDER } from "./positioningCopy"
 
 export interface PasteBoxProps {
   onAnalyze: (text: string) => void
@@ -33,7 +34,7 @@ export function PasteBox({ onAnalyze }: PasteBoxProps) {
         data-testid="paste-textarea"
         value={text}
         onChange={(event) => setText(event.target.value)}
-        placeholder="Paste a Postgres EXPLAIN, SQL Server Showplan XML, or Snowflake operator-stats JSON…"
+        placeholder={PASTE_BOX_PLACEHOLDER}
         rows={12}
         aria-label="Paste your execution plan"
       />
