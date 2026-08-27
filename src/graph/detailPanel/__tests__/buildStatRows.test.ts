@@ -103,6 +103,23 @@ describe("buildStatRows", () => {
     expect(buildStatRows(node).some((r) => r.label === "Cache hit ratio")).toBe(false)
   })
 
+  // Long free-text values (predicate/seek/join condition) are flagged so
+  // StatsTable can render them as a full-width block instead of squeezing
+  // them into the narrow value column — a composite seek condition across
+  // several columns reads badly crammed into a 2-column table.
+  it("flags Filter/Index condition/Join condition as long-text rows, but not short scalar stats", () => {
+    const node = makeNode({
+      engine: "sqlserver",
+      predicate: { filter: "[Status]='active'", indexCondition: "[CustomerId]=(42)", joinCondition: "[a.id]=[b.id]" },
+      index: { name: "IX_Foo" },
+    })
+    const rows = buildStatRows(node)
+    expect(rows.find((r) => r.label === "Filter")?.isLongText).toBe(true)
+    expect(rows.find((r) => r.label === "Index condition")?.isLongText).toBe(true)
+    expect(rows.find((r) => r.label === "Join condition")?.isLongText).toBe(true)
+    expect(rows.find((r) => r.label === "Index name")?.isLongText).toBeFalsy()
+  })
+
   it("labels SQL Server's cache hit ratio as approximate", () => {
     const node = makeNode({ engine: "sqlserver", io: { bufferHits: 8, bufferReads: 2, cacheHitRatio: 0.8 } })
     const row = buildStatRows(node).find((r) => r.label === "Cache hit ratio")

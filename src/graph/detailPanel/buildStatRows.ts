@@ -14,6 +14,11 @@ export interface StatRow {
   /** Flags the cumulated-vs-per-execution pair so they can be visually
    * grouped/labeled together rather than read as two unrelated numbers. */
   isCumulatedTiming?: boolean
+  /** A free-text value (predicate/seek/join condition) that can be
+   * arbitrarily long — StatsTable renders these as a full-width wrapped
+   * block instead of squeezing them into the narrow value column of the
+   * 2-column table, where a long composite condition reads badly. */
+  isLongText?: boolean
 }
 
 const NOT_CAPTURED = "not captured in this plan"
@@ -106,9 +111,15 @@ function rowsTime(node: PlanNode): StatRow[] {
 
 function rowsPredicateAndIndex(node: PlanNode): StatRow[] {
   const rows: StatRow[] = []
-  if (node.predicate?.filter) rows.push({ label: "Filter", value: node.predicate.filter })
-  if (node.predicate?.indexCondition) rows.push({ label: "Index condition", value: node.predicate.indexCondition })
-  if (node.predicate?.joinCondition) rows.push({ label: "Join condition", value: node.predicate.joinCondition })
+  // Free text, potentially long (a composite condition across several
+  // columns) — rendered as a full-width block, not a cramped table cell.
+  if (node.predicate?.filter) rows.push({ label: "Filter", value: node.predicate.filter, isLongText: true })
+  if (node.predicate?.indexCondition) {
+    rows.push({ label: "Index condition", value: node.predicate.indexCondition, isLongText: true })
+  }
+  if (node.predicate?.joinCondition) {
+    rows.push({ label: "Join condition", value: node.predicate.joinCondition, isLongText: true })
+  }
 
   if (node.index?.name) rows.push({ label: "Index name", value: node.index.name })
   if (node.index?.name || node.index?.type) {
