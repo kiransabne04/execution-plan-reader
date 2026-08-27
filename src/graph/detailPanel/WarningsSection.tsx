@@ -1,16 +1,26 @@
-import type { Warning } from "../../parsers/normalize"
+import type { Engine, Warning } from "../../parsers/normalize"
+import { FunnelCallout } from "./FunnelCallout"
+import { getFunnelCallout } from "./funnelCallouts"
 
 export interface WarningsSectionProps {
   warnings: Warning[]
   expertMode: boolean
+  engine: Engine
 }
 
 /** Panel section 4 ("Why this might matter here") — the specific findings
  * for THIS node, reusing Warning.shortText/longText from the rule engine
  * rather than generating new copy. Omitted entirely (not padded with filler)
- * when nothing fired — see Story 6.2's explicit edge case for this. */
-export function WarningsSection({ warnings, expertMode }: WarningsSectionProps) {
+ * when nothing fired — see Story 6.2's explicit edge case for this.
+ *
+ * Also the one place Story 9.1's funnel callout renders: it only ever
+ * appears alongside an actual fired warning on this specific node (never a
+ * standalone banner), keyed off THIS node's own `engine` field (never a
+ * plan-wide flag or rule ID) so a Postgres finding can never link to
+ * QueryDoc or vice versa. */
+export function WarningsSection({ warnings, expertMode, engine }: WarningsSectionProps) {
   if (warnings.length === 0) return null
+  const callout = getFunnelCallout(engine)
 
   return (
     <section className="detail-panel__section" data-testid="warnings-section">
@@ -28,6 +38,7 @@ export function WarningsSection({ warnings, expertMode }: WarningsSectionProps) 
           {expertMode ? warning.longText : warning.shortText}
         </div>
       ))}
+      {callout && <FunnelCallout callout={callout} />}
     </section>
   )
 }

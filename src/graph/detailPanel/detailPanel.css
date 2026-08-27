@@ -10,6 +10,9 @@
   --dp-education-bg: #eef4ff;
   --dp-badge-bg: #1a1a1a;
   --dp-badge-text: #ffffff;
+  --dp-callout-bg: #f0fdf9;
+  --dp-callout-border: #0d9488;
+  --dp-callout-text: #0f766e;
 
   position: fixed;
   top: 0;
@@ -40,6 +43,9 @@
     --dp-education-bg: #1a2340;
     --dp-badge-bg: #f2f4f7;
     --dp-badge-text: #1a1a1a;
+    --dp-callout-bg: #0f2b26;
+    --dp-callout-border: #2dd4bf;
+    --dp-callout-text: #5eead4;
   }
 }
 
@@ -142,6 +148,39 @@
 
 .detail-panel__warning--critical {
   border-left-color: var(--dp-warning-critical);
+}
+
+/* Story 9.1 — deliberately distinct from the warning treatment above (teal
+   accent, not red): a helpful nudge, not another problem being flagged. */
+.detail-panel__funnel-callout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--dp-callout-bg);
+  border-left: 3px solid var(--dp-callout-border);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+
+.detail-panel__funnel-callout-link {
+  color: var(--dp-callout-text);
+  font-weight: 500;
+  text-decoration: none;
+  flex: 1;
+}
+
+.detail-panel__funnel-callout-link:hover {
+  text-decoration: underline;
+}
+
+.detail-panel__funnel-callout-dismiss {
+  background: none;
+  border: none;
+  color: var(--dp-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
 }
 
 .detail-panel__stats-table {
