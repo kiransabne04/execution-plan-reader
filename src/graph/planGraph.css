@@ -30,6 +30,12 @@
   }
 }
 
+.plan-node-card-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
 .plan-node-card {
   width: 100%;
   height: 100%;
@@ -84,6 +90,42 @@
   font-weight: 600;
   padding: 1px 6px;
   white-space: nowrap;
+}
+
+/* Hover tooltip (graph-visualization skill: a separate, lightweight
+   component from the click detail panel) — CSS-only reveal, no JS state,
+   so it costs nothing extra per card at any plan size. Hidden via opacity/
+   visibility (not display:none) so it stays in the accessibility tree and
+   can be reached by :focus-within for keyboard users, not mouse-only. */
+.plan-node-card__tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  z-index: 5;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--pg-card-bg);
+  color: var(--pg-card-text);
+  border: 1px solid var(--pg-card-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+
+.plan-node-card-wrapper:hover .plan-node-card__tooltip,
+.plan-node-card-wrapper:focus-within .plan-node-card__tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 
 .collapsed-group-node {

@@ -1,12 +1,18 @@
 import type { KeyboardEvent, MouseEvent } from "react"
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react"
 import type { PlanNodeData } from "./buildGraphElements"
+import { buildNodeTooltip } from "./nodeTooltip"
 
 type PlanNodeCardProps = NodeProps<Node<PlanNodeData, "planNode">>
 
 export function PlanNodeCard({ data }: PlanNodeCardProps) {
   const { planNode, color, hasMismatch, loopCount, onOpen } = data
   const className = hasMismatch ? "plan-node-card plan-node-card--mismatch" : "plan-node-card"
+  // Hover tooltip (graph-visualization skill: hover tooltip and click detail
+  // panel are two separate components) — CSS-only reveal (:hover/:focus-
+  // within in planGraph.css), no extra state or render cost per card, and
+  // the same content stays reachable via keyboard focus, not mouse-only.
+  const tooltip = buildNodeTooltip(planNode)
 
   // Keyboard access (Story 6.2's accessibility acceptance criterion):
   // Enter/Space on a focused card opens the same detail panel a click
@@ -30,34 +36,45 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
   }
 
   return (
-    <div
-      className={className}
-      style={{ borderColor: hasMismatch ? undefined : color, background: `color-mix(in srgb, ${color} 18%, var(--pg-card-bg))` }}
-      title={planNode.rawOperatorLabel}
-      data-testid="plan-node-card"
-      data-node-id={planNode.id}
-      tabIndex={0}
-      role="button"
-      aria-label={`${planNode.rawOperatorLabel} — open details`}
-      onKeyDown={handleKeyDown}
-      onClick={handleClick}
-    >
-      <Handle type="target" position={Position.Top} />
-      <div className="plan-node-card__label">{planNode.rawOperatorLabel}</div>
-      <div className="plan-node-card__meta">{formatMeta(planNode)}</div>
-      <div className="plan-node-card__badges">
-        {hasMismatch && (
-          <span className="plan-node-card__badge" data-testid="mismatch-badge">
-            est. mismatch
-          </span>
-        )}
-        {loopCount !== undefined && (
-          <span className="plan-node-card__badge" data-testid="loop-badge">
-            ×{loopCount.toLocaleString("en-US")}
-          </span>
-        )}
+    // Outer wrapper (no overflow clipping, unlike .plan-node-card itself,
+    // which needs overflow:hidden for its label/meta text-overflow ellipsis)
+    // — the tooltip is this wrapper's sibling-of-the-card, not its child, so
+    // it can render outside the small card's bounds instead of being clipped.
+    <div className="plan-node-card-wrapper">
+      <div
+        className={className}
+        style={{ borderColor: hasMismatch ? undefined : color, background: `color-mix(in srgb, ${color} 18%, var(--pg-card-bg))` }}
+        title={planNode.rawOperatorLabel}
+        data-testid="plan-node-card"
+        data-node-id={planNode.id}
+        tabIndex={0}
+        role="button"
+        aria-label={`${planNode.rawOperatorLabel} — open details`}
+        onKeyDown={handleKeyDown}
+        onClick={handleClick}
+      >
+        <Handle type="target" position={Position.Top} />
+        <div className="plan-node-card__label">{planNode.rawOperatorLabel}</div>
+        <div className="plan-node-card__meta">{formatMeta(planNode)}</div>
+        <div className="plan-node-card__badges">
+          {hasMismatch && (
+            <span className="plan-node-card__badge" data-testid="mismatch-badge">
+              est. mismatch
+            </span>
+          )}
+          {loopCount !== undefined && (
+            <span className="plan-node-card__badge" data-testid="loop-badge">
+              ×{loopCount.toLocaleString("en-US")}
+            </span>
+          )}
+        </div>
+        <Handle type="source" position={Position.Bottom} />
       </div>
-      <Handle type="source" position={Position.Bottom} />
+      {tooltip && (
+        <div className="plan-node-card__tooltip" data-testid="plan-node-tooltip" role="tooltip">
+          {tooltip}
+        </div>
+      )}
     </div>
   )
 }

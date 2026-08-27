@@ -164,4 +164,22 @@ describe("PlanGraph", () => {
     fireEvent.click(bCard)
     expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Index Scan")
   })
+
+  it("renders a hover tooltip only on nodes that have a predicate/seek/join condition", () => {
+    const withSeek = makeNode({
+      id: "seek",
+      rawOperatorLabel: "Index Seek",
+      predicate: { indexCondition: "[CustomerId]=(42)" },
+    })
+    const withoutOne = makeNode({ id: "plain", rawOperatorLabel: "Sort" })
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join", children: [withSeek, withoutOne] })
+    render(<PlanGraph root={root} />)
+
+    const cards = screen.getAllByTestId("plan-node-card")
+    const seekCard = cards.find((c) => c.getAttribute("data-node-id") === "seek")!.parentElement!
+    const plainCard = cards.find((c) => c.getAttribute("data-node-id") === "plain")!.parentElement!
+
+    expect(seekCard.querySelector('[data-testid="plan-node-tooltip"]')).toHaveTextContent("Seek: [CustomerId]=(42)")
+    expect(plainCard.querySelector('[data-testid="plan-node-tooltip"]')).toBeNull()
+  })
 })
