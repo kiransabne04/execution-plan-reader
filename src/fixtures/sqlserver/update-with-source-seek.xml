@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="UPDATE Orders SET Status = 'shipped' WHERE CustomerId = 42" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <!-- DML operators (Update/Insert/Delete/Merge) nest their own Object
+                 (the target being modified) as a sibling of a child RelOp (the
+                 source rows feeding the write) under the same wrapper element —
+                 a stricter test of the RelOp-boundary rule in findNearestDescendant
+                 than a plain scan/seek pair: Object and a nested RelOp sibling
+                 share one parent here, instead of Object being the nested RelOp's
+                 only detail child. -->
+            <RelOp NodeId="0" PhysicalOp="Clustered Index Update" LogicalOp="Update" EstimateRows="1" EstimatedTotalSubtreeCost="0.02">
+              <Update>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[PK_Orders]" IndexKind="Clustered" />
+                <SetPredicate>
+                  <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[Status]='shipped'" />
+                </SetPredicate>
+                <RelOp NodeId="1" PhysicalOp="Index Seek" LogicalOp="Index Seek" EstimateRows="1" EstimatedTotalSubtreeCost="0.01">
+                  <IndexScan Lookup="0">
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[IX_Orders_CustomerId]" IndexKind="NonClustered" />
+                    <SeekPredicates>
+                      <SeekPredicateNew>
+                        <Prefix>
+                          <RangeColumns>
+                            <ColumnReference Column="CustomerId" />
+                          </RangeColumns>
+                          <RangeExpressions>
+                            <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[CustomerId]=(42)" />
+                          </RangeExpressions>
+                        </Prefix>
+                      </SeekPredicateNew>
+                    </SeekPredicates>
+                  </IndexScan>
+                </RelOp>
+              </Update>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>
