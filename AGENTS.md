@@ -47,8 +47,14 @@ When reviewing a PR in this repository:
 - Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`)
 - One branch/PR per story from `docs/08-episodes-and-stories.md`
 
-## Current focus
-Before continuing with `docs/08-episodes-and-stories.md`, work through `docs/11-manual-testing-gaps-episode8.md` — 4 gaps found in manual testing after Episode 8. Two have a confirmed root cause (file/line pointers included); the other two need the real plan XML from manual testing reproduced as a fixture before any fix is written — don't guess at a fix for those without reproducing first.
-
 ## Full doc index
-See `CLAUDE.md` for the complete list — same docs, same paths.
+See `CLAUDE.md` for the complete list — same docs, same paths. Start any
+session by reading `docs/00-memory-map-and-context.md`, then `docs/BACKLOG-STATUS.md`
+for current state.
+
+## Adding new work
+New stories follow `docs/STORY_TEMPLATE.md` and get a row added to
+`docs/BACKLOG-STATUS.md`. When reviewing a PR that implements a story, confirm
+its `BACKLOG-STATUS.md` row was updated to `done` with a link to the PR — a
+story that's implemented but not reflected there will look "not started" to
+the next session (Claude Code or Codex) and cause duplicated work.

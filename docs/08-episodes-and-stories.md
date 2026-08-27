@@ -383,6 +383,37 @@ As a team lead, I want to share a specific parsed plan via a link, with a clear 
 | User publishes, then wants to redact/remove specific sensitive fields after the fact | Real workflow gap seen in competitor tools (no easy post-publish edit) | At minimum, support full un-publish; consider partial redaction as a later refinement, not a launch blocker |
 | Published plan link shared outside the org (support ticket, public forum) | The nature of a share link | No account required to view a published link is by design (matches pgMustard), but the pre-publish warning must make this consequence explicit |
 
+### Story 11.2 — Client-side-only shareable link (no backend)
+
+**Goal**: A share option that requires zero server infrastructure — the entire plan state is encoded into the URL itself, so "sharing" is just sending a link, and "viewing" is the recipient's own browser decoding and re-parsing it locally. This is a genuine alternative to Story 11.1, not a lesser version of it — it keeps the fully-client-side privacy guarantee (Episode 7) intact even for the sharing feature, which Story 11.1's server-published-link approach cannot claim by design. Evaluate both; they can coexist (11.2 as the default, 11.1 as a fallback for plans too large to fit in a URL).
+
+As a user who wants to share a plan without trusting any server with it — including PlanReader's own — I want a link that encodes the whole plan in the URL, so nothing is ever stored anywhere.
+
+**How it works**
+- Compress the parsed `PlanNode` tree (or the raw plan text, if re-parsing on load is preferred over shipping already-parsed state) using a client-side compression library (e.g. `lz-string` or `pako`), then base64/URL-safe-encode the result into a URL fragment (`#`) rather than a query parameter — fragments are never sent to a server in an HTTP request at all, which is a meaningfully stronger privacy property than a query string (query strings can end up in server access logs even for a static host).
+- On load, if a fragment is present, decode/decompress it client-side and render immediately — no network round-trip, no server ever sees the content, consistent with the Episode 7 privacy architecture.
+- The link itself can be arbitrarily long but browsers and some sharing surfaces (chat apps, SMS) have practical URL-length limits (commonly reliable up to roughly 2000 characters across widely-used tools, even though modern browsers individually support much more) — this is the core constraint of the whole approach and must be handled honestly, not silently.
+
+**Acceptance criteria**
+- A "copy shareable link" action produces a URL that, when opened in a fresh browser with no prior state, renders the identical plan visualization and warnings.
+- The mechanism uses the URL fragment, not a query parameter, and a test confirms the fragment content never appears in any network request (consistent with the Episode 7 network-call-guarding test).
+- When the compressed, encoded plan would exceed a defined safe length threshold, the UI states this plainly ("this plan is too large for a link-only share") rather than silently producing a broken or truncated link, and — if Story 11.1 is also implemented — offers the backend-based publish option as an explicit, clearly-different alternative at that point.
+- Works with no account, no signup, consistent with the rest of the product.
+
+**Testing approach**
+- Round-trip test: encode a plan, decode it, assert the resulting `PlanNode` tree is identical to the original.
+- Size-threshold test: a deliberately oversized fixture (from the large-plan edge cases in Episodes 1–3) triggers the "too large" state rather than producing a broken link.
+- Network-call-guarding test (extends the Episode 7 test): confirm loading a fragment-encoded shared link produces zero outbound requests containing plan content.
+- Cross-browser test: the specific compression/encoding approach chosen should be verified against real sharing surfaces' URL-length tolerances, not just a browser's theoretical maximum.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Plan too large to encode within a safe URL length | Common for large real-world plans (100+ nodes), not a rare case | Explicit "too large for a link-only share" message; offer Story 11.1's backend option as a distinct alternative if available, rather than failing silently or producing an unusable link |
+| Recipient's browser/sharing app truncates or mangles the URL (common in chat apps that auto-linkify) | Breaks the decode step | Detect malformed/truncated fragment data on load and show a clear "this link looks incomplete" message, not a blank page or a raw decode error |
+| Compression library differences across browser versions | Could produce decode failures on old browsers | Use a well-established, broadly-compatible library; test against the oldest supported browser target, not just the latest |
+| A link encodes a plan that predates a `PlanNode` schema change (future-proofing) | The app's data model will evolve over time | Version the encoded payload (a short version tag in the encoded data) so a future decoder can detect and handle old-format links gracefully rather than crashing on them |
+
 ---
 
 ## Episode 12 — Launch readiness & content tie-in
