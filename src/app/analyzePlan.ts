@@ -10,7 +10,7 @@ import { parsePostgresTextPlan } from "../parsers/postgres/textParser"
 import { parseSqlServerShowplanXml, type MissingIndexRecommendation } from "../parsers/sqlserver/parseShowplanXml"
 import { parseSnowflakeOperatorStats } from "../parsers/snowflake"
 import { applyRules } from "../rules/index"
-import { buildPlanContext, type MissingIndexSignal } from "../rules/types"
+import { buildPlanContext, type MissingIndexSignal, type PlanContext } from "../rules/types"
 import { summarizePlan, type PlanSummary } from "../rules/summarize"
 
 export type DetectedEngine = "postgres" | "sqlserver" | "snowflake"
@@ -19,6 +19,10 @@ export interface AnalyzedStatement {
   label: string
   root: PlanNode
   summary: PlanSummary
+  /** The exact context the rule engine ran with — passed to the graph/panel
+   * layer too, so contribution-%/query-correlation see the same statement
+   * text and totals the rules themselves used. */
+  context: PlanContext
 }
 
 export interface AnalyzedPlan {
@@ -46,11 +50,11 @@ function truncateLabel(text: string, max = 60): string {
 function analyzeRoot(
   root: PlanNode,
   label: string,
-  extra?: { statementText?: string; missingIndexes?: MissingIndexSignal[] },
+  extra?: { statementText?: string; missingIndexes?: MissingIndexSignal[]; queryTextRedacted?: boolean },
 ): AnalyzedStatement {
   const context = buildPlanContext(root, extra)
   applyRules(root, context)
-  return { label, root, summary: summarizePlan(root) }
+  return { label, root, summary: summarizePlan(root), context }
 }
 
 /**
@@ -85,7 +89,11 @@ export function analyzePlanText(raw: string): AnalyzedPlan {
       if (!(pgErr instanceof PlanParseError) || pgErr.code !== "NOT_A_PLAN") throw pgErr
     }
     const { root, queryTextRedacted } = parseSnowflakeOperatorStats(raw)
-    return { engine: "snowflake", statements: [analyzeRoot(root, "Query")], queryTextRedacted }
+    return {
+      engine: "snowflake",
+      statements: [analyzeRoot(root, "Query", { queryTextRedacted })],
+      queryTextRedacted,
+    }
   }
 
   const root = parsePostgresTextPlan(raw)

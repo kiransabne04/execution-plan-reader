@@ -18,6 +18,10 @@ export interface PlanNodeData extends Record<string, unknown> {
    * finding rather than recomputing a second, possibly-inconsistent threshold. */
   hasMismatch: boolean
   loopCount?: number
+  /** Attached by PlanGraph after this otherwise-plain, testable conversion —
+   * lets the card open its own detail panel from a keyboard Enter/Space,
+   * not just a mouse click handled at the ReactFlow container level. */
+  onOpen?: () => void
 }
 
 export interface CollapsedGroupNodeData extends Record<string, unknown> {

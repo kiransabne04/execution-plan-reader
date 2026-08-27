@@ -1,0 +1,195 @@
+.detail-panel {
+  --dp-bg: #ffffff;
+  --dp-border: #d0d5dd;
+  --dp-text: #1a1a1a;
+  --dp-text-muted: #667085;
+  --dp-gap-bg: #f2f4f7;
+  --dp-warning-bg: #fef3f2;
+  --dp-warning-border: #f97066;
+  --dp-warning-critical: #b42318;
+  --dp-education-bg: #eef4ff;
+  --dp-badge-bg: #1a1a1a;
+  --dp-badge-text: #ffffff;
+
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100vw);
+  overflow-y: auto;
+  background: var(--dp-bg);
+  color: var(--dp-text);
+  border-left: 1px solid var(--dp-border);
+  padding: 16px;
+  box-sizing: border-box;
+  font-size: 13px;
+  line-height: 1.5;
+  z-index: 20;
+}
+
+@media (prefers-color-scheme: dark) {
+  .detail-panel {
+    --dp-bg: #14161a;
+    --dp-border: #3a4150;
+    --dp-text: #f2f4f7;
+    --dp-text-muted: #98a2b3;
+    --dp-gap-bg: #1d2129;
+    --dp-warning-bg: #3a1f1d;
+    --dp-warning-border: #f97066;
+    --dp-warning-critical: #f97066;
+    --dp-education-bg: #1a2340;
+    --dp-badge-bg: #f2f4f7;
+    --dp-badge-text: #1a1a1a;
+  }
+}
+
+@media (max-width: 480px) {
+  .detail-panel {
+    width: 100vw;
+  }
+}
+
+.detail-panel__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: transparent;
+  color: var(--dp-text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.detail-panel__header {
+  padding-right: 28px;
+  margin-bottom: 12px;
+}
+
+.detail-panel__display-name {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.detail-panel__raw-label {
+  color: var(--dp-text-muted);
+  font-size: 12px;
+}
+
+.detail-panel__engine-badge {
+  display: inline-block;
+  background: var(--dp-badge-bg);
+  color: var(--dp-badge-text);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.detail-panel__mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.detail-panel__mode-button {
+  flex: 1;
+  padding: 4px 0;
+  border-radius: 6px;
+  border: 1px solid var(--dp-border);
+  background: transparent;
+  color: var(--dp-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.detail-panel__mode-button[aria-pressed="true"] {
+  background: var(--dp-text);
+  color: var(--dp-bg);
+  border-color: var(--dp-text);
+}
+
+.detail-panel__section {
+  margin-bottom: 16px;
+}
+
+.detail-panel__section-heading {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--dp-text-muted);
+  margin: 0 0 6px;
+}
+
+/* Sections 4 (specific finding) and 5 (general education) must read as
+   visually distinct — different background treatments, not just headings —
+   per Story 6.2's explicit acceptance criteria. */
+.detail-panel__education {
+  background: var(--dp-education-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.detail-panel__warning {
+  background: var(--dp-warning-bg);
+  border-left: 3px solid var(--dp-warning-border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.detail-panel__warning--critical {
+  border-left-color: var(--dp-warning-critical);
+}
+
+.detail-panel__stats-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.detail-panel__stats-table td {
+  padding: 3px 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--dp-border);
+}
+
+.detail-panel__stats-table td:first-child {
+  color: var(--dp-text-muted);
+  padding-right: 10px;
+  white-space: nowrap;
+}
+
+.detail-panel__stat-gap {
+  font-style: italic;
+  color: var(--dp-text-muted);
+  background: var(--dp-gap-bg);
+}
+
+.detail-panel__stat-mismatch {
+  color: var(--dp-warning-critical);
+  font-weight: 600;
+}
+
+.detail-panel__query-text {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  background: var(--dp-gap-bg);
+  border-radius: 6px;
+  padding: 8px;
+  margin: 0;
+}
+
+.detail-panel__raw-attributes {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  background: var(--dp-gap-bg);
+  border-radius: 6px;
+  padding: 8px;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}

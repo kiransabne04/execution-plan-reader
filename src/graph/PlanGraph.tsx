@@ -10,8 +10,10 @@ import {
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { collectNodes, type PlanNode } from "../parsers/normalize"
+import { buildPlanContext, type PlanContext } from "../rules/types"
 import { buildGraphElements, type PlanGraphNode } from "./buildGraphElements"
 import { computeDefaultCollapsedIds } from "./collapse"
+import { DetailPanel } from "./detailPanel/DetailPanel"
 import type { MetricKey } from "./encoding"
 import { PlanNodeCard } from "./PlanNodeCard"
 import { CollapsedGroupNode } from "./CollapsedGroupNode"
@@ -27,10 +29,17 @@ export interface PlanGraphProps {
   /** "Actual time when available, estimated cost otherwise" is the default
    * per the technical spec; callers (a future legend toggle) can override. */
   metric?: MetricKey
+  /** The context the rule engine ran with, so the detail panel's
+   * contribution-%/query-correlation sections see the same statement text
+   * and totals the rules themselves used. Defaults to a bare context built
+   * from `root` alone (fine for standalone use/tests; a real page should
+   * pass the actual context from `analyzePlan`). */
+  context?: PlanContext
 }
 
-function PlanGraphInner({ root, metric = "actualTimeMs" }: PlanGraphProps) {
+function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphProps) {
   const allNodes = useMemo(() => collectNodes(root), [root])
+  const resolvedContext = useMemo(() => context ?? buildPlanContext(root), [context, root])
 
   // Collapse state lives here, keyed by PlanNode id — never on the PlanNode
   // model itself, which stays pure/serializable. Which subtrees are
@@ -40,16 +49,21 @@ function PlanGraphInner({ root, metric = "actualTimeMs" }: PlanGraphProps) {
   // something the user just expanded.
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => computeDefaultCollapsedIds(root, allNodes))
 
-  // Reset collapse state when a genuinely new plan arrives (a fresh parse
-  // result — object identity, not just an equal id, since ids restart from
-  // "n0" on every parse). This is React's documented "adjust state during
-  // render" pattern for resetting on a prop change: a plain conditional
-  // setState call while rendering, not inside an effect, so it doesn't
-  // trigger the extra render-then-effect round trip a useEffect would.
+  // Which node's detail panel is open, if any — local UI state, never on
+  // the PlanNode model itself.
+  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined)
+
+  // Reset collapse/selection state when a genuinely new plan arrives (a
+  // fresh parse result — object identity, not just an equal id, since ids
+  // restart from "n0" on every parse). This is React's documented "adjust
+  // state during render" pattern for resetting on a prop change: a plain
+  // conditional setState call while rendering, not inside an effect, so it
+  // doesn't trigger the extra render-then-effect round trip a useEffect would.
   const [prevRoot, setPrevRoot] = useState(root)
   if (root !== prevRoot) {
     setPrevRoot(root)
     setCollapsedIds(computeDefaultCollapsedIds(root, allNodes))
+    setSelectedNodeId(undefined)
   }
 
   const { nodes, edges } = useMemo(
@@ -66,19 +80,37 @@ function PlanGraphInner({ root, metric = "actualTimeMs" }: PlanGraphProps) {
   }, [nodes.length, fitView])
 
   const handleNodeClick = useCallback<NodeMouseHandler<PlanGraphNode>>((_event, node) => {
-    if (node.type !== "collapsedGroup") return
-    const parentPlanNodeId = node.data.parentPlanNodeId
-    setCollapsedIds((prev) => {
-      const next = new Set(prev)
-      next.delete(parentPlanNodeId)
-      return next
-    })
+    if (node.type === "collapsedGroup") {
+      const parentPlanNodeId = node.data.parentPlanNodeId
+      setCollapsedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(parentPlanNodeId)
+        return next
+      })
+      return
+    }
+    setSelectedNodeId(node.id)
   }, [])
+
+  const selectedNode = selectedNodeId !== undefined ? allNodes.find((n) => n.id === selectedNodeId) : undefined
+
+  // Keyboard access (Story 6.2's accessibility acceptance criterion: the
+  // panel opens via Enter/Space on a focused node) needs each card to call
+  // back into this component's own selection state — attached here, after
+  // buildGraphElements produces its otherwise-plain, testable node data,
+  // rather than baked into that pure conversion function itself.
+  const nodesWithHandlers = useMemo(
+    () =>
+      nodes.map((n) =>
+        n.type === "planNode" ? { ...n, data: { ...n.data, onOpen: () => setSelectedNodeId(n.id) } } : n,
+      ),
+    [nodes],
+  )
 
   return (
     <div className="plan-graph" data-testid="plan-graph">
       <ReactFlow
-        nodes={nodes}
+        nodes={nodesWithHandlers}
         edges={edges}
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
@@ -89,6 +121,9 @@ function PlanGraphInner({ root, metric = "actualTimeMs" }: PlanGraphProps) {
         <Background />
         <Controls />
       </ReactFlow>
+      {selectedNode && (
+        <DetailPanel node={selectedNode} context={resolvedContext} onClose={() => setSelectedNodeId(undefined)} />
+      )}
     </div>
   )
 }

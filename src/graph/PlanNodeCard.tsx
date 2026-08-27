@@ -1,11 +1,24 @@
+import type { KeyboardEvent } from "react"
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react"
 import type { PlanNodeData } from "./buildGraphElements"
 
 type PlanNodeCardProps = NodeProps<Node<PlanNodeData, "planNode">>
 
 export function PlanNodeCard({ data }: PlanNodeCardProps) {
-  const { planNode, color, hasMismatch, loopCount } = data
+  const { planNode, color, hasMismatch, loopCount, onOpen } = data
   const className = hasMismatch ? "plan-node-card plan-node-card--mismatch" : "plan-node-card"
+
+  // Keyboard access (Story 6.2's accessibility acceptance criterion):
+  // Enter/Space on a focused card opens the same detail panel a click
+  // would. A mouse click is already handled by ReactFlow's own
+  // onNodeClick at the container level; this covers the keyboard path
+  // that wouldn't otherwise fall out of that for free.
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      onOpen?.()
+    }
+  }
 
   return (
     <div
@@ -14,6 +27,10 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
       title={planNode.rawOperatorLabel}
       data-testid="plan-node-card"
       data-node-id={planNode.id}
+      tabIndex={0}
+      role="button"
+      aria-label={`${planNode.rawOperatorLabel} — open details`}
+      onKeyDown={handleKeyDown}
     >
       <Handle type="target" position={Position.Top} />
       <div className="plan-node-card__label">{planNode.rawOperatorLabel}</div>

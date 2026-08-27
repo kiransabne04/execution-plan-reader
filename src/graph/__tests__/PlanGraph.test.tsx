@@ -87,4 +87,50 @@ describe("PlanGraph", () => {
     rerender(<PlanGraph root={secondPlan} />)
     expect(screen.getByTestId("collapsed-group-node")).toBeInTheDocument()
   })
+
+  it("clicking a plan node card opens its detail panel", () => {
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join" })
+    render(<PlanGraph root={root} />)
+
+    expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId("plan-node-card"))
+    expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+    expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Hash Join")
+  })
+
+  it("pressing Enter on a focused card opens the detail panel (keyboard access, not just mouse)", () => {
+    const root = makeNode({ id: "root", rawOperatorLabel: "Seq Scan" })
+    render(<PlanGraph root={root} />)
+
+    const card = screen.getByTestId("plan-node-card")
+    card.focus()
+    fireEvent.keyDown(card, { key: "Enter" })
+    expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+  })
+
+  it("pressing Escape closes the open detail panel", () => {
+    const root = makeNode({ id: "root" })
+    render(<PlanGraph root={root} />)
+
+    fireEvent.click(screen.getByTestId("plan-node-card"))
+    expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+  })
+
+  it("clicking a different node swaps the panel content without needing to close first", () => {
+    const a = makeNode({ id: "a", rawOperatorLabel: "Seq Scan" })
+    const b = makeNode({ id: "b", rawOperatorLabel: "Index Scan" })
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join", children: [a, b] })
+    render(<PlanGraph root={root} />)
+
+    const cards = screen.getAllByTestId("plan-node-card")
+    const aCard = cards.find((c) => c.getAttribute("data-node-id") === "a")!
+    const bCard = cards.find((c) => c.getAttribute("data-node-id") === "b")!
+
+    fireEvent.click(aCard)
+    expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Seq Scan")
+    fireEvent.click(bCard)
+    expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Index Scan")
+  })
 })

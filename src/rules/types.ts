@@ -26,11 +26,16 @@ export interface PlanContext {
   hasActualData: boolean
   statementText?: string
   missingIndexes?: MissingIndexSignal[]
+  /** Snowflake-only: the account has query-text redaction enabled — used by
+   * the detail panel's query-correlation section to state the reason
+   * plainly rather than silently showing nothing (see graph-visualization
+   * skill). Not a rule-engine signal itself. */
+  queryTextRedacted?: boolean
 }
 
 export function buildPlanContext(
   root: PlanNode,
-  extra?: Partial<Pick<PlanContext, "statementText" | "missingIndexes">>,
+  extra?: Partial<Pick<PlanContext, "statementText" | "missingIndexes" | "queryTextRedacted">>,
 ): PlanContext {
   const nodes = collectNodes(root)
   const hasActualData = nodes.some((n) => n.actualRows !== undefined || n.actualTimeMs !== undefined)
@@ -43,6 +48,7 @@ export function buildPlanContext(
     hasActualData,
     statementText: extra?.statementText,
     missingIndexes: extra?.missingIndexes,
+    queryTextRedacted: extra?.queryTextRedacted,
   }
 }
 

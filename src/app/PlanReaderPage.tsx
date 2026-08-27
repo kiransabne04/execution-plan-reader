@@ -78,7 +78,7 @@ export function PlanReaderPage() {
           </p>
 
           <div className="plan-reader-page__graph">
-            <PlanGraph root={activeStatement.root} />
+            <PlanGraph root={activeStatement.root} context={activeStatement.context} />
           </div>
         </section>
       )}
