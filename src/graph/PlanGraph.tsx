@@ -24,6 +24,11 @@ const nodeTypes: NodeTypes = {
   collapsedGroup: CollapsedGroupNode,
 }
 
+// Below this, PlanNodeCard's 12px label is no longer legible. Governs both
+// fitView's floor (below) and <ReactFlow>'s own minZoom, so manual scroll-to-
+// zoom can't reach the same illegible scale fitView is capped away from.
+const MIN_LEGIBLE_ZOOM = 0.5
+
 export interface PlanGraphProps {
   root: PlanNode
   /** "Actual time when available, estimated cost otherwise" is the default
@@ -90,7 +95,13 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphPro
   useEffect(() => {
     // Large plans must never render pre-zoomed to an unreadable scale —
     // fit on every shape change (initial load, expand/collapse), not just once.
-    const frame = requestAnimationFrame(() => fitView({ padding: 0.2, duration: 200 }))
+    // Floored at MIN_LEGIBLE_ZOOM: for a 500+-node plan, fitting every node into
+    // the fixed-size viewport would otherwise zoom out far past PlanNodeCard's
+    // 12px label legibility. Once capped, a large plan overflows the viewport
+    // instead — React Flow's own pan/scroll already handles that for free.
+    const frame = requestAnimationFrame(() =>
+      fitView({ padding: 0.2, duration: 200, minZoom: MIN_LEGIBLE_ZOOM }),
+    )
     return () => cancelAnimationFrame(frame)
   }, [nodes.length, fitView])
 
@@ -127,7 +138,7 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphPro
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
         proOptions={{ hideAttribution: true }}
-        minZoom={0.05}
+        minZoom={MIN_LEGIBLE_ZOOM}
         maxZoom={2}
       >
         <Background />
