@@ -47,5 +47,8 @@ When reviewing a PR in this repository:
 - Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`)
 - One branch/PR per story from `docs/08-episodes-and-stories.md`
 
+## Current focus
+Before continuing with `docs/08-episodes-and-stories.md`, work through `docs/11-manual-testing-gaps-episode8.md` — 4 gaps found in manual testing after Episode 8. Two have a confirmed root cause (file/line pointers included); the other two need the real plan XML from manual testing reproduced as a fixture before any fix is written — don't guess at a fix for those without reproducing first.
+
 ## Full doc index
 See `CLAUDE.md` for the complete list — same docs, same paths.

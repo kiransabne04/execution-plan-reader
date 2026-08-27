@@ -37,9 +37,7 @@ discussion first — see `.claude/skills/privacy-architecture/SKILL.md`.**
   (e.g. `feat/1.1-postgres-json-parser`)
 
 ## Current focus
-Work through `docs/08-episodes-and-stories.md` in order, one story at a time.
-Each story has acceptance criteria, a testing approach, and an edge-case table —
-treat the edge-case table as a checklist, not optional background reading.
+Before continuing with `docs/08-episodes-and-stories.md`, work through `docs/11-manual-testing-gaps-episode8.md` — 4 gaps found in manual testing after Episode 8. Two have a confirmed root cause (file/line pointers included, ready to fix directly); the other two need the real plan XML from manual testing reproduced as a new fixture before any fix is written — don't guess at a fix for those without reproducing first. Once that doc's open items are closed, resume `docs/08-episodes-and-stories.md` in order, one story at a time — each story has acceptance criteria, a testing approach, and an edge-case table; treat the edge-case table as a checklist, not optional background reading.
 
 ## Full doc index
 - `docs/01-competitive-analysis.md`
@@ -52,3 +50,4 @@ treat the edge-case table as a checklist, not optional background reading.
 - `docs/08-episodes-and-stories.md` — the buildable backlog
 - `docs/09-local-dev-setup.md`
 - `docs/10-node-stats-field-catalog.md` — per-engine field mapping for predicates, indexes, joins, costs, buffers, spill, cache, time, rows; authoritative source for the detail panel's data model
+- `docs/11-manual-testing-gaps-episode8.md` — 4 gaps found in manual testing after Episode 8, each traced against the actual code with file/line pointers
