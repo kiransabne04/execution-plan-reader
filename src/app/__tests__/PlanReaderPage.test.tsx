@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { PlanReaderPage } from "../PlanReaderPage"
+import { encodeShareLink } from "../shareLink"
 
 function loadFixture(engine: string, filename: string): string {
   const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), `../../fixtures/${engine}`)
@@ -101,5 +102,92 @@ describe("PlanReaderPage", () => {
     expect(screen.getByRole("button", { name: /analyze plan/i })).toBeDisabled()
     fireEvent.change(screen.getByTestId("paste-textarea"), { target: { value: "x" } })
     expect(screen.getByRole("button", { name: /analyze plan/i })).not.toBeDisabled()
+  })
+})
+
+// Story 11.2 — client-side-only shareable link, wired end-to-end.
+describe("PlanReaderPage — shareable link (Story 11.2)", () => {
+  afterEach(() => {
+    window.location.hash = ""
+  })
+
+  it("renders the recovered plan directly on load when the URL has a valid share-link fragment — no re-paste/re-click needed", () => {
+    const text = loadFixture("postgres", "simple-seq-scan.json")
+    const encoded = encodeShareLink(text, "https://example.com/")
+    expect(encoded.ok).toBe(true)
+    if (!encoded.ok) return
+    window.location.hash = encoded.url.split("#")[1]
+
+    render(<PlanReaderPage />)
+
+    expect(screen.getByTestId("plan-result")).toBeInTheDocument()
+    expect(screen.getByTestId("detected-engine-badge")).toHaveTextContent("Postgres")
+    expect(screen.queryByTestId("parse-error")).not.toBeInTheDocument()
+    // The recovered text is also visible in the paste box, not just silently
+    // rendered into the graph.
+    expect(screen.getByTestId("paste-textarea")).toHaveValue(text)
+  })
+
+  it("shows a plain 'looks incomplete' message, not a crash or blank page, for a truncated/mangled share-link fragment", () => {
+    const encoded = encodeShareLink("some plan text", "https://example.com/")
+    expect(encoded.ok).toBe(true)
+    if (!encoded.ok) return
+    const fullFragment = encoded.url.split("#")[1]
+    window.location.hash = fullFragment.slice(0, Math.floor(fullFragment.length / 2))
+
+    render(<PlanReaderPage />)
+
+    expect(screen.getByTestId("parse-error")).toHaveTextContent(/incomplete|corrupted/i)
+    expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
+  })
+
+  it("makes no attempt at share-link recovery on an ordinary visit with no fragment at all", () => {
+    render(<PlanReaderPage />)
+    expect(screen.queryByTestId("parse-error")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
+    expect(screen.getByTestId("paste-textarea")).toHaveValue("")
+  })
+
+  it("copies a shareable link to the clipboard when clicked", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+    fireEvent.click(screen.getByRole("button", { name: /copy shareable link/i }))
+
+    await waitFor(() => expect(screen.getByTestId("share-link-copied")).toBeInTheDocument())
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText.mock.calls[0][0]).toContain("#plan=")
+  })
+
+  it("falls back to a manually-copyable link when the clipboard write is rejected (e.g. blocked by permissions)", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"))
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    fireEvent.click(screen.getByRole("button", { name: /copy shareable link/i }))
+
+    await waitFor(() => expect(screen.getByTestId("share-link-manual")).toBeInTheDocument())
+    const input = screen.getByTestId("share-link-url-input") as HTMLInputElement
+    expect(input.value).toContain("#plan=")
+  })
+
+  it("shows an honest 'too large' message, not a broken link, when the current plan won't fit in a shareable URL", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    render(<PlanReaderPage />)
+    // A real, large (100+-node), non-trivial fixture — compresses to ~2.4KB,
+    // reliably over the safe-share threshold.
+    pasteAndAnalyze(loadFixture("sqlserver", "real-world-large-parallel-estimated.xml"))
+
+    fireEvent.click(screen.getByRole("button", { name: /copy shareable link/i }))
+
+    await waitFor(() => expect(screen.getByTestId("share-link-too-large")).toBeInTheDocument())
+    expect(writeText).not.toHaveBeenCalled()
+    expect(screen.queryByTestId("share-link-copied")).not.toBeInTheDocument()
   })
 })

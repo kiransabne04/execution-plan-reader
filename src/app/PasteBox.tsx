@@ -4,6 +4,10 @@ import { PASTE_BOX_PLACEHOLDER } from "./positioningCopy"
 
 export interface PasteBoxProps {
   onAnalyze: (text: string) => void
+  /** Pre-fills the textarea — used when a Story 11.2 shareable link decoded
+   * successfully on load, so the recovered text is visible and re-copyable,
+   * not just silently rendered into the graph below. */
+  initialText?: string
 }
 
 /**
@@ -12,8 +16,8 @@ export interface PasteBoxProps {
  * case in docs/07-additional-tool-limitations.md and the
  * privacy-architecture skill).
  */
-export function PasteBox({ onAnalyze }: PasteBoxProps) {
-  const [text, setText] = useState("")
+export function PasteBox({ onAnalyze, initialText }: PasteBoxProps) {
+  const [text, setText] = useState(initialText ?? "")
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
