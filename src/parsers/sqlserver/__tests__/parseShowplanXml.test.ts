@@ -138,6 +138,35 @@ describe("parseSqlServerShowplanXml", () => {
     expect(root.estimatedRows).toBe(100)
   })
 
+  // Gaps 2/3 from docs/11-manual-testing-gaps-episode8.md: reproduces the
+  // actual plan XML from manual testing (a 16-way-parallel, 16-node-deep
+  // estimated plan) rather than guessing at a fix. Confirms both "gaps" were
+  // data-source limitations, not parser or UI bugs — see that doc's
+  // resolution notes for gaps 2 and 3.
+  it("passes a genuinely large/deep parallel plan's every node through with no actual-run fields, and its already-truncated statement text unmodified (Gaps 2 & 3 repro)", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("real-world-large-parallel-estimated.xml"))
+    const [stmt] = result.statements
+
+    // Gap 2: the source XML's own StatementText attribute already ends in
+    // "..." — the parser must not alter it further (no extra truncation,
+    // no crash on the ellipsis), confirming the missing text was never in
+    // the pasted data to begin with, not a client-side bug.
+    expect(stmt.statementText).toBe("SELECT ENTERPRISE_MASSIVE_ANALYTICS...")
+
+    // Gap 3: this plan has no RunTimeInformation anywhere in the XML (an
+    // estimated, never-executed plan) despite being real, large, and
+    // parallel — every single node's actual-run fields must be correctly
+    // absent, not just the root's, confirming the gap-row behavior holds at
+    // realistic scale/shape, not just on a single-node toy fixture.
+    const allNodes = collect(stmt.root)
+    expect(allNodes.length).toBeGreaterThan(10)
+    for (const node of allNodes) {
+      expect(node.actualRows).toBeUndefined()
+      expect(node.actualTimeMs).toBeUndefined()
+      expect(node.loops).toBeUndefined()
+    }
+  })
+
   it("detects multiple statements in one batch and surfaces both, not just the first", () => {
     const result = parseSqlServerShowplanXml(loadFixture("multi-statement-batch.xml"))
     expect(result.statements).toHaveLength(2)

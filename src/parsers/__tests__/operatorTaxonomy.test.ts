@@ -78,7 +78,20 @@ interface UnmappedLabel {
  * genuinely has no normalized home yet, add it here deliberately so the
  * gap stays visible instead of silently passing.
  */
-const ACCEPTED_UNKNOWN_LABELS: UnmappedLabel[] = []
+const ACCEPTED_UNKNOWN_LABELS: UnmappedLabel[] = [
+  // SQL Server's window-function machinery (surfaced by the Gap 2/3 repro
+  // fixture, docs/11-manual-testing-gaps-episode8.md): a window function
+  // compiles to a "Segment" (partition boundary) + "Sequence"/"Sequence
+  // Project" (value computation) trio of physical ops, where Postgres has a
+  // single WindowAgg and Snowflake a single WindowFunction node. Per the
+  // plan-normalization skill's own example (Postgres WindowAgg vs. SQL
+  // Server's window operators are "related but not identical"), forcing
+  // these into operatorType "window_agg" would be a false cross-engine
+  // equivalence, not a fix — tracked here deliberately instead.
+  { engine: "sqlserver", rawOperatorLabel: "Sequence Project" },
+  { engine: "sqlserver", rawOperatorLabel: "Segment" },
+  { engine: "sqlserver", rawOperatorLabel: "Sequence" },
+]
 
 describe("operator taxonomy (cross-engine)", () => {
   const roots = collectAllFixtureRoots()

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="15.0.2000.5">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT ENTERPRISE_MASSIVE_ANALYTICS..." StatementId="1" StatementCompId="1" StatementType="SELECT" StatementSubTreeCost="45892.40" Parallel="true">
+          <QueryPlan DegreeOfParallelism="16" MemoryGrant="268435456" CachedPlanSize="32768" CompileTime="24500">
+            <ThreadStat Branches="64" />
+            <RelOp NodeId="0" PhysicalOp="Sequence Project" LogicalOp="Compute Scalar" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+              <SequenceProject>
+                <RelOp NodeId="1" PhysicalOp="Segment" LogicalOp="Segment" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                  <Segment>
+                    <RelOp NodeId="2" PhysicalOp="Sequence" LogicalOp="Sequence" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                      <Sequence>
+                        <RelOp NodeId="3" PhysicalOp="Compute Scalar" LogicalOp="Compute Scalar" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                          <ComputeScalar>
+                            <RelOp NodeId="4" PhysicalOp="Parallelism" LogicalOp="Gather Streams" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                              <Parallelism>
+                                <RelOp NodeId="5" PhysicalOp="Stream Aggregate" LogicalOp="Aggregate" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                  <StreamAggregate>
+                                    <RelOp NodeId="6" PhysicalOp="Sort" LogicalOp="Sort" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                      <Sort>
+                                        <RelOp NodeId="7" PhysicalOp="Parallelism" LogicalOp="Repartition Streams" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                          <Parallelism>
+                                            <RelOp NodeId="8" PhysicalOp="Hash Match" LogicalOp="Aggregate" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                              <Hash>
+                                                <RelOp NodeId="9" PhysicalOp="Hash Match" LogicalOp="Inner Join" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                                  <Hash>
+                                                    <RelOp NodeId="10" PhysicalOp="Bitmap" LogicalOp="Bitmap Create" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                                      <Bitmap>
+                                                        <RelOp NodeId="11" PhysicalOp="Merge Join" LogicalOp="Left Outer Join" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                                          <Merge>
+                                                            <RelOp NodeId="12" PhysicalOp="Nested Loops" LogicalOp="Inner Join" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                                              <NestedLoops>
+                                                                <RelOp NodeId="13" PhysicalOp="Parallelism" LogicalOp="Distribute Streams" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                                                  <Parallelism>
+                                                                    <RelOp NodeId="14" PhysicalOp="Filter" LogicalOp="Filter" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                                                      <Filter>
+                                                                        <RelOp NodeId="15" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="50000" EstimatedTotalSubtreeCost="120.50" Parallel="true">
+                                                                          <IndexScan>
+                                                                          </IndexScan>
+                                                                        </RelOp>
+                                                                      </Filter>
+                                                                    </RelOp>
+                                                                  </Parallelism>
+                                                                </RelOp>
+                                                              </NestedLoops>
+                                                            </RelOp>
+                                                          </Merge>
+                                                        </RelOp>
+                                                      </Bitmap>
+                                                    </RelOp>
+                                                  </Hash>
+                                                </RelOp>
+                                              </Hash>
+                                            </RelOp>
+                                          </Parallelism>
+                                        </RelOp>
+                                      </Sort>
+                                    </RelOp>
+                                  </StreamAggregate>
+                                </RelOp>
+                              </Parallelism>
+                            </RelOp>
+                          </ComputeScalar>
+                        </RelOp>
+                      </Sequence>
+                    </RelOp>
+                  </Segment>
+                </RelOp>
+              </SequenceProject>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>
