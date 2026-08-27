@@ -90,6 +90,7 @@ function makeNode(row: OperatorRow): PlanNode {
   }
 
   const spill = deriveSpill(row, attributes)
+  const timeBreakdown = deriveTimeBreakdown(row)
   promoteRedactedQueryText(row, attributes)
 
   if (row.parentIds.length > 1) {
@@ -125,6 +126,7 @@ function makeNode(row: OperatorRow): PlanNode {
     io,
     spill,
     pruning,
+    timeBreakdown,
     children: [],
     attributes,
     warnings: [],
@@ -147,6 +149,44 @@ function deriveSpill(row: OperatorRow, attributes: Record<string, string | numbe
   if (remote !== undefined && remote > 0) attributes["Spilled To Remote Storage"] = remote
   const occurred = (local !== undefined && local > 0) || (remote !== undefined && remote > 0)
   return occurred ? { occurred: true, bytesLocal: local, bytesRemote: remote } : undefined
+}
+
+/** Promotes the same executionTimeBreakdown data already flattened into
+ * `attributes` (as `time.*`, above) into the normalized field the detail
+ * panel actually reads — buildStatRows works off typed PlanNode fields, not
+ * raw attribute keys, so without this promotion Snowflake nodes silently
+ * never got a Time row in the panel at all (found re-verifying
+ * docs/11-manual-testing-gaps-episode8.md's Gap 3 against Snowflake). */
+function deriveTimeBreakdown(row: OperatorRow): PlanNode["timeBreakdown"] {
+  const b = row.executionTimeBreakdown
+  if (!b) return undefined
+  const overallPercentage = toFiniteNumber(b.overall_percentage)
+  const initializationPercentage = toFiniteNumber(b.initialization)
+  const processingPercentage = toFiniteNumber(b.processing)
+  const synchronizationPercentage = toFiniteNumber(b.synchronization)
+  const localDiskIoPercentage = toFiniteNumber(b.local_disk_io)
+  const remoteDiskIoPercentage = toFiniteNumber(b.remote_disk_io)
+  const networkCommunicationPercentage = toFiniteNumber(b.network_communication)
+  if (
+    overallPercentage === undefined &&
+    initializationPercentage === undefined &&
+    processingPercentage === undefined &&
+    synchronizationPercentage === undefined &&
+    localDiskIoPercentage === undefined &&
+    remoteDiskIoPercentage === undefined &&
+    networkCommunicationPercentage === undefined
+  ) {
+    return undefined
+  }
+  return {
+    overallPercentage,
+    initializationPercentage,
+    processingPercentage,
+    synchronizationPercentage,
+    localDiskIoPercentage,
+    remoteDiskIoPercentage,
+    networkCommunicationPercentage,
+  }
 }
 
 function deriveIo(row: OperatorRow): PlanNode["io"] {

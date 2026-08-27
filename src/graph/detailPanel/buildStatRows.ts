@@ -80,6 +80,14 @@ function rowsCost(node: PlanNode): StatRow[] {
  * own actualTimeMs is already loop-averaged, see the field catalog's
  * correction), so showing both there would just be the same number twice. */
 function rowsTime(node: PlanNode): StatRow[] {
+  if (node.engine === "snowflake") {
+    // Snowflake never reports actualTimeMs at all (see field catalog §7 —
+    // it isn't a comparable ms figure); timeBreakdown's overallPercentage is
+    // Snowflake's own honest equivalent, not a gap to fall through past.
+    return node.timeBreakdown?.overallPercentage !== undefined
+      ? [{ label: "Time (% of query)", value: `${node.timeBreakdown.overallPercentage}%` }]
+      : [{ label: "Time", value: "no execution-time breakdown available for this node", isGap: true }]
+  }
   if (node.actualTimeMs === undefined) {
     return node.estimatedCost !== undefined || node.estimatedRows !== undefined
       ? [{ label: "Time", value: "no actual run data available for this node", isGap: true }]

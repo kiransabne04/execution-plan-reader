@@ -27,6 +27,7 @@ export function makeNode(overrides: Partial<PlanNode> = {}): PlanNode {
     spill: overrides.spill,
     pruning: overrides.pruning,
     parallel: overrides.parallel,
+    timeBreakdown: overrides.timeBreakdown,
     children: overrides.children ?? [],
     attributes: overrides.attributes ?? {},
     warnings: overrides.warnings ?? [],

@@ -72,6 +72,25 @@ describe("buildStatRows", () => {
     expect(row?.value).toBe("not applicable for this engine")
   })
 
+  // docs/11-manual-testing-gaps-episode8.md, Gap 3 re-verification: Snowflake
+  // never sets actualTimeMs (not a comparable ms figure — field catalog §7),
+  // and previously had no normalized timeBreakdown field either, so this
+  // fell all the way through to no Time row whatsoever — silently missing,
+  // not even an honest gap. Fixed by promoting timeBreakdown.
+  it("shows Snowflake's time as a percentage-of-query figure, never a blank/missing row", () => {
+    const node = makeNode({ engine: "snowflake", actualRows: 100, timeBreakdown: { overallPercentage: 42 } })
+    const row = buildStatRows(node).find((r) => r.label === "Time (% of query)")
+    expect(row?.isGap).toBeFalsy()
+    expect(row?.value).toBe("42%")
+  })
+
+  it("shows an honest gap row for Snowflake time when no breakdown was captured, not silence", () => {
+    const node = makeNode({ engine: "snowflake", actualRows: 100 })
+    const row = buildStatRows(node).find((r) => r.label === "Time")
+    expect(row?.isGap).toBe(true)
+    expect(row?.value).toContain("no execution-time breakdown")
+  })
+
   it("flags Postgres buffer stats as not captured when BUFFERS wasn't used on a scan", () => {
     const node = makeNode({ engine: "postgres", operatorType: "seq_scan" })
     const row = buildStatRows(node).find((r) => r.label === "Buffers")
