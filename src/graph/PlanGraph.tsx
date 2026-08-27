@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Background,
   Controls,
@@ -53,6 +53,21 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphPro
   // the PlanNode model itself.
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined)
 
+  // Whatever had focus right before the panel opened (a clicked or
+  // keyboard-activated card) — restored on close so focus doesn't silently
+  // fall back to the document body, standard modal/panel accessibility
+  // practice. Captured here (not in DetailPanel) since this is the
+  // component that actually knows what triggered the open.
+  const triggerElementRef = useRef<HTMLElement | null>(null)
+  const openPanel = useCallback((nodeId: string) => {
+    triggerElementRef.current = document.activeElement as HTMLElement | null
+    setSelectedNodeId(nodeId)
+  }, [])
+  const closePanel = useCallback(() => {
+    setSelectedNodeId(undefined)
+    triggerElementRef.current?.focus()
+  }, [])
+
   // Reset collapse/selection state when a genuinely new plan arrives (a
   // fresh parse result — object identity, not just an equal id, since ids
   // restart from "n0" on every parse). This is React's documented "adjust
@@ -89,8 +104,8 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphPro
       })
       return
     }
-    setSelectedNodeId(node.id)
-  }, [])
+    openPanel(node.id)
+  }, [openPanel])
 
   const selectedNode = selectedNodeId !== undefined ? allNodes.find((n) => n.id === selectedNodeId) : undefined
 
@@ -100,11 +115,8 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphPro
   // buildGraphElements produces its otherwise-plain, testable node data,
   // rather than baked into that pure conversion function itself.
   const nodesWithHandlers = useMemo(
-    () =>
-      nodes.map((n) =>
-        n.type === "planNode" ? { ...n, data: { ...n.data, onOpen: () => setSelectedNodeId(n.id) } } : n,
-      ),
-    [nodes],
+    () => nodes.map((n) => (n.type === "planNode" ? { ...n, data: { ...n.data, onOpen: () => openPanel(n.id) } } : n)),
+    [nodes, openPanel],
   )
 
   return (
@@ -121,9 +133,7 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphPro
         <Background />
         <Controls />
       </ReactFlow>
-      {selectedNode && (
-        <DetailPanel node={selectedNode} context={resolvedContext} onClose={() => setSelectedNodeId(undefined)} />
-      )}
+      {selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
     </div>
   )
 }

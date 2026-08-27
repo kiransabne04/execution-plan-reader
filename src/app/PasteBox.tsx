@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
+import { PRIVACY_CAVEAT_NOTE, PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
 
 export interface PasteBoxProps {
   onAnalyze: (text: string) => void
@@ -24,6 +24,9 @@ export function PasteBox({ onAnalyze }: PasteBoxProps) {
     <form className="paste-box" onSubmit={handleSubmit}>
       <p className="paste-box__privacy" data-testid="privacy-statement">
         {PRIVACY_STATEMENT_SHORT}
+      </p>
+      <p className="paste-box__privacy-caveat" data-testid="privacy-caveat">
+        {PRIVACY_CAVEAT_NOTE}
       </p>
       <textarea
         className="paste-box__textarea"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { PlanNode } from "../../parsers/normalize"
 import type { PlanContext } from "../../rules/types"
 import { computeContributionPercent } from "./computeContributionPercent"
@@ -34,6 +34,7 @@ export function DetailPanel({ node, context, onClose }: DetailPanelProps) {
   // this story's own concern (which text field to show, what's expanded by
   // default) and nothing today needs it to be shared app-wide.
   const [expertMode, setExpertMode] = useState(false)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -43,11 +44,30 @@ export function DetailPanel({ node, context, onClose }: DetailPanelProps) {
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [onClose])
 
+  // Move focus into the panel whenever it opens (or the selected node
+  // changes, since PlanGraph re-renders this same instance rather than
+  // remounting it on every click — the accessibility acceptance criterion
+  // is about a focused node's Enter/Space actually landing focus somewhere
+  // sensible, not staying on a card that no longer represents what's shown).
+  // Restoring focus back to whatever triggered the open is PlanGraph's job
+  // (it's the one that knows which element that was); this panel doesn't
+  // implement a hard Tab-trap — Tab continues past its own controls
+  // normally, since it's a persistent side panel, not a full-screen modal.
+  useEffect(() => {
+    closeButtonRef.current?.focus()
+  }, [node.id])
+
   const contributionPercent = computeContributionPercent(node, context)
 
   return (
     <div className="detail-panel" role="dialog" aria-label={`Details for ${node.rawOperatorLabel}`} data-testid="detail-panel">
-      <button type="button" className="detail-panel__close" onClick={onClose} aria-label="Close details">
+      <button
+        ref={closeButtonRef}
+        type="button"
+        className="detail-panel__close"
+        onClick={onClose}
+        aria-label="Close details"
+      >
         ×
       </button>
 

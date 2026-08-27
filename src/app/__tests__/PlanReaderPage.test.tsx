@@ -16,9 +16,10 @@ function pasteAndAnalyze(text: string) {
 }
 
 describe("PlanReaderPage", () => {
-  it("shows the privacy statement at the paste box before anything is analyzed", () => {
+  it("shows the privacy statement (and the browser-extension caveat) at the paste box before anything is analyzed", () => {
     render(<PlanReaderPage />)
     expect(screen.getByTestId("privacy-statement")).toBeInTheDocument()
+    expect(screen.getByTestId("privacy-caveat")).toHaveTextContent(/browser extensions/i)
     expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
   })
 

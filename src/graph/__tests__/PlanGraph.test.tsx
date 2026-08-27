@@ -118,6 +118,37 @@ describe("PlanGraph", () => {
     expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
   })
 
+  it("moves focus into the panel (the close button) when it opens", () => {
+    const root = makeNode({ id: "root" })
+    render(<PlanGraph root={root} />)
+
+    fireEvent.click(screen.getByTestId("plan-node-card"))
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close details" }))
+  })
+
+  it("restores focus to the triggering card when the panel closes", () => {
+    const root = makeNode({ id: "root" })
+    render(<PlanGraph root={root} />)
+
+    const card = screen.getByTestId("plan-node-card")
+    card.focus()
+    fireEvent.keyDown(card, { key: "Enter" })
+    expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+    expect(document.activeElement).toBe(card)
+  })
+
+  it("restores focus to the triggering card on Escape too, not just the close button", () => {
+    const root = makeNode({ id: "root" })
+    render(<PlanGraph root={root} />)
+
+    const card = screen.getByTestId("plan-node-card")
+    fireEvent.click(card)
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(document.activeElement).toBe(card)
+  })
+
   it("clicking a different node swaps the panel content without needing to close first", () => {
     const a = makeNode({ id: "a", rawOperatorLabel: "Seq Scan" })
     const b = makeNode({ id: "b", rawOperatorLabel: "Index Scan" })

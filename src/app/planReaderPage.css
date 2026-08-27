@@ -59,6 +59,13 @@
   color: var(--pr-text-muted);
 }
 
+.paste-box__privacy-caveat {
+  margin: 0;
+  font-size: 11px;
+  color: var(--pr-text-muted);
+  opacity: 0.8;
+}
+
 .paste-box__textarea {
   width: 100%;
   box-sizing: border-box;

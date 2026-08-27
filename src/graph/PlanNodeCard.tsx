@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react"
+import type { KeyboardEvent, MouseEvent } from "react"
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react"
 import type { PlanNodeData } from "./buildGraphElements"
 
@@ -20,6 +20,15 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
     }
   }
 
+  // Explicit rather than relying on a mouse click implicitly moving focus
+  // to a non-native tabindex element — real browsers mostly do this, but
+  // it shouldn't be left ambient, since the detail panel restores focus to
+  // "whatever was focused when it opened" and that needs to reliably be
+  // this card, not whatever was focused before the click.
+  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    event.currentTarget.focus()
+  }
+
   return (
     <div
       className={className}
@@ -31,6 +40,7 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
       role="button"
       aria-label={`${planNode.rawOperatorLabel} — open details`}
       onKeyDown={handleKeyDown}
+      onClick={handleClick}
     >
       <Handle type="target" position={Position.Top} />
       <div className="plan-node-card__label">{planNode.rawOperatorLabel}</div>
