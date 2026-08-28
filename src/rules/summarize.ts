@@ -26,7 +26,10 @@ const MAX_FINDINGS = 3
 const SCAN_FAMILIES = new Set(["seq-scan-on-large-table"])
 const DOWNSTREAM_EFFECT_FAMILIES = new Set(["exploding-join", "bad-row-estimate", "high-loop-count"])
 
-const NO_ISSUES_TEXT = "This plan looks straightforward — no major issues detected."
+// Exported so Episode 13's complete findings list can reuse the exact same
+// zero-findings copy (Story 13.1's acceptance criterion), rather than a
+// second, driftable "looks fine" string.
+export const NO_ISSUES_TEXT = "This plan looks straightforward — no major issues detected."
 
 const OPENERS: Record<Exclude<SummarySeverity, "none">, string> = {
   critical: "This plan has a serious issue worth fixing first: ",
@@ -42,8 +45,10 @@ interface Finding {
 
 /** Rules that can fire more than once per plan suffix their ruleId with an
  * index (e.g. "missing-index-opportunity-0"); strip it so multiple
- * instances of the same theme count as one finding in the summary. */
-function ruleFamily(ruleId: string): string {
+ * instances of the same theme count as one finding in the summary. Exported
+ * for Episode 13's category lookup (`findingCategory.ts`), which needs the
+ * same family grouping to map a suffixed ruleId to its category. */
+export function ruleFamily(ruleId: string): string {
   return ruleId.replace(/-\d+$/, "")
 }
 

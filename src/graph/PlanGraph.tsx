@@ -12,7 +12,7 @@ import "@xyflow/react/dist/style.css"
 import { collectNodes, type PlanNode } from "../parsers/normalize"
 import { buildPlanContext, type PlanContext } from "../rules/types"
 import { buildGraphElements, type PlanGraphNode } from "./buildGraphElements"
-import { computeDefaultCollapsedIds } from "./collapse"
+import { computeDefaultCollapsedIds, findCollapsedAncestors } from "./collapse"
 import { DetailPanel } from "./detailPanel/DetailPanel"
 import type { MetricKey } from "./encoding"
 import { PlanNodeCard } from "./PlanNodeCard"
@@ -40,9 +40,18 @@ export interface PlanGraphProps {
    * from `root` alone (fine for standalone use/tests; a real page should
    * pass the actual context from `analyzePlan`). */
   context?: PlanContext
+  /** Story 13.1: the "All findings" list sets this to navigate the graph to
+   * and open the detail panel for a specific node (e.g. clicking a finding
+   * entry). Any collapsed ancestor standing between the root and this node
+   * is expanded so it becomes visible, not just openable. Read once per
+   * change (an effect, not a controlled render prop) — after handling it,
+   * `onFocusHandled` is called so the same id can be re-focused again later
+   * without the caller needing to clear-then-set it. */
+  focusNodeId?: string
+  onFocusHandled?: () => void
 }
 
-function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphProps) {
+function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, onFocusHandled }: PlanGraphProps) {
   const allNodes = useMemo(() => collectNodes(root), [root])
   const resolvedContext = useMemo(() => context ?? buildPlanContext(root), [context, root])
 
@@ -72,6 +81,26 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context }: PlanGraphPro
     setSelectedNodeId(undefined)
     triggerElementRef.current?.focus()
   }, [])
+
+  // Story 13.1: handle an externally requested focus (a click in the "All
+  // findings" list). Expanding any collapsed ancestor first means the
+  // fitView effect below (which re-runs on `nodes.length` change) brings
+  // the newly-revealed node into view, not just the panel.
+  useEffect(() => {
+    if (focusNodeId === undefined) return
+    setCollapsedIds((prev) => {
+      const toReveal = findCollapsedAncestors(root, focusNodeId, prev)
+      if (toReveal.size === 0) return prev
+      const next = new Set(prev)
+      toReveal.forEach((id) => next.delete(id))
+      return next
+    })
+    setSelectedNodeId(focusNodeId)
+    onFocusHandled?.()
+    // onFocusHandled intentionally excluded from deps: it's a fire-once
+    // callback, not reactive state this effect should re-run for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNodeId, root])
 
   // Reset collapse/selection state when a genuinely new plan arrives (a
   // fresh parse result — object identity, not just an equal id, since ids

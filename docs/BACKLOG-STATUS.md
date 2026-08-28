@@ -4,7 +4,7 @@
 
 Status values: `not started` / `in progress` / `blocked` / `done`
 
-_Last audited against `src/` and git history on 2026-08-27 (506/506 tests passing at the time)._
+_Last audited against `src/` and git history on 2026-08-28 (551/551 tests passing at the time)._
 
 ## Episode 1 — Postgres plan ingestion
 | Story | Status | Notes |
@@ -76,7 +76,7 @@ _Last audited against `src/` and git history on 2026-08-27 (506/506 tests passin
 ## Episode 13 — Complete recommendations coverage
 | Story | Status | Notes |
 |---|---|---|
-| 13.1 — Complete findings list, separate from the synthesized summary | not started | New — from manual testing feedback |
+| 13.1 — Complete findings list, separate from the synthesized summary | done | `src/rules/findings.ts` (`collectAllFindings`, no cap/dedup), `src/rules/findingCategory.ts` (severity/category filter data), `src/graph/findings/FindingsList.tsx` (collapsed-by-default toggle, severity + category filters, zero-findings state reuses Story 5.2's copy). Wired into `PlanReaderPage.tsx`; clicking an entry drives a new `PlanGraph` `focusNodeId`/`onFocusHandled` prop pair (`src/graph/collapse.ts`'s `findCollapsedAncestors` expands any collapsed ancestor first) so the click opens that node's real detail panel, not a duplicate view. Not virtualized (no fixture approaches list sizes where it'd matter) — noted as a deferred edge case in-code |
 
 ## Episode 14 — Execution plan comparison
 | Story | Status | Notes |

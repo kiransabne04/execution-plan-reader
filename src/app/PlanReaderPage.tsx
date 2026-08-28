@@ -4,7 +4,7 @@ import { ShareLinkButton } from "./ShareLinkButton"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { decodeShareLink } from "./shareLink"
 import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
-import { PlanGraph } from "../graph"
+import { PlanGraph, FindingsList } from "../graph"
 import { PlanParseError } from "../parsers/normalize"
 import "./planReaderPage.css"
 
@@ -59,6 +59,11 @@ export function PlanReaderPage() {
   const [error, setError] = useState<string | null>(initial?.error ?? null)
   const [rawText, setRawText] = useState(initial?.rawText ?? "")
   const [activeStatementIndex, setActiveStatementIndex] = useState(0)
+  // Story 13.1: which node the "All findings" list most recently asked the
+  // graph to navigate to and open. Lives here (not inside PlanGraph or
+  // FindingsList) since it's the thing connecting those two otherwise-
+  // independent components.
+  const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined)
 
   const handleAnalyze = useCallback((text: string) => {
     setRawText(text)
@@ -139,8 +144,15 @@ export function PlanReaderPage() {
             {activeStatement.summary.text}
           </p>
 
+          <FindingsList root={activeStatement.root} onSelectNode={setFocusNodeId} />
+
           <div className="plan-reader-page__graph">
-            <PlanGraph root={activeStatement.root} context={activeStatement.context} />
+            <PlanGraph
+              root={activeStatement.root}
+              context={activeStatement.context}
+              focusNodeId={focusNodeId}
+              onFocusHandled={() => setFocusNodeId(undefined)}
+            />
           </div>
         </section>
       )}

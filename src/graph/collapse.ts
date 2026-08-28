@@ -55,3 +55,24 @@ export function computeDefaultCollapsedIds(
   walk(root, true)
   return collapsed
 }
+
+/** Story 13.1: when the "All findings" list navigates to a node that's
+ * currently hidden inside a collapsed subtree, this returns the collapsed
+ * ancestor ids (from `collapsedIds`) standing between the root and the
+ * target — the caller removes them from its collapsed set so the target
+ * becomes visible in the canvas. Returns an empty set if the target isn't
+ * behind any collapse boundary (already visible, or not found at all). */
+export function findCollapsedAncestors(root: PlanNode, targetId: string, collapsedIds: Set<string>): Set<string> {
+  const result = new Set<string>()
+
+  const walk = (node: PlanNode, ancestorChain: string[]): boolean => {
+    if (node.id === targetId) {
+      ancestorChain.filter((id) => collapsedIds.has(id)).forEach((id) => result.add(id))
+      return true
+    }
+    return node.children.some((child) => walk(child, [...ancestorChain, node.id]))
+  }
+
+  walk(root, [])
+  return result
+}

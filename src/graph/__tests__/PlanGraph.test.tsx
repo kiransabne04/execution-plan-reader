@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { PlanGraph } from "../PlanGraph"
 import { makeNode } from "../../rules/__tests__/testHelpers"
@@ -181,5 +181,34 @@ describe("PlanGraph", () => {
 
     expect(seekCard.querySelector('[data-testid="plan-node-tooltip"]')).toHaveTextContent("Seek: [CustomerId]=(42)")
     expect(plainCard.querySelector('[data-testid="plan-node-tooltip"]')).toBeNull()
+  })
+
+  it("focusNodeId opens the detail panel for that node without a click", () => {
+    const a = makeNode({ id: "a", rawOperatorLabel: "Seq Scan" })
+    const b = makeNode({ id: "b", rawOperatorLabel: "Index Scan" })
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join", children: [a, b] })
+
+    render(<PlanGraph root={root} focusNodeId="b" />)
+
+    expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Index Scan")
+  })
+
+  it("focusNodeId calls onFocusHandled once it's applied", () => {
+    const root = makeNode({ id: "root", children: [makeNode({ id: "child" })] })
+    const onFocusHandled = vi.fn()
+
+    render(<PlanGraph root={root} focusNodeId="child" onFocusHandled={onFocusHandled} />)
+
+    expect(onFocusHandled).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId("detail-panel-display-name")).toBeInTheDocument()
+  })
+
+  it("focusNodeId reveals a node hidden inside a collapsed subtree, not just opens its panel data", () => {
+    const root = buildLargePlan(520)
+
+    render(<PlanGraph root={root} focusNodeId="deep-leaf" />)
+
+    expect(screen.queryByTestId("collapsed-group-node")).not.toBeInTheDocument()
+    expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
   })
 })
