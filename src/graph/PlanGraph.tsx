@@ -12,6 +12,8 @@ import "@xyflow/react/dist/style.css"
 import { collectNodes, type PlanNode } from "../parsers/normalize"
 import { buildPlanContext, type PlanContext } from "../rules/types"
 import { buildGraphElements, type PlanGraphNode } from "./buildGraphElements"
+import { AccessiblePlanList } from "./canvas/AccessiblePlanList"
+import { CanvasPlanGraph } from "./canvas/CanvasPlanGraph"
 import { computeDefaultCollapsedIds, findCollapsedAncestors } from "./collapse"
 import { DetailPanel } from "./detailPanel/DetailPanel"
 import type { MetricKey } from "./encoding"
@@ -28,6 +30,16 @@ const nodeTypes: NodeTypes = {
 // fitView's floor (below) and <ReactFlow>'s own minZoom, so manual scroll-to-
 // zoom can't reach the same illegible scale fitView is capped away from.
 const MIN_LEGIBLE_ZOOM = 0.5
+
+// Episode 15 — above this node count, React Flow's one-DOM-element-per-node
+// rendering is the documented risk to interaction responsiveness (Story
+// 15.1's premise); the canvas path (src/graph/canvas/) takes over instead.
+// Chosen to sit comfortably below Episode 6's own 500-node collapse-by-
+// default risk point, not derived from a real browser benchmark run in
+// this session — the story's testing approach calls for exactly that
+// benchmark (50/100/250/500/1000+ node sizes, render + interaction
+// latency) before trusting this number in production. Revisit then.
+export const CANVAS_NODE_COUNT_THRESHOLD = 300
 
 export interface PlanGraphProps {
   root: PlanNode
@@ -108,11 +120,19 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
   // state during render" pattern for resetting on a prop change: a plain
   // conditional setState call while rendering, not inside an effect, so it
   // doesn't trigger the extra render-then-effect round trip a useEffect would.
+  // Story 15.2: which surface is showing when canvas mode is active — the
+  // control to reach it is always present and prominent (rendered right
+  // alongside the canvas, never buried), but the accessible list's DOM is
+  // only actually mounted once opened, so a huge plan a user never opens it
+  // for doesn't pay its render cost — the whole reason canvas mode exists.
+  const [showAccessibleList, setShowAccessibleList] = useState(false)
+
   const [prevRoot, setPrevRoot] = useState(root)
   if (root !== prevRoot) {
     setPrevRoot(root)
     setCollapsedIds(computeDefaultCollapsedIds(root, allNodes))
     setSelectedNodeId(undefined)
+    setShowAccessibleList(false)
   }
 
   const { nodes, edges } = useMemo(
@@ -120,8 +140,19 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
     [root, metric, collapsedIds],
   )
 
+  const useCanvas = allNodes.length > CANVAS_NODE_COUNT_THRESHOLD
+
+  const expandCollapsedGroup = useCallback((parentPlanNodeId: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev)
+      next.delete(parentPlanNodeId)
+      return next
+    })
+  }, [])
+
   const { fitView } = useReactFlow()
   useEffect(() => {
+    if (useCanvas) return // the DOM/SVG <ReactFlow> tree below isn't rendered in this mode — nothing to fit
     // Large plans must never render pre-zoomed to an unreadable scale —
     // fit on every shape change (initial load, expand/collapse), not just once.
     // Floored at MIN_LEGIBLE_ZOOM: for a 500+-node plan, fitting every node into
@@ -132,20 +163,15 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
       fitView({ padding: 0.2, duration: 200, minZoom: MIN_LEGIBLE_ZOOM }),
     )
     return () => cancelAnimationFrame(frame)
-  }, [nodes.length, fitView])
+  }, [nodes.length, fitView, useCanvas])
 
   const handleNodeClick = useCallback<NodeMouseHandler<PlanGraphNode>>((_event, node) => {
     if (node.type === "collapsedGroup") {
-      const parentPlanNodeId = node.data.parentPlanNodeId
-      setCollapsedIds((prev) => {
-        const next = new Set(prev)
-        next.delete(parentPlanNodeId)
-        return next
-      })
+      expandCollapsedGroup(node.data.parentPlanNodeId)
       return
     }
     openPanel(node.id)
-  }, [openPanel])
+  }, [openPanel, expandCollapsedGroup])
 
   const selectedNode = selectedNodeId !== undefined ? allNodes.find((n) => n.id === selectedNodeId) : undefined
 
@@ -155,9 +181,46 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
   // buildGraphElements produces its otherwise-plain, testable node data,
   // rather than baked into that pure conversion function itself.
   const nodesWithHandlers = useMemo(
-    () => nodes.map((n) => (n.type === "planNode" ? { ...n, data: { ...n.data, onOpen: () => openPanel(n.id) } } : n)),
-    [nodes, openPanel],
+    () =>
+      useCanvas ? nodes : nodes.map((n) => (n.type === "planNode" ? { ...n, data: { ...n.data, onOpen: () => openPanel(n.id) } } : n)),
+    [nodes, openPanel, useCanvas],
   )
+
+  if (useCanvas) {
+    return (
+      <div className="plan-graph plan-graph--canvas" data-testid="plan-graph">
+        <div className="plan-graph__canvas-toolbar">
+          <button
+            type="button"
+            className="plan-graph__accessible-list-toggle"
+            data-testid="accessible-list-toggle"
+            aria-pressed={showAccessibleList}
+            onClick={() => setShowAccessibleList((v) => !v)}
+          >
+            {showAccessibleList ? "Back to graph view" : "View as accessible list"}
+          </button>
+        </div>
+        {showAccessibleList ? (
+          <AccessiblePlanList
+            root={root}
+            collapsedIds={collapsedIds}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={openPanel}
+            onExpandCollapsedGroup={expandCollapsedGroup}
+          />
+        ) : (
+          <CanvasPlanGraph
+            nodes={nodes}
+            edges={edges}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={openPanel}
+            onExpandCollapsedGroup={expandCollapsedGroup}
+          />
+        )}
+        {selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
+      </div>
+    )
+  }
 
   return (
     <div className="plan-graph" data-testid="plan-graph">

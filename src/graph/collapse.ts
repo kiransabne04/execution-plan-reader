@@ -1,19 +1,29 @@
-// Episode 6 edge case: very large plans (500+ nodes) must not freeze the
-// browser tab. Rather than true virtualization, subtrees that contribute
-// negligible cost are collapsed by default — their descendants are simply
-// left out of the React Flow node/edge arrays entirely, which is what
-// actually keeps render/layout cheap. Collapse state is computed here as
-// pure data; where it *lives* (so the user can expand it back) is local
-// component state keyed by node id, never the PlanNode model itself — see
-// .claude/skills/graph-visualization/SKILL.md.
+// Episode 6 edge case: very large plans must not freeze the browser tab.
+// Rather than true virtualization, subtrees that contribute negligible
+// cost are collapsed by default — their descendants are simply left out of
+// the rendered node/edge arrays entirely (both the React Flow path AND
+// Episode 15's canvas path consume the same collapsedIds — see
+// PlanGraph.tsx, CanvasPlanGraph.tsx, AccessiblePlanList.tsx). Collapse
+// state is computed here as pure data; where it *lives* (so the user can
+// expand it back) is local component state keyed by node id, never the
+// PlanNode model itself — see .claude/skills/graph-visualization/SKILL.md.
 
 import type { PlanNode } from "../parsers/normalize"
 import { pickMetricValue, type MetricKey } from "./encoding"
 
 /** Only auto-collapse at all once the plan is large enough that rendering
  * everything is the actual risk — small/medium plans always render fully
- * expanded regardless of how "small" any one subtree's cost share is. */
-export const COLLAPSE_NODE_COUNT_THRESHOLD = 500
+ * expanded regardless of how "small" any one subtree's cost share is.
+ *
+ * Episode 15 revision: originally 500 (the DOM/SVG freeze risk point this
+ * threshold was built to protect against). Now set below
+ * CANVAS_NODE_COUNT_THRESHOLD (PlanGraph.tsx) so DOM/SVG mode — which now
+ * only ever renders plans up to that canvas threshold, never truly huge
+ * ones — still gets real default-collapse protection for its own
+ * mid-size/large range, rather than collapse's only-ever-reachable window
+ * being entirely inside canvas mode (where it still applies, but for
+ * legibility/clutter reasons more than a hard freeze risk). */
+export const COLLAPSE_NODE_COUNT_THRESHOLD = 150
 
 /** A subtree contributing less than this share of the plan's total metric
  * is collapsed by default once the plan is large. Tunable constant, not
