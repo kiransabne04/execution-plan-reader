@@ -1,12 +1,33 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { PasteBox } from "./PasteBox"
 import { ShareLinkButton } from "./ShareLinkButton"
+import { RestoreSessionBanner } from "./RestoreSessionBanner"
+import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { decodeShareLink } from "./shareLink"
 import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
 import { PlanGraph, FindingsList } from "../graph"
-import { PlanParseError } from "../parsers/normalize"
+import { PlanParseError, collectNodes } from "../parsers/normalize"
+import {
+  saveSession,
+  loadSession,
+  clearSession,
+  addRecentPlan,
+  listRecentPlans,
+  deleteRecentPlan,
+  clearAllRecentPlans,
+  debounce,
+  type RecentPlanEntry,
+} from "../persistence"
 import "./planReaderPage.css"
+
+// Episode 17, Story 17.1: "saved to browser storage automatically,
+// debounced rather than on every keystroke." handleAnalyze already only
+// ever fires on an explicit paste-and-click (never per keystroke), so this
+// mainly guards against back-to-back rapid re-analyzes hammering IndexedDB.
+// Exported so tests can wait out exactly this window rather than a guessed
+// magic number.
+export const SESSION_SAVE_DEBOUNCE_MS = 500
 
 const ENGINE_LABEL: Record<AnalyzedPlan["engine"], string> = {
   postgres: "Postgres",
@@ -65,21 +86,95 @@ export function PlanReaderPage() {
   // independent components.
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined)
 
-  const handleAnalyze = useCallback((text: string) => {
-    setRawText(text)
-    try {
-      const result = analyzePlanText(text)
-      setAnalyzed(result)
-      setActiveStatementIndex(0)
-      setError(null)
-    } catch (err) {
-      setAnalyzed(null)
-      // PlanParseError messages are already structural-only (never echo raw
-      // pasted content) — see the privacy-architecture skill — so it's safe
-      // to show err.message directly.
-      setError(err instanceof PlanParseError ? err.message : "Something went wrong reading this plan.")
-    }
+  // Episode 17 — local persistence state.
+  const [restoreCandidate, setRestoreCandidate] = useState<{ text: string; savedAt: number } | null>(null)
+  const [recentPlans, setRecentPlans] = useState<RecentPlanEntry[]>([])
+  const [dontSave, setDontSave] = useState(false)
+  const [persistenceNotice, setPersistenceNotice] = useState<string | null>(null)
+
+  const refreshRecentPlans = useCallback(() => {
+    listRecentPlans().then(setRecentPlans)
   }, [])
+
+  // Only offer a restore when no share-link already took priority on this
+  // load (loadFromLocationHash, above) — a returning visitor who clicked a
+  // link they were sent shouldn't ALSO be asked about an unrelated earlier
+  // session in the same breath.
+  useEffect(() => {
+    if (initial) return
+    loadSession().then((result) => {
+      if (result.ok) setRestoreCandidate({ text: result.text, savedAt: result.savedAt })
+    })
+  }, [initial])
+
+  useEffect(() => {
+    refreshRecentPlans()
+  }, [refreshRecentPlans])
+
+  const debouncedSaveSession = useMemo(
+    () =>
+      debounce((text: string) => {
+        saveSession(text).then((result) => {
+          if (!result.ok && result.reason === "quota_exceeded") {
+            setPersistenceNotice(
+              "Couldn't save your session locally — your browser's storage is full, so this won't be restored after a refresh.",
+            )
+          }
+        })
+      }, SESSION_SAVE_DEBOUNCE_MS),
+    [],
+  )
+
+  const handleAnalyze = useCallback(
+    (text: string) => {
+      setRawText(text)
+      try {
+        const result = analyzePlanText(text)
+        setAnalyzed(result)
+        setActiveStatementIndex(0)
+        setError(null)
+        setRestoreCandidate(null) // a fresh analyze supersedes any pending restore offer
+
+        if (!dontSave) {
+          debouncedSaveSession(text)
+          const primaryRoot = result.statements[0].root
+          const nodeCount = result.statements.reduce((sum, stmt) => sum + collectNodes(stmt.root).length, 0)
+          addRecentPlan(text, { rootOperatorLabel: primaryRoot.rawOperatorLabel, nodeCount }).then(refreshRecentPlans)
+        }
+      } catch (err) {
+        setAnalyzed(null)
+        // PlanParseError messages are already structural-only (never echo raw
+        // pasted content) — see the privacy-architecture skill — so it's safe
+        // to show err.message directly.
+        setError(err instanceof PlanParseError ? err.message : "Something went wrong reading this plan.")
+      }
+    },
+    [dontSave, debouncedSaveSession, refreshRecentPlans],
+  )
+
+  const handleDismissRestore = useCallback(() => setRestoreCandidate(null), [])
+
+  const handleClearSavedData = useCallback(() => {
+    clearSession()
+    clearAllRecentPlans().then(refreshRecentPlans)
+    setRestoreCandidate(null)
+  }, [refreshRecentPlans])
+
+  const handleDeleteRecentPlan = useCallback(
+    (id: string) => {
+      deleteRecentPlan(id).then(refreshRecentPlans)
+    },
+    [refreshRecentPlans],
+  )
+
+  // Scoped to the recent-plans list only — distinct from
+  // handleClearSavedData (PasteBox's control), which wipes both the
+  // current-session restore candidate AND this list. A "Clear all" button
+  // inside the recent-plans section shouldn't also silently discard an
+  // unrelated pending restore offer the user hasn't even seen yet.
+  const handleClearAllRecentPlans = useCallback(() => {
+    clearAllRecentPlans().then(refreshRecentPlans)
+  }, [refreshRecentPlans])
 
   const activeStatement = analyzed?.statements[activeStatementIndex]
 
@@ -102,7 +197,35 @@ export function PlanReaderPage() {
         </ul>
       </header>
 
-      <PasteBox onAnalyze={handleAnalyze} initialText={initial?.rawText} />
+      {restoreCandidate && (
+        <RestoreSessionBanner
+          savedAt={restoreCandidate.savedAt}
+          onRestore={() => handleAnalyze(restoreCandidate.text)}
+          onDismiss={handleDismissRestore}
+        />
+      )}
+
+      <PasteBox
+        onAnalyze={handleAnalyze}
+        initialText={initial?.rawText}
+        dontSave={dontSave}
+        onDontSaveChange={setDontSave}
+        hasSavedData={restoreCandidate !== null || recentPlans.length > 0}
+        onClearSavedData={handleClearSavedData}
+      />
+
+      {persistenceNotice && (
+        <p className="plan-reader-page__note" data-testid="persistence-notice">
+          {persistenceNotice}
+        </p>
+      )}
+
+      <RecentPlansList
+        plans={recentPlans}
+        onSelect={handleAnalyze}
+        onDelete={handleDeleteRecentPlan}
+        onClearAll={handleClearAllRecentPlans}
+      />
 
       {error && (
         <p className="plan-reader-page__error" role="alert" data-testid="parse-error">
