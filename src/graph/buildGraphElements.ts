@@ -52,7 +52,11 @@ export interface BuildGraphElementsResult {
   edges: PlanGraphEdge[]
 }
 
-function countDescendants(node: PlanNode): number {
+/** Exported for Episode 15's AccessiblePlanList, which renders its own
+ * "N hidden" collapsed-group row from the same PlanNode tree rather than
+ * re-deriving descendant counts from buildGraphElements' React-Flow-shaped
+ * output — single source of truth for what "collapsed" means. */
+export function countDescendants(node: PlanNode): number {
   return node.children.reduce((sum, child) => sum + 1 + countDescendants(child), 0)
 }
 

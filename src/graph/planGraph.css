@@ -10,6 +10,9 @@
   --pg-badge-text: #ffffff;
   --pg-collapsed-bg: #f2f4f7;
   --pg-collapsed-border: #98a2b3;
+  /* Episode 15 — the canvas path's selection outline (no DOM focus ring to
+     rely on, so this has to be drawn explicitly; see canvasDraw.ts). */
+  --pg-canvas-selection: #1a56db;
 
   width: 100%;
   height: 100%;
@@ -27,7 +30,39 @@
     --pg-badge-text: #1a1a1a;
     --pg-collapsed-bg: #262b35;
     --pg-collapsed-border: #4a5160;
+    --pg-canvas-selection: #7fa5ff;
   }
+}
+
+/* Episode 15 — canvas mode's container: a fixed-height toolbar row (the
+   accessible-list toggle, always present, never buried) above a flexible
+   content area so CanvasPlanGraph/AccessiblePlanList can measure a real
+   height via getBoundingClientRect rather than a static min-height. */
+.plan-graph--canvas {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-graph__canvas-toolbar {
+  flex: none;
+  padding: 8px;
+  border-bottom: 1px solid var(--pg-card-border);
+}
+
+.plan-graph__accessible-list-toggle {
+  background: transparent;
+  border: 1px solid var(--pg-card-border);
+  border-radius: 6px;
+  color: var(--pg-card-text);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
+.plan-graph--canvas > .canvas-plan-graph,
+.plan-graph--canvas > .accessible-plan-list {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .plan-node-card-wrapper {

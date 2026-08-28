@@ -4,7 +4,7 @@
 
 Status values: `not started` / `in progress` / `blocked` / `done`
 
-_Last audited against `src/` and git history on 2026-08-28 (551/551 tests passing at the time)._
+_Last audited against `src/` and git history on 2026-08-28 (603/603 tests passing at the time)._
 
 ## Episode 1 — Postgres plan ingestion
 | Story | Status | Notes |
@@ -87,8 +87,10 @@ _Last audited against `src/` and git history on 2026-08-28 (551/551 tests passin
 ## Episode 15 — Canvas-based rendering for large plans
 | Story | Status | Notes |
 |---|---|---|
-| 15.1 — Hybrid rendering strategy: DOM/SVG below a threshold, canvas above it | not started | New — from manual testing feedback. Architecture revision to Episode 6/Tech Spec §3 |
-| 15.2 — Accessible fallback for canvas-rendered plans | not started | Required alongside 15.1, not a follow-up |
+| 15.1 — Hybrid rendering strategy: DOM/SVG below a threshold, canvas above it | done | `src/graph/canvas/`: `CanvasPlanGraph.tsx` (redraw-on-change via rAF, devicePixelRatio scaling, tab-visibility pause, drag-to-pan, wheel-zoom-toward-cursor), `canvasDraw.ts` (draws the SAME `PlanGraphNode`/`PlanGraphEdge` data the DOM/SVG path already computes — no second encoding pass), `hitTest.ts` + `viewportTransform.ts` (pure, unit-tested). `PlanGraph.tsx` switches modes at `CANVAS_NODE_COUNT_THRESHOLD = 300` — **not yet benchmarked against real browser numbers** (the story's own testing-approach item); chosen only to sit below Episode 6's 500-node collapse risk point. `COLLAPSE_NODE_COUNT_THRESHOLD` (collapse.ts) lowered 500→150 so DOM/SVG mode — which now only ever handles up to the canvas threshold — still gets real default-collapse coverage in its own range |
+| 15.2 — Accessible fallback for canvas-rendered plans | done | `src/graph/canvas/AccessiblePlanList.tsx` — built alongside 15.1 in the same change, per the skill's "not optional, not a follow-up" rule, not after it. A native `<ul>` of `<button>`s (Tab/Enter/Space keyboard access for free) walking the same `PlanNode` tree and the same `collapsedIds` state as the canvas view — shared state, not a second view. Toggle button always visible in the canvas toolbar; the list itself only mounts once opened, so a huge plan a user never opens it for doesn't pay its DOM cost. Canvas itself carries `aria-hidden="true"`/`role="presentation"`. **Known gap, stated honestly**: doesn't offer arrow-key/search navigation — neither does the DOM/SVG path today (Episode 6 never built that), so this list matches actual current parity (click/Enter/Space) rather than overclaiming a scheme that doesn't exist anywhere yet |
+
+Verified in a real browser, not just jsdom (which has no real `<canvas>` 2d context — `getContext('2d')` returns `null` there): `e2e/canvas-large-plan.spec.ts` generates a synthetic 320-node plan, confirms the canvas actually paints pixels (samples `getImageData`), and drives the full toggle → list → click → real detail-panel path end-to-end.
 
 ## Episode 16 — UI performance and responsiveness
 | Story | Status | Notes |

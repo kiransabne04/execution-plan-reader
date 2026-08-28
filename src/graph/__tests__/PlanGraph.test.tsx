@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
-import { PlanGraph } from "../PlanGraph"
+import { PlanGraph, CANVAS_NODE_COUNT_THRESHOLD } from "../PlanGraph"
+import { COLLAPSE_NODE_COUNT_THRESHOLD } from "../collapse"
 import { makeNode } from "../../rules/__tests__/testHelpers"
 
 function buildLargePlan(fillerDepth: number) {
@@ -11,6 +12,13 @@ function buildLargePlan(fillerDepth: number) {
   const expensive = makeNode({ id: "expensive", actualTimeMs: 1_000_000 })
   return makeNode({ id: "root", actualTimeMs: 0, children: [expensive, filler] })
 }
+
+// Big enough to trigger default-collapse (Episode 6), but small enough to
+// stay in DOM/SVG rendering mode (below Episode 15's canvas threshold) —
+// the window this file's DOM-specific collapse tests need to exist in.
+// Derived from the real constants rather than a magic number so it stays
+// correct if either threshold is retuned later.
+const DOM_MODE_COLLAPSE_FILLER_DEPTH = COLLAPSE_NODE_COUNT_THRESHOLD + 20
 
 describe("PlanGraph", () => {
   it("renders a card for every node in a small plan", () => {
@@ -56,8 +64,9 @@ describe("PlanGraph", () => {
     expect(badges[0].textContent).toContain("950")
   })
 
-  it("clicking a collapsed-group placeholder expands its hidden subtree", () => {
-    const root = buildLargePlan(520)
+  it("clicking a collapsed-group placeholder expands its hidden subtree (DOM/SVG mode)", () => {
+    expect(DOM_MODE_COLLAPSE_FILLER_DEPTH + 2).toBeLessThan(CANVAS_NODE_COUNT_THRESHOLD) // sanity: still DOM mode
+    const root = buildLargePlan(DOM_MODE_COLLAPSE_FILLER_DEPTH)
 
     render(<PlanGraph root={root} />)
 
@@ -68,11 +77,11 @@ describe("PlanGraph", () => {
     expect(screen.queryByTestId("collapsed-group-node")).not.toBeInTheDocument()
     // The previously-hidden filler chain is now rendered.
     const cards = screen.getAllByTestId("plan-node-card")
-    expect(cards.length).toBeGreaterThan(520)
+    expect(cards.length).toBeGreaterThan(DOM_MODE_COLLAPSE_FILLER_DEPTH)
   })
 
   it("resets collapse state when a genuinely new plan (fresh parse result) is passed in", () => {
-    const firstPlan = buildLargePlan(520)
+    const firstPlan = buildLargePlan(DOM_MODE_COLLAPSE_FILLER_DEPTH)
     const { rerender } = render(<PlanGraph root={firstPlan} />)
     expect(screen.getByTestId("collapsed-group-node")).toBeInTheDocument()
 
@@ -83,7 +92,7 @@ describe("PlanGraph", () => {
     // object identity — exactly what a fresh parse of a new paste looks
     // like) must start collapsed again, not inherit the first plan's
     // manually-expanded state.
-    const secondPlan = buildLargePlan(520)
+    const secondPlan = buildLargePlan(DOM_MODE_COLLAPSE_FILLER_DEPTH)
     rerender(<PlanGraph root={secondPlan} />)
     expect(screen.getByTestId("collapsed-group-node")).toBeInTheDocument()
   })
@@ -210,5 +219,86 @@ describe("PlanGraph", () => {
 
     expect(screen.queryByTestId("collapsed-group-node")).not.toBeInTheDocument()
     expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+  })
+})
+
+// Episode 15 — above CANVAS_NODE_COUNT_THRESHOLD, PlanGraph switches from
+// the DOM/SVG <ReactFlow> tree to the canvas rendering path, with the
+// accessible list as its required companion (Story 15.2). Pointer-driven
+// interaction on the canvas itself is covered directly in
+// CanvasPlanGraph.test.tsx (needs a mocked getBoundingClientRect that
+// doesn't belong in every test here); these tests cover PlanGraph's own
+// mode-switch wiring and the accessible list's real end-to-end path.
+describe("PlanGraph — canvas mode (Episode 15)", () => {
+  it("renders the canvas surface, not React Flow's DOM cards, above the canvas threshold", () => {
+    const root = buildLargePlan(520)
+    render(<PlanGraph root={root} />)
+
+    expect(screen.getByTestId("canvas-plan-graph-surface")).toBeInTheDocument()
+    expect(screen.queryByTestId("plan-node-card")).not.toBeInTheDocument()
+  })
+
+  it("renders the DOM/SVG path, not canvas, below the threshold", () => {
+    const root = makeNode({ id: "root", children: [makeNode({ id: "child" })] })
+    render(<PlanGraph root={root} />)
+
+    expect(screen.queryByTestId("canvas-plan-graph-surface")).not.toBeInTheDocument()
+    expect(screen.getAllByTestId("plan-node-card").length).toBeGreaterThan(0)
+  })
+
+  it("the accessible-list toggle is always present in canvas mode and switches the visible surface", () => {
+    const root = buildLargePlan(520)
+    render(<PlanGraph root={root} />)
+
+    expect(screen.getByTestId("canvas-plan-graph-surface")).toBeInTheDocument()
+    expect(screen.queryByTestId("accessible-plan-list")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+
+    expect(screen.queryByTestId("canvas-plan-graph-surface")).not.toBeInTheDocument()
+    expect(screen.getByTestId("accessible-plan-list")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+    expect(screen.getByTestId("canvas-plan-graph-surface")).toBeInTheDocument()
+  })
+
+  it("clicking a row in the accessible list opens the same real detail panel DOM/SVG mode uses", () => {
+    const root = buildLargePlan(CANVAS_NODE_COUNT_THRESHOLD + 5)
+    render(<PlanGraph root={root} />)
+
+    fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+    fireEvent.click(screen.getAllByTestId("accessible-plan-list-item")[0]) // "root" itself, always the first row
+
+    expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+  })
+
+  it("expanding a collapsed group through the accessible list is reflected consistently (shared collapse state, not a second view)", () => {
+    const root = buildLargePlan(520)
+    render(<PlanGraph root={root} />)
+
+    fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+    expect(screen.getByTestId("accessible-plan-list-collapsed")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("accessible-plan-list-collapsed"))
+    expect(screen.queryByTestId("accessible-plan-list-collapsed")).not.toBeInTheDocument()
+
+    // Switching back to the canvas view after expanding via the list must
+    // not silently re-collapse it — same collapsedIds state, not two
+    // independently-drifting views.
+    fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+    fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+    expect(screen.queryByTestId("accessible-plan-list-collapsed")).not.toBeInTheDocument()
+  })
+
+  it("resets the accessible-list toggle back to the canvas view when a genuinely new plan arrives", () => {
+    const firstPlan = buildLargePlan(520)
+    const { rerender } = render(<PlanGraph root={firstPlan} />)
+    fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+    expect(screen.getByTestId("accessible-plan-list")).toBeInTheDocument()
+
+    const secondPlan = buildLargePlan(520)
+    rerender(<PlanGraph root={secondPlan} />)
+    expect(screen.getByTestId("canvas-plan-graph-surface")).toBeInTheDocument()
+    expect(screen.queryByTestId("accessible-plan-list")).not.toBeInTheDocument()
   })
 })
