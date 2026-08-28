@@ -64,7 +64,7 @@ _Last audited against `src/` and git history on 2026-08-27 (506/506 tests passin
 ## Episode 11 — Sharing / publish
 | Story | Status | Notes |
 |---|---|---|
-| 11.1 — Explicit opt-in plan publishing (backend-based) | blocked | No backend exists in this repo (by design — 100% client-side). Needs an explicit infra decision before any code; user declined to provide one this session. Only a defensive default-off constant exists (`PLAN_PUBLISHING_DEFAULT_ENABLED` in `src/privacy/config.ts`) |
+| 11.1 — Explicit opt-in plan publishing (backend-based) | dropped | Superseded by 11.2 — client-side-only shareable link covers the sharing use case without a backend, staying within the 100%-client-side architecture. Its defensive default-off constant (`PLAN_PUBLISHING_DEFAULT_ENABLED`) removed from `src/privacy/config.ts` as dead code |
 | 11.2 — Client-side-only shareable link (no backend) | done | `src/app/shareLink.ts` (`lz-string` compression, versioned envelope, URL fragment not query param), `ShareLinkButton.tsx`, wired into `PlanReaderPage.tsx` (decodes+renders on load, no re-paste needed). Honest "too large" state (>2000 chars) and "link looks incomplete" state for truncated/mangled fragments. Network-call-guarding tests extend the Episode 7 suite; e2e test drives the real "copy shareable link" button end-to-end |
 
 ## Episode 12 — Launch readiness & content tie-in
@@ -72,6 +72,35 @@ _Last audited against `src/` and git history on 2026-08-27 (506/506 tests passin
 |---|---|---|
 | 12.1 — Concept-to-content linking map | blocked | Needs the real URLs/timestamps from the existing @scalingbackend video series and blog post; user declined to provide them this session — do not fabricate placeholder links claiming to be real content |
 | 12.2 — Soft-launch validation against real plans | blocked | Mostly a manual launch process (soft-launch period, go/no-go checklist), not code. Its one buildable piece — aggregate-only parse-failure monitoring — needs a telemetry provider decision; user declined to provide one this session |
+
+## Episode 13 — Complete recommendations coverage
+| Story | Status | Notes |
+|---|---|---|
+| 13.1 — Complete findings list, separate from the synthesized summary | not started | New — from manual testing feedback |
+
+## Episode 14 — Execution plan comparison
+| Story | Status | Notes |
+|---|---|---|
+| 14.1 — Node matching algorithm | not started | New — from manual testing feedback |
+| 14.2 — Comparison view | not started | Depends on 14.1 |
+
+## Episode 15 — Canvas-based rendering for large plans
+| Story | Status | Notes |
+|---|---|---|
+| 15.1 — Hybrid rendering strategy: DOM/SVG below a threshold, canvas above it | not started | New — from manual testing feedback. Architecture revision to Episode 6/Tech Spec §3 |
+| 15.2 — Accessible fallback for canvas-rendered plans | not started | Required alongside 15.1, not a follow-up |
+
+## Episode 16 — UI performance and responsiveness
+| Story | Status | Notes |
+|---|---|---|
+| 16.1 — Diagnose and fix detail panel open latency | not started | New — from manual testing feedback |
+| 16.2 — General page responsiveness audit | not started | |
+
+## Episode 17 — Local browser persistence
+| Story | Status | Notes |
+|---|---|---|
+| 17.1 — Persist the current plan across page reloads | not started | New — from manual testing feedback |
+| 17.2 — Recent plans list | not started | |
 
 ---
 

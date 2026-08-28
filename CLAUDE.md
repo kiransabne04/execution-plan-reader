@@ -26,6 +26,7 @@ discussion first — see `.claude/skills/privacy-architecture/SKILL.md`.**
 - `.claude/skills/plan-normalization/` — `src/parsers/normalize.ts`, operator mapping tables
 - `.claude/skills/rule-engine-authoring/` — `src/rules/`
 - `.claude/skills/graph-visualization/` — `src/graph/`
+- `.claude/skills/canvas-rendering-performance/` — `src/graph/canvas/` (large-plan canvas rendering, hit-testing, accessibility fallback)
 - `.claude/skills/operator-glossary-content/` — `src/graph/glossary/` (plain-language operator definitions)
 - `.claude/skills/privacy-architecture/` — any network call, logging, or error-handling change, anywhere
 

@@ -452,3 +452,232 @@ As the product owner, I want to validate parser/rule robustness against real-wor
 |---|---|---|
 | A real-world plan format variant not covered by any fixture (e.g. an unusual Postgres extension's custom `EXPLAIN` output) | Fixtures can't cover everything in advance | Graceful "couldn't fully parse this, here's what we could extract" partial-result mode is preferable to an all-or-nothing failure |
 | Traffic spike from an unexpectedly viral community post | Free, no-signup, high-visibility launch could produce a burst | Confirm the client-side architecture (Episode 7) means this is a non-issue for the core path; only the optional LLM/publish endpoints need rate-limit consideration |
+
+---
+
+## Episode 13 — Complete recommendations coverage
+
+**Goal**: Manual testing surfaced that the current recommendations output isn't comprehensive — Story 5.2's top-level summary was deliberately designed to synthesize only the highest-severity 1–3 findings into a paragraph, but that design choice left no place in the product where a user can see *every* finding the rule engine actually detected. This episode fixes that gap without breaking the reason the short summary exists in the first place (a beginner shouldn't be confronted with a wall of text on first load).
+
+### Story 13.1 — Complete findings list, separate from the synthesized summary
+
+As a user who wants to know everything the tool found, not just the headline issues, I want a complete, unfiltered list of every warning detected across the whole plan, so I can decide for myself what to prioritize instead of trusting the tool's top-3 synthesis alone.
+
+**Acceptance criteria**
+- A dedicated "All findings" view lists every `Warning` produced by the rule engine (Episode 5) across every node in the plan — no count cap, no truncation.
+- Each entry links to (or, on click, navigates the graph to and opens the detail panel for) the specific node it came from — a finding divorced from its node is much less useful.
+- Sortable/filterable by severity and by engine-relevant category (e.g. "scan issues," "join issues," "spill") — with a large plan producing many findings, an unsorted flat list is barely better than the cap it replaces.
+- The short synthesized summary (Story 5.2) is retained as-is and clearly positioned as "the highlights" with an explicit link/button into the complete list — not replaced by it. Two different jobs: orientation for a beginner, completeness for anyone who wants it.
+- Zero-findings state reuses the existing "looks fine" messaging (Story 5.2), applied consistently to this view too.
+
+**Testing approach**
+- Unit test: for a fixture with N warnings across multiple nodes, the complete list renders exactly N entries — no silent cap reintroduced by a default page size or similar.
+- Snapshot test confirming the short summary and the complete list can disagree in emphasis (summary highlights 2 critical issues; complete list shows those 2 plus 15 info-level ones) without contradicting each other.
+- Manual UX check: a user reading only the short summary and a user reading the complete list should reach compatible conclusions about what matters most — the complete list's sort order (severity-first) should make this natural, not require the user to manually triage 15 items.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A plan with a very large number of findings (a genuinely bad large plan could produce dozens) | Naive rendering of dozens of list items could itself become a performance issue, ironically | Virtualized list rendering for the findings list itself, same principle as the graph's node virtualization (Episode 6/15) |
+| Same underlying issue firing on many structurally similar nodes (e.g. 12 identical seq-scan warnings across 12 partition children) | A flat list of 12 near-identical entries is noisy, not more informative | Consider grouping/collapsing near-identical findings by rule + operator type with a count ("12 partitions scanned sequentially"), expandable to the individual nodes — evaluate during implementation; don't let grouping become a second, undocumented cap |
+| Filter/sort state should not reset when the user clicks into a finding's node and back | Basic usability | Preserve view state across navigation within the session |
+
+**Correction to Story 5.1's edge-case table**: the earlier note "cap the number shown by default with an option to expand" (for multiple warnings *on a single node*, in the detail panel) still stands — that's a different, legitimate concern (one node's detail panel shouldn't be a wall of text) from this episode's fix, which is about the *plan-wide* findings view never being capped. Keep both: per-node detail panel stays reasonably concise, the new complete-findings view is exhaustive by design.
+
+---
+
+## Episode 14 — Execution plan comparison
+
+**Goal**: Let a user compare two plans (most commonly: before/after an index change, or two candidate plans for the same query) and see what actually changed — structurally, in cost, and in timing — without manually cross-referencing two separate visualizations. SQL Server's own SSMS has a mature version of this feature worth learning from directly: it matches operators between the two plans, highlights unmatched ones distinctly, and synchronizes selection so clicking a node in one plan selects its counterpart in the other. That's the right shape to build toward, made cross-engine.
+
+### Story 14.1 — Node matching algorithm
+
+As the foundation for any comparison UI, I need a reliable way to match nodes between two plans of the same query (or two versions of a similar query), so the comparison view can say "this node in Plan A corresponds to this node in Plan B" rather than just showing two unrelated trees side by side.
+
+**Acceptance criteria**
+- A matching function `matchNodes(planA: PlanNode, planB: PlanNode): NodeMatch[]` returns, for every node in both trees, one of: `matched` (a confident correspondence, with both node IDs), `changed` (matched, but with a materially different operator — e.g. a seq scan became an index scan on the same table), `addedInB` (no correspondence in A), `removedFromB` (present in A, absent in B).
+- Matching uses a layered strategy, falling back progressively: (1) exact signature match — operator type + relation/index name + structural position (depth, ordinal position among siblings) all agree; (2) relaxed match — same relation/index touched and similar structural position, different operator type (this is the "changed" case, e.g. an index was added and the scan type changed); (3) positional-only fallback for nodes with no relation/index identity (e.g. a `Sort` or `Aggregate` with nothing to match on) — same depth and ordinal position; (4) unmatched — no reasonable correspondence found, reported as added/removed.
+- Matching is engine-consistent: both plans in a comparison must be from the same engine (comparing a Postgres plan to a SQL Server plan for "the same query" isn't structurally meaningful given how differently the engines represent operators) — the UI should detect and reject a cross-engine comparison attempt with a clear explanation, not attempt to force a match.
+
+**Testing approach**
+- Unit tests against pairs of fixtures representing real before/after scenarios: an index added (a scan node's operator type changes, matched via relation-name continuity), a join order changed (structural position shifts but relation identity persists), a table added/removed from the query entirely (genuinely unmatched nodes on one side), identical plans (100% matched, zero changed/added/removed).
+- Regression test: matching the same plan against itself always produces 100% `matched` with zero `changed`/`added`/`removed` — a basic sanity floor any change to the matching logic must preserve.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Two plans for genuinely different queries (user error) | Matching could still produce plausible-looking but meaningless results | If the match rate falls below a sensible threshold (e.g. under some percentage of nodes matched), surface a warning that these may not be comparable plans, rather than presenting a low-confidence diff as if it were reliable |
+| Cross-engine comparison attempt | Structurally not meaningful (see above) | Detect via each `PlanNode`'s `engine` field, block with a clear message before attempting to match |
+| A CTE/subplan referenced differently between the two plans (present in one, inlined in the other) | Normalization already handles shared references within one plan (Episodes 1–4) — comparison adds a second layer of complexity on top | Treat CTE/subplan structural differences as legitimate `addedInB`/`removedFromB` cases rather than trying to force a match across a genuine structural change |
+| Very large plans on both sides (100+ nodes each) | Matching is at minimum O(n·m) in the naive case | Use the relation/index identity as a hash-based first pass before falling back to positional comparison, to avoid a naive quadratic scan on large plans |
+
+### Story 14.2 — Comparison view
+
+As a user who just added an index, I want to see my before and after plans side by side with the differences highlighted, so I can confirm the change did what I expected without manually re-reading both plans.
+
+**Acceptance criteria**
+- Two plans render side by side (or stacked, toggleable — mirroring SSMS's own toggle between orientations), using the same node-graph rendering as the single-plan view (Episode 6, extended per Episode 15 for large-plan performance).
+- Matched-and-unchanged nodes render with a neutral/muted treatment; `changed` nodes are highlighted with the specific delta shown (e.g. "Seq Scan → Index Scan," cost/time delta); `addedInB`/`removedFromB` nodes are highlighted distinctly from `changed` ones — three visually different states, not one generic "different" highlight.
+- Clicking a node in one plan selects and scrolls to its matched counterpart in the other plan (when a match exists) — synchronized selection, matching SSMS's behavior.
+- A summary strip states the headline delta in plain language (e.g. "3 nodes changed, 1 added, 0 removed — total estimated cost decreased by 40%") before the user has to read the graph in detail.
+- Works entirely client-side, consistent with the privacy architecture (Episode 7) — both plans being compared are pasted by the user, never fetched from a server.
+
+**Testing approach**
+- Visual regression tests across the fixture pairs from Story 14.1.
+- Interaction test: selecting a node in Plan A correctly selects its match in Plan B, and correctly shows "no match" state when clicking an `addedInB`/`removedFromB` node.
+- Manual usability pass: a user should be able to answer "did my index change help?" from the summary strip alone, without reading the full graph, for the common before/after-index scenario.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| One or both plans are very large | Two large graphs rendered simultaneously compounds the performance concern from Episode 15 | The canvas-rendering threshold and strategy from Episode 15 apply per-pane independently — a comparison of two 300-node plans should trigger canvas rendering on both sides, not just the single-plan view |
+| Plans from different engines pasted by mistake | Story 14.1 blocks the match, but the UI needs to communicate this clearly at the comparison step, not just fail silently | Clear, specific message ("these plans are from different database engines and can't be directly compared") rather than a blank or broken comparison view |
+| A node matched with low confidence (positional-only fallback) | Presenting a weak match with the same visual confidence as a strong one is misleading | Visually distinguish confidence tiers if feasible (e.g. a lighter connector line for positional-only matches) — at minimum, don't let a shaky match look as authoritative as a signature match |
+
+---
+
+## Episode 15 — Canvas-based rendering for large plans
+
+**Goal**: Manual testing confirmed real responsiveness problems, and switching the graph to canvas-based rendering is the specific fix requested — this is grounded in a real, well-documented trade-off: DOM/SVG-based rendering (React Flow's approach, one DOM element per node) degrades under load because every node is a tracked, styleable DOM object, while canvas draws directly to a pixel surface with near-constant performance regardless of node count — at the cost of losing built-in interactivity and accessibility, which then have to be rebuilt deliberately. This episode is a genuine architecture revision to Episode 6/Technical Spec §3, not an addition on top of it — see the updated `docs/04-technical-spec-v1.md` §3 and the new `canvas-rendering-performance` skill for the full technical design.
+
+### Story 15.1 — Hybrid rendering strategy: DOM/SVG below a threshold, canvas above it
+
+As a user opening a large plan (100+ nodes), I want the graph to stay smooth and responsive, so I'm not fighting a laggy interface while trying to diagnose a slow query.
+
+**Acceptance criteria**
+- Plans below a defined node-count threshold continue to render via the existing React Flow (DOM/SVG) path from Episode 6 — full native interactivity, no regression for the common case, which is most plans.
+- Plans above the threshold render via a canvas-based path: dagre still computes layout (unchanged — layout and rendering are separate concerns), but nodes/edges are drawn directly onto a `<canvas>` element rather than as DOM nodes.
+- The threshold is a tunable constant, not hardcoded inline, and is informed by real benchmarking during implementation rather than picked arbitrarily — see testing approach.
+- Pan/zoom on the canvas path redraws only on transform change (not continuously), using `requestAnimationFrame` and a dirty-flag pattern, and accounts for `devicePixelRatio` so text and lines stay crisp on high-DPI displays.
+- Click/hover interactivity on the canvas path is implemented via manual hit-testing against each node's stored bounding box (from dagre's layout output) — no library-provided DOM event handling exists on canvas, this has to be built explicitly.
+
+**Testing approach**
+- Performance benchmark suite: render time and interaction responsiveness (pan/zoom/click latency) measured at 50, 100, 250, 500, and 1000+ node plan sizes, for both the DOM/SVG and canvas paths — this is what determines where the threshold should actually sit, not a guess.
+- Hit-testing unit tests: given a set of node bounding boxes and a click coordinate, the correct node (or no node, for a click in empty space) is identified.
+- Visual regression: canvas-rendered output should be visually consistent with the DOM/SVG path's encoding scheme (node size/color/edge thickness conventions from Episode 6) — a user switching between a small and large plan shouldn't be confused by the visualization suddenly looking different in kind, only in rendering mechanism.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A plan right at the threshold boundary | Could flicker between modes if the user's action changes node count (e.g. expanding a collapsed subtree pushes it over) | Threshold check happens once per plan load, not continuously recalculated as collapse/expand state changes — mode doesn't switch mid-session |
+| Extremely large plans (1000+ nodes, beyond even the documented 500+ risk point) | Even canvas has limits | Combine with virtualization/collapse-by-default (already required in Episode 6) rather than assuming canvas alone solves unbounded scale |
+| High-DPI / retina displays | Canvas rendered at CSS pixel resolution looks blurry on high-DPI screens | Scale the canvas backing store by `devicePixelRatio` and scale the drawing context to match — a well-known, necessary step easy to forget |
+| Rapid pan/zoom gestures (trackpad flick, pinch-zoom on mobile) | Naive redraw-on-every-event can still jank even on canvas if not throttled | `requestAnimationFrame`-batched redraws, not a redraw per raw input event |
+| Browser tab losing focus mid-render | Wasted redraw cycles | Pause the render loop when the tab isn't visible (`document.visibilityState`) |
+
+### Story 15.2 — Accessible fallback for canvas-rendered plans
+
+As a screen-reader or keyboard-only user opening a large plan, I want the same information and navigation the graph provides, so switching to canvas rendering for performance doesn't lock me out of the tool.
+
+**This story is not optional polish — it's required alongside 15.1, not a follow-up.** Canvas content is, by default, invisible to assistive technology: it's a bitmap, not a set of DOM nodes a screen reader can enumerate. Shipping 15.1 without this would directly regress the keyboard-navigation and accessibility work already required in Episode 6 for any plan large enough to trigger canvas mode — precisely the large, complex plans where accessible navigation matters most.
+
+**Acceptance criteria**
+- Whenever the canvas rendering path is active, an equivalent accessible list/table view of the same plan (all nodes, their key stats, and a way to open each one's detail panel) is available and reachable via a clearly labeled control — not hidden, not an afterthought link at the bottom of the page.
+- Keyboard navigation (Episode 6's arrow-key/search/detail-panel requirements) works identically whether the visual is canvas or DOM/SVG, using the accessible list view as the interaction surface when canvas is active.
+- The canvas element itself carries appropriate ARIA attributes (e.g. `role="img"` with a descriptive label, or `aria-hidden` if the accessible list is the true interactive surface) so screen readers don't attempt to read raw canvas pixel data or announce it as an empty/broken region.
+
+**Testing approach**
+- Screen reader testing (VoiceOver/NVDA) confirming the accessible list view is discoverable and fully navigable when canvas mode is active.
+- Keyboard-only testing (no mouse) confirming every interaction available in DOM/SVG mode (select node, open detail panel, search/filter) has a working equivalent in canvas mode.
+- Automated accessibility audit (e.g. axe-core) run specifically against the canvas-mode UI, not just the DOM/SVG mode — these are different enough code paths that passing on one doesn't imply passing on the other.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| User toggles between canvas view and accessible list view mid-session | State (selected node, filter, collapsed subtrees) should persist across the toggle | Shared underlying state, not two independent views that can drift out of sync |
+| A screen-reader user on a plan just under the canvas threshold (DOM/SVG mode) | Consistency matters — the accessible list shouldn't be canvas-mode-only if it's actually a better experience generally | Consider making the accessible list view available as an option in DOM/SVG mode too, not exclusively gated behind the canvas threshold |
+
+---
+
+## Episode 16 — UI performance and responsiveness
+
+**Goal**: Manual testing found the page "not responsive enough," specifically calling out the detail panel on open — this is broader than the large-plan canvas work in Episode 15 (which addresses graph rendering specifically) and needs its own investigation, since a laggy detail-panel open on click is a different symptom than a laggy pan/zoom on a large graph.
+
+### Story 16.1 — Diagnose and fix detail panel open latency
+
+As a user clicking any node, I want the detail panel to open immediately, so investigating a plan doesn't feel sluggish at the most frequent interaction in the whole tool.
+
+**Acceptance criteria**
+- Detail panel open latency (click to fully rendered panel) is measured and kept under a defined budget (e.g. under 100ms, refined during implementation against real measurement) on both small and large plans.
+- No synchronous heavy computation runs on click — glossary lookups, warning retrieval, and contribution-to-plan-cost percentage calculations (Story 6.2) are either pre-computed when the plan is first parsed/normalized, or memoized so repeat opens of the same node are instant.
+- Panel open/close uses CSS transitions or lightweight animation, not layout-thrashing techniques (e.g. avoid animating properties that force synchronous reflow — animate `transform`/`opacity`, not `width`/`height`/`top`/`left` directly).
+
+**Testing approach**
+- Performance profiling (browser DevTools Performance panel or equivalent automated tooling) specifically on the click-to-panel-open interaction, across a range of plan sizes and node complexity (a node with many attributes and several fired warnings vs. a simple one).
+- Regression benchmark: panel-open latency tracked over time in CI (even a rough automated timing assertion) so a future change doesn't silently reintroduce the lag.
+- Rapid-click stress test (clicking through many nodes quickly, per Episode 6's existing "cheap to re-render on rapid node switching" requirement) to confirm no cumulative slowdown across a session.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A node with an unusually large raw `attributes` bag (verbose engine output) | Rendering the raw-attributes section (Story 6.2 §8) naively could be the specific slow part | Lazy-render or virtualize the raw-attributes section specifically if it's identified as the bottleneck, rather than optimizing the whole panel uniformly when only one section is slow |
+| Detail panel opened while the graph itself is still mid-render (large plan, canvas mode) | Two expensive operations competing for the main thread simultaneously | Panel open should not block on or be blocked by in-progress graph rendering — investigate whether these need to be sequenced or can run independently |
+
+### Story 16.2 — General page responsiveness audit
+
+As any user, I want the page to feel responsive throughout — not just the graph and detail panel — so the tool doesn't feel broken on first impression.
+
+**Acceptance criteria**
+- A full responsiveness audit covers: initial page load (landing page, per the positioning brief's "unmistakable within seconds" requirement — slow load undermines that goal directly), paste-to-parse latency, search/filter interaction latency, and general scroll/interaction smoothness.
+- Main-thread-blocking work (parsing, normalization, rule evaluation) for large plans is investigated for whether it should move off the main thread (e.g. a Web Worker) so the UI thread stays responsive to input even while a large plan is being processed — this is a genuine architecture question to resolve during implementation, not assumed either way up front.
+- Mobile-specific responsiveness is tested separately from desktop, not assumed to follow from desktop performance — touch interaction latency and smaller-device CPU/memory constraints are a different profile.
+
+**Testing approach**
+- Lighthouse/Web Vitals style automated auditing (load performance, interaction responsiveness metrics) as part of CI, with thresholds that fail the build on regression.
+- Manual testing on a real mid-range mobile device, not only desktop DevTools' mobile emulation — emulation can understate real device constraints.
+- If a Web Worker is adopted for parsing/rule evaluation: a specific test confirming the UI remains interactive (e.g. can still open the detail panel of an already-rendered node) while a large plan is being processed in the background.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Very large pasted input (before parsing even starts) | Just handling a multi-MB paste event can itself cause a noticeable stutter | Confirm the paste-handling path itself (not just the subsequent parse) is profiled, not only the parser's own execution time |
+| Older/low-end mobile devices | The tool's free, no-signup, broad-reach positioning means it will be used on a wide range of hardware, not just modern desktops | Test against a deliberately modest device/throttled CPU profile, not just the developer's own machine |
+
+---
+
+## Episode 17 — Local browser persistence
+
+**Goal**: Keep the user's pasted plan (and relevant session state) saved in their own browser, so a refresh, an accidental tab close, or coming back later doesn't mean re-pasting from scratch — while staying fully consistent with the Episode 7 privacy architecture, since this data now persists across sessions rather than living only in memory during one visit.
+
+### Story 17.1 — Persist the current plan across page reloads
+
+As a user who accidentally refreshes or closes the tab, I want my pasted plan and current view state restored, so I don't lose my work.
+
+**Acceptance criteria**
+- The most recently loaded plan (raw input, or the parsed `PlanNode` tree — whichever is more efficient to persist and restore, evaluated during implementation) is saved to browser storage automatically, debounced rather than on every keystroke.
+- On next visit, the tool offers to restore the previous session (not silently auto-loads without asking — a returning user might be pasting something entirely new and shouldn't be surprised by old content reappearing).
+- Storage choice (`localStorage` vs. `IndexedDB`) is made based on realistic plan sizes — `localStorage` has a roughly 5–10MB per-origin quota shared across everything stored there, which a handful of large SQL Server XML or verbose Snowflake JSON plans could approach; `IndexedDB` has substantially higher practical limits and is the safer default for this use case.
+- This feature stays entirely client-side, consistent with Episode 7 — browser storage is not "sending data to a server," but the detail panel and privacy statement should clarify this distinction if users ask, since "saved" can sound alarming to a privacy-conscious user if unexplained.
+
+**Testing approach**
+- Unit test: save then reload correctly restores an identical `PlanNode` tree (or re-parses identically from saved raw input).
+- Storage-quota test: confirm graceful behavior (a clear message, not a silent failure or a thrown, unhandled exception) when a save attempt would exceed the browser's storage quota.
+- Privacy test (extends Episode 7's guarding): confirm the persistence mechanism itself never transmits stored data anywhere — this is a new code path that touches the same sensitive content the rest of the privacy architecture protects, so it needs its own explicit check, not an assumption that Episode 7's existing test covers it.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Shared/public computer | A saved plan containing real schema/data persisting on a shared machine is a real privacy concern, even though it never left the browser | Provide a clear, easy "clear saved data" control, and consider a "don't save this session" opt-out visible at the point of pasting, not buried in settings |
+| Storage quota exceeded | Common with `localStorage` specifically for large plans | Graceful degradation to session-only (no persistence) with a clear message, rather than a broken save or a crashed app |
+| Multiple tabs open simultaneously | Concurrent writes to the same storage key from different tabs could clobber each other | Last-write-wins is an acceptable default, but shouldn't corrupt the stored data structure — test concurrent-tab writes specifically |
+| Stored data from an older version of the `PlanNode` schema (the app has since evolved) | Same forward-compatibility concern as Story 11.2's link-encoding versioning | Version the persisted payload the same way; a version mismatch on load triggers a clean "couldn't restore your previous session" fallback rather than a crash on malformed/outdated stored data |
+| Browser's private/incognito mode | Storage behaves differently (often cleared on close, sometimes quota-restricted) | Detect and handle gracefully — don't assume persistence always works; a private-mode user losing their session on close is expected behavior, not a bug to chase |
+
+### Story 17.2 — Recent plans list
+
+As a user who works with a handful of recurring problem queries, I want to see and reopen a short list of recently viewed plans, so I don't have to keep the raw plan text saved elsewhere myself.
+
+**Acceptance criteria**
+- A capped list (e.g. last 10, tunable) of recently viewed plans, each identified by a short auto-generated label (e.g. root operator + timestamp, since there's no query name to rely on) — stored using the same `IndexedDB`-based mechanism as Story 17.1.
+- Individually deletable, and a single "clear all" action — consistent with the shared/public-computer concern from Story 17.1.
+- Never syncs across devices or browsers (this is explicitly local-only, not a lightweight account system in disguise — consistent with the PRD's non-goal against user accounts).
+
+**Testing approach**
+- Unit tests: list caps correctly at the defined limit (oldest entry evicted on overflow), individual and bulk deletion both work correctly.
+- Storage-quota interaction test: confirm the recent-plans list and the current-session persistence (Story 17.1) share the storage quota sensibly rather than one silently starving the other.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Two plans that happen to produce the same auto-generated label | Ambiguous list entries | Include enough distinguishing detail (timestamp granularity, node count) in the label to avoid confusing duplicates |
+| Recent-plans list itself growing the storage footprint over time | Ten plans' worth of large SQL Server XML could add up | Consider storing a lighter summary (root operator, key stats, warning count) plus the full plan, evaluated against actual storage measurements rather than assumed to be fine |
