@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { COLLAPSE_NODE_COUNT_THRESHOLD, computeDefaultCollapsedIds } from "../collapse"
+import { COLLAPSE_NODE_COUNT_THRESHOLD, computeDefaultCollapsedIds, findCollapsedAncestors } from "../collapse"
 import { collectNodes, type PlanNode } from "../../parsers/normalize"
 import { makeNode } from "../../rules/__tests__/testHelpers"
 
@@ -52,5 +52,32 @@ describe("computeDefaultCollapsedIds", () => {
   it("does not throw on a single-node plan", () => {
     const root = makeNode({})
     expect(() => computeDefaultCollapsedIds(root, collectNodes(root))).not.toThrow()
+  })
+})
+
+describe("findCollapsedAncestors", () => {
+  it("returns the collapsed ancestor standing between the root and a hidden target node", () => {
+    const { root, fillerBranchRootId } = buildTwoBranchTree(COLLAPSE_NODE_COUNT_THRESHOLD + 50)
+    const collapsed = computeDefaultCollapsedIds(root, collectNodes(root))
+    expect(collapsed.has(fillerBranchRootId)).toBe(true)
+
+    const found = findCollapsedAncestors(root, "filler-leaf", collapsed)
+    expect(found).toEqual(new Set([fillerBranchRootId]))
+  })
+
+  it("returns an empty set for a node that's already visible (no collapsed ancestor)", () => {
+    const { root } = buildTwoBranchTree(COLLAPSE_NODE_COUNT_THRESHOLD + 50)
+    const collapsed = computeDefaultCollapsedIds(root, collectNodes(root))
+    expect(findCollapsedAncestors(root, "expensive", collapsed)).toEqual(new Set())
+  })
+
+  it("returns an empty set for an id that doesn't exist in the tree", () => {
+    const { root } = buildTwoBranchTree(20)
+    expect(findCollapsedAncestors(root, "does-not-exist", new Set(["expensive"]))).toEqual(new Set())
+  })
+
+  it("returns an empty set when collapsedIds is empty, regardless of tree shape", () => {
+    const { root } = buildTwoBranchTree(COLLAPSE_NODE_COUNT_THRESHOLD + 50)
+    expect(findCollapsedAncestors(root, "filler-leaf", new Set())).toEqual(new Set())
   })
 })

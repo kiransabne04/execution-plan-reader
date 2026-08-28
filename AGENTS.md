@@ -26,6 +26,7 @@ discussion first.**
 - `.claude/skills/plan-normalization/` — `src/parsers/normalize.ts`, operator mapping tables
 - `.claude/skills/rule-engine-authoring/` — `src/rules/`
 - `.claude/skills/graph-visualization/` — `src/graph/`
+- `.claude/skills/canvas-rendering-performance/` — `src/graph/canvas/` (large-plan canvas rendering, hit-testing, accessibility fallback)
 - `.claude/skills/operator-glossary-content/` — `src/graph/glossary/` (plain-language operator definitions)
 - `.claude/skills/privacy-architecture/` — any network call, logging, or error-handling change, anywhere
 
@@ -42,6 +43,7 @@ When reviewing a PR in this repository:
   fire, not that it doesn't misfire, is incompletely tested).
 - Confirm the LLM narrative mode's opt-in default is not flipped to "on" by any change.
 - Flag any glossary entry (`src/graph/glossary/`) that references a specific plan's numbers or "this node" rather than staying general — that content belongs in a rule's `Warning` text, not the glossary (see `operator-glossary-content` skill).
+- Flag any change to `src/graph/canvas/` that doesn't also address the accessible fallback (Story 15.2) — canvas rendering without an equivalent accessible list view is an incomplete PR, not a follow-up.
 
 ## Conventions
 - Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`)

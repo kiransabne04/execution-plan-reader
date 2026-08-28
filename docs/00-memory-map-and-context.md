@@ -34,6 +34,8 @@ These are the calls that shape a lot of downstream code — if a future change s
 - **General education and specific diagnosis are structurally separate**, everywhere this distinction could apply: the operator glossary (general) vs. rule engine `Warning`s (specific) in the detail panel; the parameter-sensitivity honesty note (general limitation) vs. an actual finding (specific). This pattern recurs because conflating the two is a recognized failure mode, not a one-off panel design choice.
 - **Not every engine has an equivalent field for everything.** Postgres has no reliable index-type field; Snowflake has no abstract cost-unit concept; SQL Server doesn't split buffer hits from disk reads the way Postgres does. The field catalog's "genuine cross-engine gaps" section is the canonical list — don't invent a value to fill a gap that's architecturally absent in the source engine.
 - **Real-world input is routinely malformed, and that's normal, not exceptional.** Postgres has shipped invalid JSON (duplicate keys); SQL Server's `ShowPlanXML` is often not document-root; common copy-paste habits (`\x on`, `auto_explain` log capture) mangle input. Parsing robustness is a Must-have, not hardening done later — see each `*-plan-parsing` skill.
+- **Rendering is hybrid: DOM/SVG below a threshold, canvas above it — revised from an initial React-Flow-only decision after real browser performance testing.** DOM/SVG rendering (React Flow) gives free interactivity/accessibility but degrades as node count grows, since every node is a tracked DOM object; canvas holds near-constant performance at scale but has zero built-in interactivity or accessibility, both of which must be deliberately rebuilt (manual hit-testing, an accessible list-view fallback). See `docs/04-technical-spec-v1.md` §3's revision note, Episode 15, and the `canvas-rendering-performance` skill. The accessible fallback is treated as required alongside the canvas path, not a follow-up — shipping one without the other regresses accessibility specifically on the large, complex plans where it matters most.
+- **The plan-wide findings summary and the complete findings list are two different things, both required.** Story 5.2's short synthesis (top 1–3 findings) exists for beginner orientation; Episode 13's complete list exists so no finding is ever silently hidden behind that synthesis. Don't collapse these back into one view — they serve different moments in the user's workflow.
 
 ## Terminology (so agents use consistent vocabulary across sessions)
 
@@ -54,6 +56,7 @@ These are the calls that shape a lot of downstream code — if a future change s
 | `plan-normalization` | `src/parsers/normalize.ts`, operator mapping tables |
 | `rule-engine-authoring` | `src/rules/` |
 | `graph-visualization` | `src/graph/` |
+| `canvas-rendering-performance` | `src/graph/canvas/` (large-plan rendering, hit-testing, accessibility fallback) |
 | `operator-glossary-content` | `src/graph/glossary/` |
 | `privacy-architecture` | Any network call, logging, or error-handling change, anywhere |
 

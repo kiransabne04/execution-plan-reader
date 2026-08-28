@@ -16,7 +16,9 @@ export { highLoopCount } from "./highLoopCount"
 export { explodingJoin } from "./explodingJoin"
 export { missingIndexOpportunity } from "./missingIndexOpportunity"
 export { parameterSensitivityNote } from "./parameterSensitivityNote"
-export { summarizePlan, type PlanSummary, type SummarySeverity } from "./summarize"
+export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
+export { collectAllFindings, type Finding } from "./findings"
+export { categorizeFinding, FINDING_CATEGORY_ORDER, type FindingCategory } from "./findingCategory"
 
 export const ALL_RULES: Rule[] = [
   diskSpill,

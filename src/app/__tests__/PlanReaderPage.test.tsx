@@ -97,6 +97,22 @@ describe("PlanReaderPage", () => {
     expect(screen.getByText(/redacted by account policy/i)).toBeInTheDocument()
   })
 
+  // Story 13.1 — the "All findings" list, wired end-to-end into the real page.
+  it("expanding the findings list and clicking an entry opens that node's detail panel in the graph", () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+
+    expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("findings-list-toggle"))
+    const items = screen.getAllByTestId("finding-item")
+    expect(items.length).toBeGreaterThan(0)
+
+    fireEvent.click(items[0])
+    expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+    expect(screen.getByTestId("warning-item")).toBeInTheDocument()
+  })
+
   it("disables the analyze button until something is pasted", () => {
     render(<PlanReaderPage />)
     expect(screen.getByRole("button", { name: /analyze plan/i })).toBeDisabled()
