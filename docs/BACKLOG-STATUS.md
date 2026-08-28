@@ -4,7 +4,7 @@
 
 Status values: `not started` / `in progress` / `blocked` / `done`
 
-_Last audited against `src/` and git history on 2026-08-28 (603/603 tests passing at the time)._
+_Last audited against `src/` and git history on 2026-08-28 (614/614 tests passing at the time)._
 
 ## Episode 1 — Postgres plan ingestion
 | Story | Status | Notes |
@@ -95,8 +95,8 @@ Verified in a real browser, not just jsdom (which has no real `<canvas>` 2d cont
 ## Episode 16 — UI performance and responsiveness
 | Story | Status | Notes |
 |---|---|---|
-| 16.1 — Diagnose and fix detail panel open latency | not started | New — from manual testing feedback |
-| 16.2 — General page responsiveness audit | not started | |
+| 16.1 — Diagnose and fix detail panel open latency | done | Diagnosis: per-node computations (glossary lookup, stat rows, contribution-%) were already O(1)/cheap — not the actual bottleneck. Fix applied anyway, matching the AC literally and guarding against regression: `StatsTable`, `WarningsSection`, `OperatorEducation`, `RawAttributes`, `QueryCorrelation` wrapped in `React.memo`; `buildStatRows`/`computeContributionPercent`/raw-attributes formatting wrapped in `useMemo` — verified via call-count spies in `detailPanelPerformance.test.ts` that these skip re-running on an unrelated re-render (e.g. the Beginner/Expert toggle) but still re-run on a genuine node change. Added the missing CSS open animation (`detailPanel.css`, transform/opacity only, `prefers-reduced-motion`-respecting — the AC's "no layout-thrashing" bullet was previously trivially true only because no animation existed at all). Large-attributes-bag edge case confirmed already-correct (collapsed by default) and locked in with a 500-field test. Canvas-mode "panel not blocked by graph rendering" edge case confirmed already-true architecturally (separate component subtrees) and locked in with a test |
+| 16.2 — General page responsiveness audit | done | **Web Worker decision (evidence-based, not assumed)**: measured `analyzePlanText` (parse+normalize+rules+summarize) at up to a synthetic 10,000-node/2MB plan — single-digit-to-tens-of-ms, no evidence of a real main-thread-freeze problem at any plausible size. Conclusion: **not warranted currently**; permanent regression thresholds live in `src/app/__tests__/analyzePlanPerformance.test.ts`. Paste-handling path audited separately: `PasteBox`'s `onChange` is a plain controlled-input `setState`, one inherent O(n) copy per paste, nothing further to optimize; locked in with a 5MB-paste bounded-time test. **New finding, not fixed this pass**: a pathologically deep (not wide) plan — a long single-child chain — can overflow the JS call stack in the parsers' recursive tree-builders (environment-dependent exact depth, unlikely for a real query's plan shape); already degrades to the same friendly generic error as any other parse failure (verified — never a blank page), left as a known limitation rather than refactoring every recursive tree-walker across all 3 parsers + `src/graph`/`src/rules` to iterative, which is a much larger, separate effort disproportionate to this story's scope. Mobile responsiveness tested with real CPU throttling (Chrome DevTools Protocol, 4x rate — not just viewport-width emulation) in `e2e/mobile-cpu-throttled.spec.ts`. No Lighthouse/CI wiring added — no CI pipeline exists in this repo yet to wire it into |
 
 ## Episode 17 — Local browser persistence
 | Story | Status | Notes |

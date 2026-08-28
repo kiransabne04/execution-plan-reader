@@ -1,3 +1,4 @@
+import { memo } from "react"
 import { getGlossaryEntry, getGlossaryFallback } from "../glossary"
 
 export interface OperatorEducationProps {
@@ -11,7 +12,7 @@ export interface OperatorEducationProps {
  * explicit acceptance criteria: one is general education, the other
  * (rendered separately by WarningsSection) is a specific finding, and the
  * two must never blur together. */
-export function OperatorEducation({ operatorType, rawOperatorLabel, expertMode }: OperatorEducationProps) {
+function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: OperatorEducationProps) {
   const entry = getGlossaryEntry(operatorType)
 
   if (!entry) {
@@ -43,3 +44,9 @@ export function OperatorEducation({ operatorType, rawOperatorLabel, expertMode }
     </>
   )
 }
+
+// Story 16.1: memoized — the glossary lookup is already an O(1) Map read
+// (see graph/glossary/index.ts), but this still skips it entirely on an
+// unrelated re-render, and keeps the pattern consistent with this panel's
+// other sections.
+export const OperatorEducation = memo(OperatorEducationInner)

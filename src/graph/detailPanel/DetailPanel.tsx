@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { PlanNode } from "../../parsers/normalize"
 import type { PlanContext } from "../../rules/types"
 import { computeContributionPercent } from "./computeContributionPercent"
@@ -57,7 +57,12 @@ export function DetailPanel({ node, context, onClose }: DetailPanelProps) {
     closeButtonRef.current?.focus()
   }, [node.id])
 
-  const contributionPercent = computeContributionPercent(node, context)
+  // Story 16.1: memoized alongside the other per-node computations this
+  // story names explicitly (glossary lookup, warning retrieval, this
+  // percentage) — cheap arithmetic either way, but skips re-running when
+  // DetailPanel re-renders for a reason unrelated to `node`/`context`
+  // (e.g. the Beginner/Expert toggle, which this value doesn't depend on).
+  const contributionPercent = useMemo(() => computeContributionPercent(node, context), [node, context])
 
   return (
     <div className="detail-panel" role="dialog" aria-label={`Details for ${node.rawOperatorLabel}`} data-testid="detail-panel">

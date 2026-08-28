@@ -1,3 +1,4 @@
+import { memo } from "react"
 import type { Engine, Warning } from "../../parsers/normalize"
 import { FunnelCallout } from "./FunnelCallout"
 import { getFunnelCallout } from "./funnelCallouts"
@@ -18,7 +19,7 @@ export interface WarningsSectionProps {
  * standalone banner), keyed off THIS node's own `engine` field (never a
  * plan-wide flag or rule ID) so a Postgres finding can never link to
  * QueryDoc or vice versa. */
-export function WarningsSection({ warnings, expertMode, engine }: WarningsSectionProps) {
+function WarningsSectionInner({ warnings, expertMode, engine }: WarningsSectionProps) {
   if (warnings.length === 0) return null
   const callout = getFunnelCallout(engine)
 
@@ -42,3 +43,8 @@ export function WarningsSection({ warnings, expertMode, engine }: WarningsSectio
     </section>
   )
 }
+
+// Story 16.1: memoized so switching Beginner/Expert (which this section DOES
+// read) still only re-renders when its own props actually change, and any
+// other unrelated DetailPanel re-render skips this section entirely.
+export const WarningsSection = memo(WarningsSectionInner)

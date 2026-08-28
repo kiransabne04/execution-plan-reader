@@ -113,6 +113,57 @@ describe("PlanReaderPage", () => {
     expect(screen.getByTestId("warning-item")).toBeInTheDocument()
   })
 
+  // Episode 16, Story 16.2 audit finding: a pathologically deep (not
+  // wide) plan — a long single-child chain — can exceed the JS call
+  // stack in the parser's recursive descent (buildNode in
+  // parseJsonPlan.ts and equivalents recurse per tree level, one JS
+  // stack frame per node depth). This is environment-dependent (the exact
+  // depth that overflows varies by engine/stack size) and unlikely for a
+  // real query plan (real plans are typically wide/branching, not
+  // thousands of nodes deep in a straight line) — not fixed this pass
+  // (would mean converting every recursive tree-walker across all three
+  // parsers to iterative, a much larger, separate refactor), but it must
+  // degrade to the same friendly generic error every other parse failure
+  // gets, never a blank page or an error escaping the try/catch in
+  // handleAnalyze. This test uses a depth (50,000) chosen to reliably
+  // overflow in any realistic JS engine stack size, so it's a stable
+  // regression check, not a flaky boundary probe.
+  it("degrades to the friendly generic error, not a crash or blank page, for a pathologically deep (stack-overflowing) plan shape", () => {
+    render(<PlanReaderPage />)
+
+    let node: Record<string, unknown> = { "Node Type": "Seq Scan", "Total Cost": 1, "Plan Rows": 1, "Plan Width": 8 }
+    for (let i = 0; i < 50_000; i++) {
+      node = { "Node Type": "Nested Loop", "Total Cost": 10, "Plan Rows": 10, "Plan Width": 8, Plans: [node] }
+    }
+    const deepPlanJson = JSON.stringify([{ Plan: node }])
+
+    expect(() => pasteAndAnalyze(deepPlanJson)).not.toThrow()
+    expect(screen.getByTestId("parse-error")).toBeInTheDocument()
+    expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
+  })
+
+  // Episode 16, Story 16.2 edge case: "just handling a multi-MB paste
+  // event can itself cause a noticeable stutter — confirm the paste-
+  // handling path itself is profiled, not only the parser's own execution
+  // time." Audited: PasteBox's onChange is a plain controlled-input
+  // setState — no per-keystroke validation or transformation, so the cost
+  // of a large paste is exactly one O(n) string copy into React state,
+  // inherent to any controlled-textarea implementation. This test locks
+  // in that a multi-MB paste completes the change event in bounded time,
+  // separately from the subsequent parse (already covered by
+  // analyzePlanPerformance.test.ts).
+  it("a multi-MB paste into the textarea completes in bounded time, independent of the subsequent parse", () => {
+    render(<PlanReaderPage />)
+    const hugeText = "x".repeat(5_000_000) // 5MB, well beyond any real pasted plan
+
+    const start = performance.now()
+    fireEvent.change(screen.getByTestId("paste-textarea"), { target: { value: hugeText } })
+    const elapsed = performance.now() - start
+
+    expect(screen.getByTestId("paste-textarea")).toHaveValue(hugeText)
+    expect(elapsed).toBeLessThan(1000)
+  })
+
   it("disables the analyze button until something is pasted", () => {
     render(<PlanReaderPage />)
     expect(screen.getByRole("button", { name: /analyze plan/i })).toBeDisabled()
