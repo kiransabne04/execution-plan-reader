@@ -1,15 +1,40 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
-import { PlanReaderPage } from "../PlanReaderPage"
+import { PlanReaderPage, SESSION_SAVE_DEBOUNCE_MS } from "../PlanReaderPage"
 import { encodeShareLink } from "../shareLink"
+import { _deleteDatabaseForTests, saveSession, addRecentPlan } from "../../persistence"
+
+/** Waits out the real debounce window handleAnalyze's session-save goes
+ * through, plus a small margin — used only where a test needs a save
+ * triggered through the real UI flow to have actually landed in IndexedDB
+ * before proceeding (e.g. before unmounting and remounting to check
+ * restore behavior). Tests that only care about the RESTORE side of the
+ * flow seed data directly via saveSession() instead — faster, and doesn't
+ * conflate two different things being tested. */
+function flushSessionSaveDebounce() {
+  return new Promise((resolve) => setTimeout(resolve, SESSION_SAVE_DEBOUNCE_MS + 100))
+}
 
 function loadFixture(engine: string, filename: string): string {
   const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), `../../fixtures/${engine}`)
   return readFileSync(path.join(dir, filename), "utf-8")
 }
+
+// Episode 17: PlanReaderPage now touches the local persistence layer
+// (IndexedDB, faked in tests — see src/__tests__/setup.ts) on every
+// successful analyze. Without this, one test's save could bleed into the
+// next test's fresh <PlanReaderPage /> mount (e.g. an unexpected restore
+// banner), since fake-indexeddb's in-memory database otherwise persists
+// across tests within the same file.
+beforeEach(async () => {
+  await _deleteDatabaseForTests()
+})
+afterEach(async () => {
+  await _deleteDatabaseForTests()
+})
 
 function pasteAndAnalyze(text: string) {
   fireEvent.change(screen.getByTestId("paste-textarea"), { target: { value: text } })
@@ -256,5 +281,151 @@ describe("PlanReaderPage — shareable link (Story 11.2)", () => {
     await waitFor(() => expect(screen.getByTestId("share-link-too-large")).toBeInTheDocument())
     expect(writeText).not.toHaveBeenCalled()
     expect(screen.queryByTestId("share-link-copied")).not.toBeInTheDocument()
+  })
+})
+
+// Episode 17 — local browser persistence, wired end-to-end into the real page.
+describe("PlanReaderPage — local persistence (Episode 17)", () => {
+  it("does not show a restore banner or any recent plans on a fresh browser profile", async () => {
+    render(<PlanReaderPage />)
+    // Let the async loadSession()/listRecentPlans() effects settle.
+    await waitFor(() => expect(screen.getByTestId("paste-textarea")).toBeInTheDocument())
+    expect(screen.queryByTestId("restore-session-banner")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("recent-plans-list")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("clear-saved-data-button")).not.toBeInTheDocument()
+  })
+
+  it("analyzing a plan saves it, and a later fresh mount offers to restore it", async () => {
+    const { unmount } = render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    await waitFor(() => expect(screen.getByTestId("plan-result")).toBeInTheDocument())
+    await flushSessionSaveDebounce() // let the real debounced saveSession() call actually land
+    unmount()
+
+    render(<PlanReaderPage />)
+    await waitFor(() => expect(screen.getByTestId("restore-session-banner")).toBeInTheDocument())
+    expect(screen.getByTestId("restore-session-banner")).toHaveTextContent(/restore/i)
+  })
+
+  it("clicking Restore re-analyzes the saved plan and dismisses the banner", async () => {
+    // Seeds the saved session directly — this test is about the restore
+    // UI's own behavior, not about proving the debounced save fires
+    // (already covered above).
+    await saveSession(loadFixture("postgres", "simple-seq-scan.json"))
+
+    render(<PlanReaderPage />)
+    await waitFor(() => expect(screen.getByTestId("restore-session-banner")).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId("restore-session-button"))
+
+    expect(screen.getByTestId("plan-result")).toBeInTheDocument()
+    expect(screen.queryByTestId("restore-session-banner")).not.toBeInTheDocument()
+  })
+
+  it("clicking Dismiss hides the banner without deleting the saved session (still offered on the next visit)", async () => {
+    await saveSession(loadFixture("postgres", "simple-seq-scan.json"))
+
+    const { unmount } = render(<PlanReaderPage />)
+    await waitFor(() => expect(screen.getByTestId("restore-session-banner")).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId("dismiss-restore-button"))
+    expect(screen.queryByTestId("restore-session-banner")).not.toBeInTheDocument()
+    unmount()
+
+    render(<PlanReaderPage />)
+    await waitFor(() => expect(screen.getByTestId("restore-session-banner")).toBeInTheDocument())
+  })
+
+  it("never offers to restore a session when a share-link fragment already took priority on this load", async () => {
+    const encoded = encodeShareLink(loadFixture("postgres", "simple-seq-scan.json"), "https://example.com/")
+    expect(encoded.ok).toBe(true)
+    if (!encoded.ok) return
+
+    // Seed an unrelated saved session first...
+    const { unmount } = render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
+    await waitFor(() => expect(screen.getByTestId("plan-result")).toBeInTheDocument())
+    unmount()
+
+    // ...then load with a share-link fragment present.
+    window.location.hash = encoded.url.split("#")[1]
+    render(<PlanReaderPage />)
+    expect(screen.getByTestId("plan-result")).toBeInTheDocument()
+    expect(screen.queryByTestId("restore-session-banner")).not.toBeInTheDocument()
+    window.location.hash = ""
+  })
+
+  it("checking 'don't save' prevents both session persistence and the recent plans list from being written to", async () => {
+    const { unmount } = render(<PlanReaderPage />)
+    fireEvent.click(screen.getByTestId("dont-save-checkbox"))
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    await waitFor(() => expect(screen.getByTestId("plan-result")).toBeInTheDocument())
+    unmount()
+
+    render(<PlanReaderPage />)
+    await waitFor(() => expect(screen.getByTestId("paste-textarea")).toBeInTheDocument())
+    expect(screen.queryByTestId("restore-session-banner")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("recent-plans-list")).not.toBeInTheDocument()
+  })
+
+  it("adds an analyzed plan to the recent plans list, reachable via its toggle", async () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    await waitFor(() => expect(screen.getByTestId("plan-result")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId("recent-plans-list")).toBeInTheDocument())
+
+    expect(screen.queryByTestId("recent-plan-item")).not.toBeInTheDocument() // collapsed by default
+    fireEvent.click(screen.getByTestId("recent-plans-toggle"))
+    expect(screen.getByTestId("recent-plan-item")).toBeInTheDocument()
+  })
+
+  it("clicking a recent plan entry re-analyzes it", async () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    await waitFor(() => expect(screen.getByTestId("recent-plans-list")).toBeInTheDocument())
+    pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
+
+    fireEvent.click(screen.getByTestId("recent-plans-toggle"))
+    await waitFor(() => expect(screen.getAllByTestId("recent-plan-item")).toHaveLength(2))
+
+    const items = screen.getAllByTestId("recent-plan-item")
+    fireEvent.click(items[items.length - 1]) // the oldest listed — simple-seq-scan
+    expect(screen.getByTestId("plan-result")).toBeInTheDocument()
+  })
+
+  it("deleting one recent plan entry removes only that entry", async () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    await waitFor(() => expect(screen.getByTestId("recent-plans-list")).toBeInTheDocument())
+    pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
+
+    fireEvent.click(screen.getByTestId("recent-plans-toggle"))
+    await waitFor(() => expect(screen.getAllByTestId("recent-plan-item")).toHaveLength(2))
+
+    fireEvent.click(screen.getAllByTestId("recent-plan-delete")[0])
+    await waitFor(() => expect(screen.getAllByTestId("recent-plan-item")).toHaveLength(1))
+  })
+
+  it("'Clear all' in the recent plans section empties it but does not touch a pending session restore offer", async () => {
+    const text = loadFixture("postgres", "simple-seq-scan.json")
+    await saveSession(text)
+    await addRecentPlan(text, { rootOperatorLabel: "Seq Scan", nodeCount: 1 })
+
+    render(<PlanReaderPage />)
+    await waitFor(() => expect(screen.getByTestId("restore-session-banner")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId("recent-plans-list")).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId("recent-plans-toggle"))
+    fireEvent.click(screen.getByTestId("recent-plans-clear-all"))
+
+    await waitFor(() => expect(screen.queryByTestId("recent-plans-list")).not.toBeInTheDocument())
+    expect(screen.getByTestId("restore-session-banner")).toBeInTheDocument() // untouched
+  })
+
+  it("'Clear saved data' wipes both the session and the recent plans list, and the button disappears once nothing is left", async () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    await waitFor(() => expect(screen.getByTestId("clear-saved-data-button")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId("clear-saved-data-button"))
+    await waitFor(() => expect(screen.queryByTestId("clear-saved-data-button")).not.toBeInTheDocument())
+    expect(screen.queryByTestId("recent-plans-list")).not.toBeInTheDocument()
   })
 })

@@ -114,3 +114,44 @@ test("Story 11.2: a real copied share link decodes/renders locally with the frag
     expect(url).not.toContain("plan=")
   }
 })
+
+// Episode 17's own explicit testing requirement: "confirm the persistence
+// mechanism itself never transmits stored data anywhere — this is a new
+// code path that touches the same sensitive content the rest of the
+// privacy architecture protects, so it needs its own explicit check, not
+// an assumption that Episode 7's existing guarding covers it too." Drives
+// the full save -> reload -> restore -> recent-plans-list round trip
+// through IndexedDB with network interception active throughout.
+test("Story 17.1/17.2: zero outbound requests across the full local-persistence round trip (save, reload, restore, browse recent plans)", async ({
+  page,
+}) => {
+  await page.goto("/")
+
+  const requests: string[] = []
+  page.on("request", (req) => requests.push(req.url()))
+
+  await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
+  await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+  // Past the debounce window so the session save actually lands before reload.
+  await page.waitForTimeout(700)
+
+  await page.reload()
+  // A reload's own same-origin document/JS/CSS asset fetches are expected
+  // and harmless (same reasoning as the listener-attached-after-goto
+  // pattern above) — reset the log right after so the assertion below is
+  // specifically about what happens from here on: loading the restored
+  // session out of IndexedDB, clicking Restore, browsing recent plans, and
+  // clearing saved data.
+  requests.length = 0
+  await expect(page.getByTestId("restore-session-banner")).toBeVisible()
+  await page.getByTestId("restore-session-button").click()
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+
+  await page.getByTestId("recent-plans-toggle").click()
+  await expect(page.getByTestId("recent-plan-item").first()).toBeVisible()
+  await page.getByTestId("clear-saved-data-button").click()
+
+  await page.waitForTimeout(300)
+  expect(requests).toEqual([])
+})

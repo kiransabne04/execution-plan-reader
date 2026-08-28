@@ -4,7 +4,7 @@
 
 Status values: `not started` / `in progress` / `blocked` / `done`
 
-_Last audited against `src/` and git history on 2026-08-28 (614/614 tests passing at the time)._
+_Last audited against `src/` and git history on 2026-08-28 (652/652 tests passing at the time)._
 
 ## Episode 1 — Postgres plan ingestion
 | Story | Status | Notes |
@@ -101,8 +101,10 @@ Verified in a real browser, not just jsdom (which has no real `<canvas>` 2d cont
 ## Episode 17 — Local browser persistence
 | Story | Status | Notes |
 |---|---|---|
-| 17.1 — Persist the current plan across page reloads | not started | New — from manual testing feedback |
-| 17.2 — Recent plans list | not started | |
+| 17.1 — Persist the current plan across page reloads | done | `src/persistence/db.ts` (raw IndexedDB wrapper — `fake-indexeddb` new devDependency for tests, jsdom has no IndexedDB at all), `sessionPersistence.ts` (versioned envelope, mirrors Story 11.2's shareLink.ts — persists raw TEXT, re-parses via the existing `analyzePlanText` pipeline, never versions `PlanNode` itself). Debounced save (`debounce.ts`) on every successful analyze, gated by a "don't save this plan" checkbox in `PasteBox.tsx` (adjacent to the privacy statement, not buried). `RestoreSessionBanner.tsx` offers, never auto-loads. "Clear saved data" control wired to both stores. All edge cases from the story's table have explicit tests: quota-exceeded classification (`isQuotaExceeded` — fake-indexeddb doesn't enforce real quotas, so this is unit-tested directly against a synthetic `DOMException`), concurrent same-key writes across "tabs" (`Promise.all`, asserts no torn record — IndexedDB's per-record atomicity), version-mismatch and malformed-data both fail cleanly (never a crash), `indexedDB === undefined` (private-mode-like) degrades to "persistence unavailable" everywhere |
+| 17.2 — Recent plans list | done | `src/persistence/recentPlans.ts` — capped at `RECENT_PLANS_LIMIT = 10`, oldest evicted on overflow (`savedAt` + a UUID tiebreaker for entries saved within the same millisecond — a real bug caught by testing a tight synchronous loop, not just a hypothetical). Label includes root operator + node count + timestamp (distinguishing-detail edge case). `RecentPlansList.tsx` — collapsed by default (same pattern as Episode 13's FindingsList), individually deletable, "Clear all" scoped to this list only (doesn't touch a pending session-restore offer — separate control, separate test). Never syncs anywhere — plain per-browser-profile IndexedDB |
+
+Verified in a real browser, not just fake-indexeddb: `e2e/local-persistence.spec.ts` (save/reload/restore, dismiss-then-still-available, recent-plans add/reopen, don't-save opt-out, clear-saved-data) and a dedicated privacy check extending Episode 7's guarding per the story's own explicit requirement — `e2e/privacy-no-network-calls.spec.ts`'s new "Story 17.1/17.2" test drives the full save → reload → restore → browse-recent-plans round trip with network interception active, asserting zero outbound requests.
 
 ---
 
