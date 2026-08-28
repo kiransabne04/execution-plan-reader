@@ -28,6 +28,31 @@
   font-size: 13px;
   line-height: 1.5;
   z-index: 20;
+
+  /* Story 16.1: "CSS transitions or lightweight animation, not layout-
+     thrashing techniques" — only transform/opacity are animated, never
+     width/height/top/left (which would force synchronous reflow on every
+     frame). The panel is a fresh DOM mount on every open (PlanGraph
+     conditionally renders it), so a plain mount `animation` — not a
+     transition needing before/after state — is what actually plays here. */
+  animation: detail-panel-enter 160ms ease-out;
+}
+
+@keyframes detail-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-panel {
+    animation: none;
+  }
 }
 
 @media (prefers-color-scheme: dark) {

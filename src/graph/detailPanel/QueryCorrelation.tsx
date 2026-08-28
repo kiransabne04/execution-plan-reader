@@ -1,3 +1,5 @@
+import { memo } from "react"
+
 export interface QueryCorrelationProps {
   queryText?: string
   queryTextRedacted?: boolean
@@ -13,7 +15,7 @@ export interface QueryCorrelationProps {
  * work. Showing the honest text (or the honest reason it's missing) is the
  * additive value this pass delivers.
  */
-export function QueryCorrelation({ queryText, queryTextRedacted }: QueryCorrelationProps) {
+function QueryCorrelationInner({ queryText, queryTextRedacted }: QueryCorrelationProps) {
   return (
     <section className="detail-panel__section" data-testid="query-correlation">
       <h3 className="detail-panel__section-heading">Query</h3>
@@ -31,3 +33,5 @@ export function QueryCorrelation({ queryText, queryTextRedacted }: QueryCorrelat
     </section>
   )
 }
+
+export const QueryCorrelation = memo(QueryCorrelationInner)

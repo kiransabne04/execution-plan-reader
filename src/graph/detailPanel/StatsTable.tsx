@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react"
 import type { PlanNode } from "../../parsers/normalize"
 import { buildStatRows, type StatRow } from "./buildStatRows"
 
@@ -25,12 +26,21 @@ function chunkRows(rows: StatRow[]): Chunk[] {
   return chunks
 }
 
-/** Panel section 3 ("This node's numbers"). Row derivation is pure/tested
+/**
+ * Panel section 3 ("This node's numbers"). Row derivation is pure/tested
  * (buildStatRows.ts) — this component only renders the result. The
  * estimate-vs-actual mismatch highlight reuses the rule engine's own
- * bad-row-estimate finding rather than recomputing a second threshold. */
-export function StatsTable({ node }: StatsTableProps) {
-  const rows = buildStatRows(node)
+ * bad-row-estimate finding rather than recomputing a second threshold.
+ *
+ * Story 16.1: memoized on `node` identity (useMemo) and the component
+ * itself wrapped in `memo` — cheap either way for a single node's field
+ * set, but this is exactly the class of per-click computation the story
+ * calls out by name, and it means DetailPanel re-rendering for an
+ * unrelated reason (e.g. the Beginner/Expert toggle, which this section
+ * doesn't even read) never re-derives or re-renders these rows.
+ */
+function StatsTableInner({ node }: StatsTableProps) {
+  const rows = useMemo(() => buildStatRows(node), [node])
   const hasMismatch = node.warnings.some((w) => w.ruleId === "bad-row-estimate")
 
   if (rows.length === 0) return null
@@ -70,3 +80,5 @@ export function StatsTable({ node }: StatsTableProps) {
     </section>
   )
 }
+
+export const StatsTable = memo(StatsTableInner)
