@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { PasteBox } from "./PasteBox"
+import { Notice } from "./Notice"
 import { ComparePasteBox } from "./ComparePasteBox"
 import { ShareLinkButton } from "./ShareLinkButton"
 import { RestoreSessionBanner } from "./RestoreSessionBanner"
@@ -321,9 +322,9 @@ export function PlanReaderPage() {
       />
 
       {error && (
-        <p className="plan-reader-page__error" role="alert" data-testid="parse-error">
+        <Notice severity="critical" data-testid="parse-error">
           {error}
-        </p>
+        </Notice>
       )}
 
       {analyzed && activeStatement && (
@@ -390,8 +391,27 @@ export function PlanReaderPage() {
           </header>
 
           {analyzed.queryTextRedacted && (
-            <p className="plan-reader-page__note">Query text redacted by account policy.</p>
+            // Warning tier (spec §5 `1e`: "amber = partial result
+            // available") — the plan itself parsed and rendered fine, but
+            // with a real caveat (no query text to correlate against).
+            <Notice severity="warning">Query text redacted by account policy.</Notice>
           )}
+
+          {/* Episode 18, Story 18.6's edge case: the parameter-sensitivity
+              and estimate-only honesty notes (both root-level, info-
+              severity Warnings from the rule engine) must be visible here
+              directly — not only reachable by opening the root node's own
+              detail panel, or by expanding the findings list, which is
+              collapsed by default (Story 13.1). Informational tier (spec
+              §5 `1e`: "blurple = informational") — nothing is wrong, this
+              is a disclosure, not a problem. */}
+          {activeStatement.root.warnings
+            .filter((w) => w.ruleId === "parameter-sensitivity-honesty-note" || w.ruleId === "estimate-only-plan")
+            .map((w) => (
+              <Notice key={w.ruleId} severity="info">
+                {w.shortText}
+              </Notice>
+            ))}
 
           {analyzed.statements.length > 1 && (
             <div className="plan-reader-page__statement-tabs" role="tablist" aria-label="Statements in this batch">
@@ -420,9 +440,9 @@ export function PlanReaderPage() {
               {!comparePlan && <ComparePasteBox onAnalyze={handleCompareAnalyze} onCancel={handleStopComparing} />}
 
               {compareError && (
-                <p className="plan-reader-page__error" role="alert" data-testid="compare-parse-error">
+                <Notice severity="critical" data-testid="compare-parse-error">
                   {compareError}
-                </p>
+                </Notice>
               )}
 
               {comparePlan && (

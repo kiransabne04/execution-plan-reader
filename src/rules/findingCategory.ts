@@ -29,6 +29,7 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "disk-spill": "Spill issues",
   "high-loop-count": "Loop issues",
   "parameter-sensitivity-honesty-note": "General notes",
+  "estimate-only-plan": "General notes",
 }
 
 export function categorizeFinding(warning: Warning): FindingCategory {

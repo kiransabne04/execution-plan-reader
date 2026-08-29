@@ -637,4 +637,57 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       expect(screen.getByTestId("shell-mode-beginner")).toHaveAttribute("aria-pressed", "false")
     })
   })
+
+  describe("Episode 18, Story 18.6 — severity-tiered notices", () => {
+    it("a blocking parse error renders the critical treatment, labeled, not just a colored box", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "non-plan-text.txt"))
+
+      const notice = screen.getByTestId("parse-error")
+      expect(notice).toHaveClass("plan-reader-page__notice--critical")
+      expect(notice).toHaveTextContent(/can't proceed/i)
+      expect(notice).toHaveAttribute("role", "alert")
+    })
+
+    it("the redacted-query-text caveat renders the warning (partial result) treatment", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("snowflake", "redacted-query-text.json"))
+
+      const notice = screen.getByText(/redacted by account policy/i).closest("p")!
+      expect(notice).toHaveClass("plan-reader-page__notice--warning")
+      expect(notice).toHaveTextContent(/partial result/i)
+    })
+
+    it("the parameter-sensitivity honesty note is visible directly in the result, not only inside the root node's own detail panel", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+
+      // getAllByText, not getByText: the same shortText also appears in the
+      // root node's own hover-tooltip DOM (buildNodeTooltip) — this
+      // specifically wants the always-visible inline notice, not that one.
+      const matches = screen.getAllByText(/a single run's plan may not represent every input/i)
+      const notice = matches.map((el) => el.closest("p")).find((p) => p?.classList.contains("plan-reader-page__notice--info"))
+      expect(notice).toBeDefined()
+      // Reachable without ever clicking a node or expanding findings.
+      expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+    })
+
+    it("the estimate-only honesty note (Story 18.6's own new rule) is visible directly in the result", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "estimate-only-plan.json"))
+
+      const matches = screen.getAllByText(/no actual execution numbers/i)
+      const notice = matches.map((el) => el.closest("p")).find((p) => p?.classList.contains("plan-reader-page__notice--info"))
+      expect(notice).toBeDefined()
+    })
+
+    it("recovers cleanly: switching from an error-triggering paste to a valid one clears the critical notice, no stale error left behind", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "non-plan-text.txt"))
+      expect(screen.getByTestId("parse-error")).toBeInTheDocument()
+
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      expect(screen.queryByTestId("parse-error")).not.toBeInTheDocument()
+    })
+  })
 })

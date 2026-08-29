@@ -1,6 +1,7 @@
 import { collectNodes, type PlanNode, type Warning } from "../parsers/normalize"
 import { badRowEstimate } from "./badRowEstimate"
 import { diskSpill } from "./diskSpill"
+import { estimateOnlyNote } from "./estimateOnlyNote"
 import { explodingJoin } from "./explodingJoin"
 import { highLoopCount } from "./highLoopCount"
 import { missingIndexOpportunity } from "./missingIndexOpportunity"
@@ -16,6 +17,7 @@ export { highLoopCount } from "./highLoopCount"
 export { explodingJoin } from "./explodingJoin"
 export { missingIndexOpportunity } from "./missingIndexOpportunity"
 export { parameterSensitivityNote } from "./parameterSensitivityNote"
+export { estimateOnlyNote } from "./estimateOnlyNote"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
 export { collectAllFindings, type Finding } from "./findings"
 export { categorizeFinding, FINDING_CATEGORY_ORDER, type FindingCategory } from "./findingCategory"
@@ -28,6 +30,7 @@ export const ALL_RULES: Rule[] = [
   highLoopCount,
   missingIndexOpportunity,
   parameterSensitivityNote,
+  estimateOnlyNote,
 ]
 
 const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }
