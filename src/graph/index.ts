@@ -1,4 +1,4 @@
-export { PlanGraph, type PlanGraphProps } from "./PlanGraph"
+export { PlanGraph, type PlanGraphProps, type PlanGraphHandle } from "./PlanGraph"
 export {
   buildGraphElements,
   type PlanGraphNode,
@@ -14,3 +14,4 @@ export { PlanComparisonView, type PlanComparisonViewProps } from "./comparison/P
 export { DetailPanel, type DetailPanelProps } from "./detailPanel/DetailPanel"
 export { SearchPalette, type SearchPaletteProps } from "./search/SearchPalette"
 export { WalkthroughOverlay, type WalkthroughOverlayProps } from "./walkthrough/WalkthroughOverlay"
+export { SEVERITY_LABEL } from "./nodeSeverity"

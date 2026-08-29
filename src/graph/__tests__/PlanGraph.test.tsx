@@ -1,6 +1,7 @@
+import { createRef } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
-import { PlanGraph, CANVAS_NODE_COUNT_THRESHOLD } from "../PlanGraph"
+import { PlanGraph, CANVAS_NODE_COUNT_THRESHOLD, type PlanGraphHandle } from "../PlanGraph"
 import { COLLAPSE_NODE_COUNT_THRESHOLD } from "../collapse"
 import { makeNode } from "../../rules/__tests__/testHelpers"
 
@@ -334,5 +335,32 @@ describe("PlanGraph — canvas mode (Episode 15)", () => {
     render(<PlanGraph root={root} />)
     expect(screen.getByTestId("canvas-mode-banner")).toBeInTheDocument()
     expect(screen.getByTestId("accessible-list-toggle")).toBeInTheDocument()
+  })
+})
+
+// Episode 18, Story 18.11 — jsdom's HTMLCanvasElement.getContext('2d')
+// returns null (see CanvasPlanGraph.test.tsx's own comment on this), so
+// the actual PIXEL output of exportPng() can only be verified in a real
+// browser (e2e/png-export.spec.ts). What IS verifiable here is the
+// imperative surface itself: the ref exposes exportPng, it's callable in
+// both DOM/SVG and canvas mode, and a null 2D context degrades to a
+// resolved `null` rather than a thrown error.
+describe("PlanGraph — PNG export ref (Episode 18, Story 18.11)", () => {
+  it("exposes an exportPng() handle via ref, in DOM/SVG mode", async () => {
+    const ref = createRef<PlanGraphHandle>()
+    const root = makeNode({ id: "root", children: [makeNode({ id: "child" })] })
+    render(<PlanGraph ref={ref} root={root} />)
+
+    expect(ref.current?.exportPng).toBeTypeOf("function")
+    await expect(ref.current!.exportPng()).resolves.toBeNull() // jsdom has no real 2D context
+  })
+
+  it("exposes the same handle in canvas mode — the export path doesn't care which live rendering mode produced the plan", async () => {
+    const ref = createRef<PlanGraphHandle>()
+    const root = buildLargePlan(520)
+    render(<PlanGraph ref={ref} root={root} />)
+
+    expect(ref.current?.exportPng).toBeTypeOf("function")
+    await expect(ref.current!.exportPng()).resolves.toBeNull()
   })
 })

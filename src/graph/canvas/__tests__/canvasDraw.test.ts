@@ -21,6 +21,7 @@ function makeFakeContext() {
     save: record("save"),
     restore: record("restore"),
     clearRect: record("clearRect"),
+    fillRect: record("fillRect"),
     translate: record("translate"),
     scale: record("scale"),
     beginPath: record("beginPath"),
@@ -333,6 +334,28 @@ describe("drawGraph", () => {
 
       // Base border + severity ring + selection outline = 3 strokes.
       expect(ctx.calls.filter((c) => c.method === "stroke").length).toBeGreaterThanOrEqual(3)
+    })
+  })
+
+  describe("Episode 18, Story 18.11 — PNG export background fill", () => {
+    it("fills an opaque background BEFORE the pan/zoom transform, only when backgroundColor is passed", () => {
+      const ctx = makeFakeContext()
+      drawGraph(ctx, {
+        ...baseParams,
+        nodes: [planGraphNode({ id: "a" })],
+        edges: [],
+        backgroundColor: "#232532",
+      })
+
+      const fillRectIndex = ctx.calls.findIndex((c) => c.method === "fillRect")
+      expect(fillRectIndex).toBeGreaterThanOrEqual(0)
+      expect(fillRectIndex).toBeLessThan(ctx.calls.findIndex((c) => c.method === "translate"))
+    })
+
+    it("never fills a background when backgroundColor is omitted — the live CanvasPlanGraph path stays transparent, unchanged from before this story", () => {
+      const ctx = makeFakeContext()
+      drawGraph(ctx, { ...baseParams, nodes: [planGraphNode({ id: "a" })], edges: [] })
+      expect(ctx.calls.some((c) => c.method === "fillRect")).toBe(false)
     })
   })
 

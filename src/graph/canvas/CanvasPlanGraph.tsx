@@ -12,6 +12,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Pointer
 import type { PlanGraphEdge, PlanGraphNode } from "../buildGraphElements"
 import { drawGraph } from "./canvasDraw"
 import { findNodeAtPoint } from "./hitTest"
+import { computeBounds } from "./graphBounds"
+import { resolveCssVar } from "./cssVars"
 import {
   fitTransform,
   screenToWorld,
@@ -32,31 +34,6 @@ export interface CanvasPlanGraphProps {
 const DRAG_THRESHOLD_PX = 4
 const WHEEL_ZOOM_IN = 1.08
 const WHEEL_ZOOM_OUT = 1 / 1.08
-
-function computeBounds(nodes: PlanGraphNode[]): { minX: number; minY: number; maxX: number; maxY: number } | null {
-  if (nodes.length === 0) return null
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const node of nodes) {
-    const width = node.width ?? 160
-    const height = node.height ?? 56
-    minX = Math.min(minX, node.position.x)
-    minY = Math.min(minY, node.position.y)
-    maxX = Math.max(maxX, node.position.x + width)
-    maxY = Math.max(maxY, node.position.y + height)
-  }
-  return { minX, minY, maxX, maxY }
-}
-
-/** Reads a CSS custom property already defined on the ancestor `.plan-
- * graph` element (planGraph.css) rather than hardcoding a color here — the
- * canvas path stays theme-consistent with the DOM/SVG path's own tokens. */
-function resolveCssVar(el: Element, name: string, fallback: string): string {
-  const value = getComputedStyle(el).getPropertyValue(name).trim()
-  return value || fallback
-}
 
 export function CanvasPlanGraph({
   nodes,

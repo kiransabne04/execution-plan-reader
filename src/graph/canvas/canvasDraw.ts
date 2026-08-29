@@ -55,6 +55,13 @@ export interface DrawGraphParams {
   edgeColors: { hot: string; muted: string }
   /** Story 18.4, spec §3's severity ring. `--color-critical`/`--color-warning`. */
   severityColors: { critical: string; warning: string }
+  /** Story 18.11 — PNG export's own opaque page background (the live
+   * on-screen canvas is transparent over its already-styled `.plan-graph`
+   * container's CSS background, but an exported PNG has no such container
+   * once saved/shared elsewhere, so export explicitly fills one). Omitted
+   * (the live CanvasPlanGraph path) means "leave transparent," unchanged
+   * from every version of this function before this story. */
+  backgroundColor?: string
 }
 
 const SELECTED_OUTLINE_WIDTH = 3
@@ -398,11 +405,30 @@ function colorWithAlpha(color: string, alpha: number): string {
  * this function stays a plain, testable "given a context and data, what
  * gets drawn" — no canvas-setup concerns baked in). */
 export function drawGraph(ctx: CanvasRenderingContext2D, params: DrawGraphParams): void {
-  const { nodes, edges, transform, selectedNodeId, cssWidth, cssHeight, textColor, selectionColor, comparisonColors, edgeColors, severityColors } =
-    params
+  const {
+    nodes,
+    edges,
+    transform,
+    selectedNodeId,
+    cssWidth,
+    cssHeight,
+    textColor,
+    selectionColor,
+    comparisonColors,
+    edgeColors,
+    severityColors,
+    backgroundColor,
+  } = params
 
   ctx.save()
   ctx.clearRect(0, 0, cssWidth, cssHeight)
+  // Story 18.11 — filled BEFORE translate/scale (in plain device-pixel
+  // space, covering the whole canvas) so it's unaffected by the pan/zoom
+  // transform applied to everything drawn after it.
+  if (backgroundColor) {
+    ctx.fillStyle = backgroundColor
+    ctx.fillRect(0, 0, cssWidth, cssHeight)
+  }
   ctx.translate(transform.x, transform.y)
   ctx.scale(transform.scale, transform.scale)
 

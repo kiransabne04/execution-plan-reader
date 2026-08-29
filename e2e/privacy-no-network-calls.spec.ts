@@ -209,3 +209,24 @@ test("Story 18.5: zero outbound requests when picking a file or loading a sample
 
   expect(requests).toEqual([])
 })
+
+// Episode 18, Story 18.11: PNG export produces a real downloadable file —
+// a new user-triggered action producing output, exactly the kind of new
+// code path this list requires its own explicit check for (same reasoning
+// Episode 17 and Story 18.5 above both already used), not an assumption
+// that canvas rendering being local implies export is too.
+test("Story 18.11: zero outbound requests during a PNG export", async ({ page }) => {
+  await page.goto("/")
+  await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
+  await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+
+  const requests: string[] = []
+  page.on("request", (req) => requests.push(req.url()))
+
+  const downloadPromise = page.waitForEvent("download")
+  await page.getByTestId("export-png-button").click()
+  await downloadPromise
+
+  expect(requests).toEqual([])
+})

@@ -6,9 +6,10 @@ import { ShareLinkButton } from "./ShareLinkButton"
 import { RestoreSessionBanner } from "./RestoreSessionBanner"
 import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
+import { formatStatementDuration, statementSeverity } from "./statementTabSummary"
 import { decodeShareLink } from "./shareLink"
 import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
-import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel, SearchPalette, WalkthroughOverlay } from "../graph"
+import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel, SearchPalette, WalkthroughOverlay, SEVERITY_LABEL, type PlanGraphHandle } from "../graph"
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
 import type { PlanContext } from "../rules/types"
 import {
@@ -97,6 +98,13 @@ export function PlanReaderPage() {
 
   // Episode 18, Story 18.9 — guided walkthrough.
   const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false)
+
+  // Episode 18, Story 18.11 — PNG export. A ref, not lifted state: the
+  // export button lives in the app bar, outside PlanGraph, and has no
+  // reason to know about PlanGraph's own internal collapsedIds/DOM-vs-
+  // canvas-mode state — see PlanGraphHandle's own doc comment.
+  const planGraphRef = useRef<PlanGraphHandle>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   // Episode 18, Story 18.2 — the app shell's right rail: PlanGraph reports
   // the currently-open node's panel contents here instead of rendering
@@ -306,6 +314,25 @@ export function PlanReaderPage() {
     [],
   )
 
+  // Episode 18, Story 18.11 — entirely client-side: the Blob and the
+  // download link it becomes never touch the network, so this needs no
+  // privacy-architecture review the way a real upload/export-to-server
+  // action would.
+  const handleExportPng = useCallback(async () => {
+    setExportError(null)
+    const blob = await planGraphRef.current?.exportPng()
+    if (!blob) {
+      setExportError("Couldn't export this plan as an image — try a different browser.")
+      return
+    }
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `planreader-${analyzed?.engine ?? "plan"}.png`
+    link.click()
+    URL.revokeObjectURL(url)
+  }, [analyzed?.engine])
+
   return (
     <main className="plan-reader-page">
       {/* Episode 8 Story 8.1: hero headline/subheadline/engine names must be
@@ -424,10 +451,12 @@ export function PlanReaderPage() {
                 wrapping" — deferred until real icon assets exist (Story
                 18.4 introduces the icon set this app bar would draw from);
                 both stay full-width buttons at every width until then. */}
-            <button type="button" className="plan-shell__app-bar-button" disabled title="PNG export — Story 18.11">
+            <button type="button" className="plan-shell__app-bar-button" data-testid="export-png-button" onClick={handleExportPng}>
               Export
             </button>
           </header>
+
+          {exportError && <Notice severity="critical">{exportError}</Notice>}
 
           {analyzed.queryTextRedacted && (
             // Warning tier (spec §5 `1e`: "amber = partial result
@@ -454,26 +483,52 @@ export function PlanReaderPage() {
 
           {analyzed.statements.length > 1 && (
             <div className="plan-reader-page__statement-tabs" role="tablist" aria-label="Statements in this batch">
-              {analyzed.statements.map((stmt, index) => (
-                <button
-                  key={stmt.label + index}
-                  type="button"
-                  role="tab"
-                  aria-selected={index === activeStatementIndex}
-                  className="plan-reader-page__statement-tab"
-                  onClick={() => {
-                    setActiveStatementIndex(index)
-                    // Story 18.8: matched-id sets are keyed to a specific
-                    // tree's node ids, which restart from "n0" per
-                    // statement — carrying a stale set into a different
-                    // statement's tree would dim/undim the wrong nodes.
-                    setMatchedNodeIds(undefined)
-                    setIsWalkthroughOpen(false)
-                  }}
-                >
-                  {stmt.label}
-                </button>
-              ))}
+              {analyzed.statements.map((stmt, index) => {
+                const duration = formatStatementDuration(stmt.root)
+                const severity = statementSeverity(stmt.root)
+                return (
+                  <button
+                    key={stmt.label + index}
+                    type="button"
+                    role="tab"
+                    aria-selected={index === activeStatementIndex}
+                    className="plan-reader-page__statement-tab"
+                    onClick={() => {
+                      setActiveStatementIndex(index)
+                      // Story 18.8: matched-id sets are keyed to a specific
+                      // tree's node ids, which restart from "n0" per
+                      // statement — carrying a stale set into a different
+                      // statement's tree would dim/undim the wrong nodes.
+                      setMatchedNodeIds(undefined)
+                      setIsWalkthroughOpen(false)
+                    }}
+                  >
+                    {/* Story 18.11 — additive to the existing tab label,
+                        never replacing it: a duration figure (never
+                        fabricated when neither actual time nor estimated
+                        cost is available) and a severity dot. The dot is
+                        never color alone — critical is a circle, warning a
+                        diamond (a real shape difference, not just hue,
+                        the same colorblind-safe reasoning the severity
+                        ring elsewhere in this codebase already follows),
+                        plus a screen-reader-only text label. */}
+                    <span className="plan-reader-page__statement-tab-label">{stmt.label}</span>
+                    {duration && (
+                      <span className="plan-reader-page__statement-tab-duration" data-testid="statement-tab-duration">
+                        {duration}
+                      </span>
+                    )}
+                    {severity && (
+                      <span
+                        className={`plan-reader-page__statement-tab-severity plan-reader-page__statement-tab-severity--${severity}`}
+                        data-testid="statement-tab-severity"
+                        aria-hidden="true"
+                      />
+                    )}
+                    {severity && <span className="plan-reader-page__sr-only">{SEVERITY_LABEL[severity]} severity</span>}
+                  </button>
+                )
+              })}
             </div>
           )}
 
@@ -580,6 +635,7 @@ export function PlanReaderPage() {
 
                   <div className="plan-shell__graph">
                     <PlanGraph
+                      ref={planGraphRef}
                       root={activeStatement.root}
                       context={activeStatement.context}
                       focusNodeId={focusNodeId}

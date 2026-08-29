@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ForwardedRef,
+} from "react"
 import {
   Background,
   Controls,
@@ -14,6 +23,8 @@ import { buildPlanContext, type PlanContext } from "../rules/types"
 import { buildGraphElements, type ComparisonOverlay, type PlanGraphNode } from "./buildGraphElements"
 import { AccessiblePlanList } from "./canvas/AccessiblePlanList"
 import { CanvasPlanGraph } from "./canvas/CanvasPlanGraph"
+import { resolveCssVar } from "./canvas/cssVars"
+import { exportGraphToPngBlob } from "./canvas/exportPng"
 import { computeDefaultCollapsedIds, findCollapsedAncestors } from "./collapse"
 import { DetailPanel } from "./detailPanel/DetailPanel"
 import type { MetricKey } from "./encoding"
@@ -99,18 +110,33 @@ export interface PlanGraphProps {
   matchedNodeIds?: Set<string>
 }
 
-function PlanGraphInner({
-  root,
-  metric = "actualTimeMs",
-  context,
-  focusNodeId,
-  onFocusHandled,
-  comparisonOverlays,
-  onNodeSelected,
-  externalDetailPanel = false,
-  onDetailPanelChange,
-  matchedNodeIds,
-}: PlanGraphProps) {
+/** Story 18.11 — the imperative surface a caller (the app bar's Export
+ * button, which lives outside this component and has no reason to know
+ * about `collapsedIds`/DOM-vs-canvas-mode) uses to trigger a PNG export.
+ * A ref/imperative-handle, not a prop, because export is a one-shot
+ * ACTION a caller triggers on demand — not state this component should
+ * report outward continuously the way `onDetailPanelChange` does. */
+export interface PlanGraphHandle {
+  /** `null` when there's nothing to export or the browser couldn't
+   * produce the image — see exportPng.ts's own doc comment. */
+  exportPng: () => Promise<Blob | null>
+}
+
+const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function PlanGraphInner(
+  {
+    root,
+    metric = "actualTimeMs",
+    context,
+    focusNodeId,
+    onFocusHandled,
+    comparisonOverlays,
+    onNodeSelected,
+    externalDetailPanel = false,
+    onDetailPanelChange,
+    matchedNodeIds,
+  }: PlanGraphProps,
+  ref: ForwardedRef<PlanGraphHandle>,
+) {
   const allNodes = useMemo(() => collectNodes(root), [root])
   const resolvedContext = useMemo(() => context ?? buildPlanContext(root), [context, root])
 
@@ -219,6 +245,46 @@ function PlanGraphInner({
     })
   }, [])
 
+  // Story 18.11 — the top-level wrapper (assigned below, on whichever of
+  // the two branches at the bottom actually renders) so `exportPng` can
+  // resolve this app's own CSS custom properties the exact same way
+  // CanvasPlanGraph.tsx's own live rendering already does — export must
+  // stay theme-consistent even in DOM/SVG mode, where no `.canvas-plan-
+  // graph` element with those properties is otherwise on the page.
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      exportPng: async () => {
+        const el = containerRef.current
+        if (!el) return null
+        // Same fallbacks as CanvasPlanGraph.tsx's own resolveCssVar calls
+        // (Story 18.1's dark-only palette) — export must produce a real
+        // image even in a test/SSR environment with no live stylesheet.
+        return exportGraphToPngBlob(nodes, edges, {
+          textColor: resolveCssVar(el, "--pg-card-text", "#e9e9ed"),
+          selectionColor: resolveCssVar(el, "--pg-canvas-selection", "#b5abfc"),
+          backgroundColor: resolveCssVar(el, "--pg-card-bg", "#232532"),
+          comparisonColors: {
+            changed: resolveCssVar(el, "--pg-comparison-changed", "#f79009"),
+            addedInB: resolveCssVar(el, "--pg-comparison-added", "#47cd89"),
+            removedFromB: resolveCssVar(el, "--pg-comparison-removed", "#b692f6"),
+          },
+          edgeColors: {
+            hot: resolveCssVar(el, "--color-edge-hot", "#8d6a6a"),
+            muted: resolveCssVar(el, "--color-edge-muted", "#6b6f82"),
+          },
+          severityColors: {
+            critical: resolveCssVar(el, "--color-critical", "#f97066"),
+            warning: resolveCssVar(el, "--color-warning", "#f79009"),
+          },
+        })
+      },
+    }),
+    [nodes, edges],
+  )
+
   const { fitView, setCenter } = useReactFlow()
   useEffect(() => {
     if (useCanvas) return // the DOM/SVG <ReactFlow> tree below isn't rendered in this mode — nothing to fit
@@ -293,7 +359,7 @@ function PlanGraphInner({
 
   if (useCanvas) {
     return (
-      <div className="plan-graph plan-graph--canvas" data-testid="plan-graph">
+      <div className="plan-graph plan-graph--canvas" data-testid="plan-graph" ref={containerRef}>
         <div className="plan-graph__canvas-toolbar">
           {/* Story 18.10, spec §5 `1i` — explains the DOM->canvas switch
               rather than leaving a large plan to just feel like a
@@ -341,7 +407,7 @@ function PlanGraphInner({
   }
 
   return (
-    <div className="plan-graph" data-testid="plan-graph">
+    <div className="plan-graph" data-testid="plan-graph" ref={containerRef}>
       <EdgeArrowheadDefs />
       <ReactFlow
         nodes={nodesWithHandlers}
@@ -358,7 +424,7 @@ function PlanGraphInner({
       {!externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
     </div>
   )
-}
+})
 
 /**
  * Story 18.4, spec §4: "Arrowheads are a fixed 11px regardless of stroke
@@ -391,11 +457,13 @@ function EdgeArrowheadDefs() {
 }
 
 /** Self-contained: wraps its own ReactFlowProvider so callers don't need to
- * know React Flow needs one (fitView/useReactFlow require it). */
-export function PlanGraph(props: PlanGraphProps) {
+ * know React Flow needs one (fitView/useReactFlow require it). Forwards a
+ * ref straight through to `PlanGraphInner` (Story 18.11's `PlanGraphHandle`)
+ * — this wrapper adds no imperative behavior of its own. */
+export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function PlanGraph(props, ref) {
   return (
     <ReactFlowProvider>
-      <PlanGraphInner {...props} />
+      <PlanGraphInner {...props} ref={ref} />
     </ReactFlowProvider>
   )
-}
+})

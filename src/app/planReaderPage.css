@@ -704,6 +704,9 @@
 }
 
 .plan-reader-page__statement-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
   border-radius: 6px;
   border: 1px solid var(--pr-border);
@@ -717,5 +720,45 @@
   background: var(--pr-accent);
   border-color: var(--pr-accent);
   color: white;
+}
+
+/* Story 18.11 — additive to the tab's own label, never replacing it. */
+.plan-reader-page__statement-tab-duration {
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Never color alone: critical is a circle, warning a diamond — a real
+   shape difference a colorblind viewer can still tell apart, the same
+   reasoning the severity ring elsewhere in this app already follows —
+   plus the sr-only text span below for anyone not relying on shape/color
+   at all. */
+.plan-reader-page__statement-tab-severity {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+}
+
+.plan-reader-page__statement-tab-severity--critical {
+  border-radius: 50%;
+  background: var(--color-critical);
+}
+
+.plan-reader-page__statement-tab-severity--warning {
+  background: var(--color-warning);
+  transform: rotate(45deg);
+}
+
+.plan-reader-page__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 

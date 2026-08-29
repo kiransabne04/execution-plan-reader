@@ -116,6 +116,62 @@ describe("PlanReaderPage", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
 
+  // Episode 18, Story 18.11 — additive to the existing tab structure.
+  it("statement tabs show a duration figure per tab, additive to the label", () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
+
+    const durations = screen.getAllByTestId("statement-tab-duration")
+    expect(durations.length).toBeGreaterThan(0)
+    // This fixture is estimate-only (no ANALYZE actual-time capture) — the
+    // duration figure must fall back to estimated cost, never fabricate
+    // an actual-time figure that was never in the source plan.
+    durations.forEach((el) => expect(el).toHaveTextContent(/^cost \d+$/))
+
+    const tabs = screen.getAllByRole("tab")
+    expect(tabs[0]).toHaveTextContent("SELECT * FROM Orders") // original label text still present
+  })
+
+  it("statement tabs show a severity dot for a statement with a real finding, none for a clean one, and format actual-time as ms", () => {
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM BigTable" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="50000" EstimatedTotalSubtreeCost="0.5">
+              <RunTimeInformation>
+                <RunTimeCountersPerThread Thread="0" ActualRows="50000" ActualExecutions="1" ActualElapsedms="8" />
+              </RunTimeInformation>
+              <TableScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[BigTable]" />
+              </TableScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+        <StmtSimple StatementText="SELECT * FROM Customers" StatementId="2" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="20" EstimatedTotalSubtreeCost="0.3">
+              <IndexScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Customers]" Index="[PK_Customers]" />
+              </IndexScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>`
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(xml)
+
+    const tabs = screen.getAllByRole("tab")
+    expect(within(tabs[0]).getByTestId("statement-tab-severity")).toHaveClass("plan-reader-page__statement-tab-severity--warning")
+    expect(within(tabs[0]).getByTestId("statement-tab-duration")).toHaveTextContent("8.0ms")
+    expect(within(tabs[1]).queryByTestId("statement-tab-severity")).not.toBeInTheDocument()
+  })
+
   it("shows the redacted-query-text note for Snowflake plans with redaction enabled", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("snowflake", "redacted-query-text.json"))
@@ -626,10 +682,10 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       expect(walkthroughIndex).toBeLessThan(compareIndex)
       expect(compareIndex).toBeLessThan(exportIndex)
 
-      // Story 18.9 shipped "Walk me through it" (see that story's own
-      // describe block below for its behavior); Export is still 18.11's job.
+      // Story 18.9 shipped "Walk me through it" and Story 18.11 shipped
+      // "Export" — see each story's own describe block below for behavior.
       expect(within(appBar).getByRole("button", { name: /walk me through it/i })).toBeEnabled()
-      expect(within(appBar).getByRole("button", { name: /^export$/i })).toBeDisabled()
+      expect(within(appBar).getByRole("button", { name: /^export$/i })).toBeEnabled()
     })
 
     it("puts Findings in the left rail and the graph in the centre column", () => {
