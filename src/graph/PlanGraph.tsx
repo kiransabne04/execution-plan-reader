@@ -91,6 +91,12 @@ export interface PlanGraphProps {
    * focus to the triggering card correctly even though the panel now
    * renders elsewhere in the tree. */
   onDetailPanelChange?: (panel: { node: PlanNode; context: PlanContext; onClose: () => void } | undefined) => void
+  /** Story 18.8 — the active search/filter palette's result set, keyed by
+   * this tree's own PlanNode id. Every OTHER node dims to 32% opacity
+   * (buildGraphElements.ts's `isDimmed`) rather than disappearing — see
+   * docs/12-ui-redesign-spec.md §5 `1h`. `undefined` (no search active)
+   * means every node renders at full opacity, same as before this story. */
+  matchedNodeIds?: Set<string>
 }
 
 function PlanGraphInner({
@@ -103,6 +109,7 @@ function PlanGraphInner({
   onNodeSelected,
   externalDetailPanel = false,
   onDetailPanelChange,
+  matchedNodeIds,
 }: PlanGraphProps) {
   const allNodes = useMemo(() => collectNodes(root), [root])
   const resolvedContext = useMemo(() => context ?? buildPlanContext(root), [context, root])
@@ -198,8 +205,8 @@ function PlanGraphInner({
   }
 
   const { nodes, edges } = useMemo(
-    () => buildGraphElements(root, { metric, collapsedIds, comparisonOverlays }),
-    [root, metric, collapsedIds, comparisonOverlays],
+    () => buildGraphElements(root, { metric, collapsedIds, comparisonOverlays, matchedNodeIds }),
+    [root, metric, collapsedIds, comparisonOverlays, matchedNodeIds],
   )
 
   const useCanvas = allNodes.length > CANVAS_NODE_COUNT_THRESHOLD

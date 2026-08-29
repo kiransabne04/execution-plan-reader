@@ -35,7 +35,7 @@ const SEVERITY_RING_CLASS: Partial<Record<PlanNodeData["severity"] & string, str
 const TARGET_HANDLE_GAP_PX = 10
 
 export function PlanNodeCard({ data }: PlanNodeCardProps) {
-  const { planNode, color, hasMismatch, loopCount, comparisonOverlay, severity, iconKey, subtitle, childCount, onOpen } = data
+  const { planNode, color, hasMismatch, loopCount, comparisonOverlay, severity, iconKey, subtitle, childCount, isDimmed, onOpen } = data
   const classNames = ["plan-node-card"]
   if (hasMismatch) classNames.push("plan-node-card--mismatch")
   if (comparisonOverlay && comparisonOverlay.status !== "matched") {
@@ -80,7 +80,15 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
     // which needs overflow:hidden for its label/meta text-overflow ellipsis)
     // — the tooltip is this wrapper's sibling-of-the-card, not its child, so
     // it can render outside the small card's bounds instead of being clipped.
-    <div className="plan-node-card-wrapper">
+    <div
+      className="plan-node-card-wrapper"
+      // Story 18.8, spec §5 `1h`: dimmed via opacity, never unmounted —
+      // the DOM node count (and this component's own subtree) stays
+      // exactly the same whether or not a search is active, so the plan's
+      // overall shape never disappears mid-search.
+      style={{ opacity: isDimmed ? 0.32 : 1, transition: "opacity 0.1s ease" }}
+      data-dimmed={isDimmed || undefined}
+    >
       <div
         className={className}
         style={{

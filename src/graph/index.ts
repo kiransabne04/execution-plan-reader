@@ -12,3 +12,4 @@ export { getGlossaryEntry, getGlossaryFallback, coveredOperatorTypes, type Opera
 export { FindingsList, type FindingsListProps } from "./findings/FindingsList"
 export { PlanComparisonView, type PlanComparisonViewProps } from "./comparison/PlanComparisonView"
 export { DetailPanel, type DetailPanelProps } from "./detailPanel/DetailPanel"
+export { SearchPalette, type SearchPaletteProps } from "./search/SearchPalette"

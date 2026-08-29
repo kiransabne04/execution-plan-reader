@@ -138,6 +138,68 @@ describe("PlanReaderPage", () => {
     expect(screen.getByTestId("warning-item")).toBeInTheDocument()
   })
 
+  describe("Episode 18, Story 18.8 — search palette global shortcuts", () => {
+    it("⌘K opens the palette from anywhere on the page, even mid-typing in the paste box", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      expect(screen.queryByTestId("search-palette")).not.toBeInTheDocument()
+
+      fireEvent.keyDown(window, { key: "k", metaKey: true })
+
+      expect(screen.getByTestId("search-palette")).toBeInTheDocument()
+    })
+
+    it("'/' opens the palette when nothing is focused", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+
+      fireEvent.keyDown(window, { key: "/" })
+
+      expect(screen.getByTestId("search-palette")).toBeInTheDocument()
+    })
+
+    it("'/' does NOT open the palette while a text input is focused — it must be typeable there instead", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      const textarea = screen.getByTestId("paste-textarea")
+      textarea.focus()
+
+      fireEvent.keyDown(textarea, { key: "/" })
+
+      expect(screen.queryByTestId("search-palette")).not.toBeInTheDocument()
+    })
+
+    it("has no shortcut effect before any plan is analyzed", () => {
+      render(<PlanReaderPage />)
+
+      fireEvent.keyDown(window, { key: "k", metaKey: true })
+
+      expect(screen.queryByTestId("search-palette")).not.toBeInTheDocument()
+    })
+
+    it("selecting a palette result opens that node's detail panel, same as a findings-list click", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      fireEvent.keyDown(window, { key: "k", metaKey: true })
+
+      fireEvent.click(screen.getAllByTestId("search-palette-result")[0])
+
+      expect(screen.queryByTestId("search-palette")).not.toBeInTheDocument()
+      expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+    })
+
+    it("Escape closes the palette without touching the graph", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      fireEvent.keyDown(window, { key: "/" })
+      expect(screen.getByTestId("search-palette")).toBeInTheDocument()
+
+      fireEvent.keyDown(screen.getByTestId("search-palette"), { key: "Escape" })
+
+      expect(screen.queryByTestId("search-palette")).not.toBeInTheDocument()
+    })
+  })
+
   // Episode 16, Story 16.2 audit finding: a pathologically deep (not
   // wide) plan — a long single-child chain — can exceed the JS call
   // stack in the parser's recursive descent (buildNode in

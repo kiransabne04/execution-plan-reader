@@ -33,6 +33,22 @@ describe("PlanGraph", () => {
     expect(new Set(cards.map((c) => c.getAttribute("data-node-id")))).toEqual(new Set(["root", "leaf1", "leaf2"]))
   })
 
+  it("Episode 18, Story 18.8 — matchedNodeIds dims non-matching cards via opacity, never unmounts them", () => {
+    const leaf1 = makeNode({ id: "leaf1", rawOperatorLabel: "Seq Scan", actualRows: 100 })
+    const leaf2 = makeNode({ id: "leaf2", rawOperatorLabel: "Seq Scan", actualRows: 200 })
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join", actualRows: 300, children: [leaf1, leaf2] })
+
+    render(<PlanGraph root={root} matchedNodeIds={new Set(["root"])} />)
+
+    const cards = screen.getAllByTestId("plan-node-card")
+    expect(cards).toHaveLength(3) // still every node, unmounted count unchanged
+
+    const rootCard = cards.find((c) => c.getAttribute("data-node-id") === "root")!
+    const leafCard = cards.find((c) => c.getAttribute("data-node-id") === "leaf1")!
+    expect(rootCard.parentElement).not.toHaveAttribute("data-dimmed")
+    expect(leafCard.parentElement).toHaveAttribute("data-dimmed", "true")
+  })
+
   it("renders a single-node plan without crashing", () => {
     const root = makeNode({ id: "solo", rawOperatorLabel: "Result" })
     render(<PlanGraph root={root} />)

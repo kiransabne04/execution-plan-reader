@@ -73,6 +73,12 @@ export interface PlanNodeData extends Record<string, unknown> {
    * lets the card open its own detail panel from a keyboard Enter/Space,
    * not just a mouse click handled at the ReactFlow container level. */
   onOpen?: () => void
+  /** Story 18.8, spec §5 `1h`: "Non-matching nodes drop to 32% opacity
+   * rather than unmounting" — so the plan's shape stays readable while
+   * searching. `false` (not just "undefined = no search") whenever no
+   * search is active at all, so every card renders at full opacity by
+   * default. */
+  isDimmed: boolean
 }
 
 export interface CollapsedGroupNodeData extends Record<string, unknown> {
@@ -110,6 +116,10 @@ export interface BuildGraphElementsOptions {
    * for a plain single-plan render (the common case); present when this
    * tree is one side of a comparison view. */
   comparisonOverlays?: Map<string, ComparisonOverlay>
+  /** Story 18.8 — the current search/filter's matched node ids. `undefined`
+   * (the default, no active search) dims nothing; an empty `Set` (a query
+   * that matched zero nodes) dims everything. */
+  matchedNodeIds?: Set<string>
 }
 
 export interface BuildGraphElementsResult {
@@ -164,6 +174,7 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
   const metric = options.metric ?? "actualTimeMs"
   const collapsedIds = options.collapsedIds ?? new Set<string>()
   const comparisonOverlays = options.comparisonOverlays
+  const matchedNodeIds = options.matchedNodeIds
 
   const metricScale = buildMetricScale(root, metric)
   const edgeScale = buildEdgeWidthScale(root)
@@ -200,6 +211,7 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
           iconKey: operatorIconKey(node.operatorType),
           subtitle: relationIdentity(node) ?? indexIdentity(node),
           childCount: collapsed ? 1 : node.children.length,
+          isDimmed: matchedNodeIds !== undefined && !matchedNodeIds.has(node.id),
         },
       })
     }

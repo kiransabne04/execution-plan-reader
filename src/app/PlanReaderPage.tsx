@@ -8,7 +8,7 @@ import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { decodeShareLink } from "./shareLink"
 import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
-import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel } from "../graph"
+import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel, SearchPalette } from "../graph"
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
 import type { PlanContext } from "../rules/types"
 import {
@@ -89,6 +89,12 @@ export function PlanReaderPage() {
   // independent components.
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined)
 
+  // Episode 18, Story 18.8 — search/filter palette. `matchedNodeIds` feeds
+  // straight into PlanGraph's own prop of the same name; `undefined` means
+  // "no active search," matching searchNodes.ts's `isActive` semantics.
+  const [isSearchPaletteOpen, setIsSearchPaletteOpen] = useState(false)
+  const [matchedNodeIds, setMatchedNodeIds] = useState<Set<string> | undefined>(undefined)
+
   // Episode 18, Story 18.2 — the app shell's right rail: PlanGraph reports
   // the currently-open node's panel contents here instead of rendering
   // `<DetailPanel>` itself (see PlanGraph.tsx's `externalDetailPanel`),
@@ -159,6 +165,29 @@ export function PlanReaderPage() {
     refreshRecentPlans()
   }, [refreshRecentPlans])
 
+  // Episode 18, Story 18.8 — global keyboard shortcuts to open the search
+  // palette, reachable from anywhere on the page (not just when the graph
+  // itself has focus). `⌘K`/`Ctrl+K` needs no guard — no ordinary text
+  // input treats that combination as its own input. `/` is a printable
+  // character, though, so it's guarded against hijacking a focused text
+  // input/textarea (typing "/" into the paste box or a search box
+  // shouldn't pop the palette open underneath the user's cursor) — the
+  // story's own explicit edge case.
+  useEffect(() => {
+    if (!analyzed) return // nothing to search until a plan is actually loaded
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isTypingTarget =
+        event.target instanceof HTMLElement &&
+        (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA" || event.target.isContentEditable)
+      const isOpenShortcut = (event.key === "/" && !isTypingTarget) || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k")
+      if (!isOpenShortcut) return
+      event.preventDefault()
+      setIsSearchPaletteOpen(true)
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [analyzed])
+
   const debouncedSaveSession = useMemo(
     () =>
       debounce((text: string) => {
@@ -182,6 +211,7 @@ export function PlanReaderPage() {
         setActiveStatementIndex(0)
         setError(null)
         setRestoreCandidate(null) // a fresh analyze supersedes any pending restore offer
+        setMatchedNodeIds(undefined) // a stale search over the previous plan's tree, see the statement-tab click handler's comment
 
         if (!dontSave) {
           debouncedSaveSession(text)
@@ -422,7 +452,14 @@ export function PlanReaderPage() {
                   role="tab"
                   aria-selected={index === activeStatementIndex}
                   className="plan-reader-page__statement-tab"
-                  onClick={() => setActiveStatementIndex(index)}
+                  onClick={() => {
+                    setActiveStatementIndex(index)
+                    // Story 18.8: matched-id sets are keyed to a specific
+                    // tree's node ids, which restart from "n0" per
+                    // statement — carrying a stale set into a different
+                    // statement's tree would dim/undim the wrong nodes.
+                    setMatchedNodeIds(undefined)
+                  }}
                 >
                   {stmt.label}
                 </button>
@@ -539,6 +576,7 @@ export function PlanReaderPage() {
                       onFocusHandled={() => setFocusNodeId(undefined)}
                       externalDetailPanel
                       onDetailPanelChange={handleDetailPanelChange}
+                      matchedNodeIds={matchedNodeIds}
                     />
                   </div>
                 </main>
@@ -566,6 +604,21 @@ export function PlanReaderPage() {
             </div>
           )}
         </section>
+      )}
+
+      {/* Episode 18, Story 18.8 — a global overlay, deliberately rendered
+          outside .plan-shell so its `position: fixed` scrim can never be
+          clipped/repositioned by a transformed ancestor (the same
+          `position: fixed` escaping concern detailPanel.css's own module
+          comment documents). Only reachable once a plan is actually
+          loaded — `activeStatement` is what it searches. */}
+      {isSearchPaletteOpen && activeStatement && (
+        <SearchPalette
+          root={activeStatement.root}
+          onSelectNode={setFocusNodeId}
+          onClose={() => setIsSearchPaletteOpen(false)}
+          onMatchedIdsChange={setMatchedNodeIds}
+        />
       )}
 
       {/* Brief's on-page checklist: connect the tool to Kiran's existing

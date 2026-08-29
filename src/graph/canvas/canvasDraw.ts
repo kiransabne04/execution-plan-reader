@@ -130,7 +130,15 @@ function drawPlanNode(
   const { x, y } = node.position
   const width = node.width ?? 160
   const height = node.height ?? 56
-  const { color, hasMismatch, loopCount, planNode, comparisonOverlay, severity, iconKey, subtitle } = node.data
+  const { color, hasMismatch, loopCount, planNode, comparisonOverlay, severity, iconKey, subtitle, isDimmed } = node.data
+
+  // Story 18.8, spec §5 `1h` — canvas-mode equivalent of PlanNodeCard's
+  // opacity dimming: globalAlpha applies to every fill/stroke below (the
+  // whole node stays drawn, never skipped, matching the DOM path's "never
+  // unmount" rule), restored at the end so sibling nodes aren't affected.
+  ctx.save()
+  const dimAlpha = isDimmed ? 0.32 : 1
+  ctx.globalAlpha = dimAlpha
 
   roundedRectPath(ctx, x, y, width, height, CORNER_RADIUS)
   ctx.fillStyle = colorWithAlpha(color, 0.18)
@@ -214,25 +222,30 @@ function drawPlanNode(
 
   let badgeY = y + height - padding - 12
   if (loopCount !== undefined) {
-    badgeY = drawBadge(ctx, `×${loopCount.toLocaleString("en-US")}`, x + padding, badgeY, textColor)
+    badgeY = drawBadge(ctx, `×${loopCount.toLocaleString("en-US")}`, x + padding, badgeY, textColor, dimAlpha)
   }
   if (hasMismatch) {
-    badgeY = drawBadge(ctx, MISMATCH_BADGE_TEXT, x + padding, badgeY, textColor)
+    badgeY = drawBadge(ctx, MISMATCH_BADGE_TEXT, x + padding, badgeY, textColor, dimAlpha)
   }
   if (severity && severityColor) {
-    badgeY = drawBadge(ctx, severity, x + padding, badgeY, severityColor)
+    badgeY = drawBadge(ctx, severity, x + padding, badgeY, severityColor, dimAlpha)
   }
   if (comparisonStatus && comparisonStatus !== "matched") {
-    drawBadge(ctx, COMPARISON_BADGE_TEXT[comparisonStatus], x + padding, badgeY, comparisonColor ?? textColor)
+    drawBadge(ctx, COMPARISON_BADGE_TEXT[comparisonStatus], x + padding, badgeY, comparisonColor ?? textColor, dimAlpha)
   }
+  ctx.restore()
 }
 
-function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, textColor: string): number {
+/** `dimAlpha` composes with the badge's own 0.65 translucency rather than
+ * clobbering it — a hardcoded reset to 1 here would fight the dimmed node's
+ * globalAlpha set by the caller (canvas globalAlpha is absolute, not a
+ * stack that multiplies automatically the way nested opacity would in CSS). */
+function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, textColor: string, dimAlpha: number): number {
   ctx.font = "10px system-ui, sans-serif"
   ctx.fillStyle = textColor
-  ctx.globalAlpha = 0.65
+  ctx.globalAlpha = 0.65 * dimAlpha
   ctx.fillText(text, x, y)
-  ctx.globalAlpha = 1
+  ctx.globalAlpha = dimAlpha
   return y - 14
 }
 

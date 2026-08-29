@@ -291,4 +291,26 @@ describe("drawGraph", () => {
       expect(endpoints[0]).not.toBe(endpoints[1])
     })
   })
+
+  describe("Episode 18, Story 18.8 — search/filter dimming (canvas mode)", () => {
+    it("wraps a dimmed node's draw in save/restore and sets globalAlpha to 0.32, not skipped and not fully opaque", () => {
+      const ctx = makeFakeContext()
+      const node = planGraphNode({ id: "a", isDimmed: true })
+      drawGraph(ctx, { ...baseParams, nodes: [node], edges: [] })
+
+      expect(ctx.calls.filter((c) => c.method === "save").length).toBeGreaterThan(0)
+      expect(ctx.calls.filter((c) => c.method === "restore").length).toBeGreaterThan(0)
+      // Still drawn — the label fillText call still happened, matching the
+      // DOM path's "never unmount" rule (PlanNodeCard.tsx's own comment).
+      expect(ctx.calls.some((c) => c.method === "fillText" && c.args[0] === "Seq Scan")).toBe(true)
+      expect(ctx.globalAlpha).toBeCloseTo(0.32)
+    })
+
+    it("leaves an undimmed node's globalAlpha at 1", () => {
+      const ctx = makeFakeContext()
+      const node = planGraphNode({ id: "a", isDimmed: false })
+      drawGraph(ctx, { ...baseParams, nodes: [node], edges: [] })
+      expect(ctx.globalAlpha).toBe(1)
+    })
+  })
 })

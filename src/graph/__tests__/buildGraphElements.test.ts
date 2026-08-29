@@ -243,6 +243,31 @@ describe("buildGraphElements", () => {
       expect(c.data.kind === "plan" && c.data.subtitle).toBeUndefined()
     })
   })
+
+  describe("Episode 18, Story 18.8 — search/filter dimming", () => {
+    it("leaves every node undimmed when matchedNodeIds is omitted (no active search)", () => {
+      const leaf = makeNode({ id: "leaf" })
+      const root = makeNode({ id: "root", children: [leaf] })
+      const { nodes } = buildGraphElements(root)
+      expect(nodes.every((n) => n.data.kind === "plan" && n.data.isDimmed === false)).toBe(true)
+    })
+
+    it("dims every node NOT in matchedNodeIds, leaves matched ones undimmed", () => {
+      const leaf = makeNode({ id: "leaf" })
+      const root = makeNode({ id: "root", children: [leaf] })
+      const { nodes } = buildGraphElements(root, { matchedNodeIds: new Set(["root"]) })
+      const rootNode = nodes.find((n) => n.id === "root")!
+      const leafNode = nodes.find((n) => n.id === "leaf")!
+      expect(rootNode.data.kind === "plan" && rootNode.data.isDimmed).toBe(false)
+      expect(leafNode.data.kind === "plan" && leafNode.data.isDimmed).toBe(true)
+    })
+
+    it("dims every node when matchedNodeIds is an empty set (an active, zero-match search)", () => {
+      const root = makeNode({ id: "root" })
+      const { nodes } = buildGraphElements(root, { matchedNodeIds: new Set() })
+      expect(nodes.every((n) => n.data.kind === "plan" && n.data.isDimmed === true)).toBe(true)
+    })
+  })
 })
 
 describe("computeHandleOffsetPercent", () => {
