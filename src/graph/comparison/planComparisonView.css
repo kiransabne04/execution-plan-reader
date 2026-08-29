@@ -1,3 +1,18 @@
+/* Episode 18, Story 18.14 — moved onto the Story 18.1 consolidated
+   tokens: every `var(--pg-*)` reference below had carried its own
+   hardcoded hex fallback (`var(--pg-card-bg, #232532)` etc.) since before
+   the redesign — the one file in this whole app still doing that (a real,
+   concrete audit finding, not assumed). Fallbacks stripped; `tokens.css`
+   is the single, reliable declaration site every other stylesheet in this
+   redesign already relies on with no local backup value. Node
+   encoding itself (severity ring, operator icons, orthogonal edges) needs
+   no changes here — each pane renders via the same `<PlanGraph>` /
+   `PlanNodeCard.tsx` / `buildGraphElements.ts` Story 18.4 already
+   restyled globally; this file only ever owned the comparison-SPECIFIC
+   chrome (summary strip, pane borders, orientation toggle). The three
+   comparison states' own distinct colors (`--pg-comparison-changed/
+   added/removed`) are untouched — still drawn from the same consolidated
+   palette they already used. */
 .plan-comparison-view {
   display: flex;
   flex-direction: column;
@@ -7,29 +22,29 @@
 
 .plan-comparison-view--error {
   padding: 16px;
-  border: 1px solid var(--pg-mismatch-border, #f97066);
+  border: 1px solid var(--pg-mismatch-border);
   border-radius: 8px;
-  color: var(--pg-card-text, #e9e9ed);
+  color: var(--pg-card-text);
 }
 
 .plan-comparison-view__summary {
   padding: 12px 16px;
   border-radius: 8px;
-  border: 1px solid var(--pg-card-border, #3f424d);
-  background: var(--pg-card-bg, #232532);
+  border: 1px solid var(--pg-card-border);
+  background: var(--pg-card-bg);
 }
 
 .plan-comparison-view__headline {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: var(--pg-card-text, #e9e9ed);
+  color: var(--pg-card-text);
 }
 
 .plan-comparison-view__low-confidence {
   margin: 6px 0 0;
   font-size: 13px;
-  color: var(--pg-comparison-changed, #f79009);
+  color: var(--pg-comparison-changed);
 }
 
 .plan-comparison-view__toolbar {
@@ -39,9 +54,9 @@
 
 .plan-comparison-view__orientation-toggle {
   background: transparent;
-  border: 1px solid var(--pg-card-border, #3f424d);
+  border: 1px solid var(--pg-card-border);
   border-radius: 6px;
-  color: var(--pg-card-text, #e9e9ed);
+  color: var(--pg-card-text);
   cursor: pointer;
   font-size: 13px;
   padding: 6px 12px;
@@ -51,8 +66,8 @@
   margin: 0;
   padding: 8px 12px;
   border-radius: 6px;
-  background: var(--pg-collapsed-bg, #232532);
-  color: var(--pg-card-text-muted, #9397ab);
+  background: var(--pg-collapsed-bg);
+  color: var(--pg-card-text-muted);
   font-size: 13px;
 }
 
@@ -71,7 +86,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--pg-card-border, #3f424d);
+  border: 1px solid var(--pg-card-border);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -81,9 +96,9 @@
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--pg-card-text, #e9e9ed);
-  background: var(--pg-collapsed-bg, #232532);
-  border-bottom: 1px solid var(--pg-card-border, #3f424d);
+  color: var(--pg-card-text);
+  background: var(--pg-collapsed-bg);
+  border-bottom: 1px solid var(--pg-card-border);
 }
 
 .plan-comparison-view__pane .plan-graph {
