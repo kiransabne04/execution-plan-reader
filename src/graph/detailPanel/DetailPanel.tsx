@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { PlanNode } from "../../parsers/normalize"
 import type { PlanContext } from "../../rules/types"
 import { computeContributionPercent } from "./computeContributionPercent"
+import { ContentStack } from "../content/ContentStack"
 import { OperatorEducation } from "./OperatorEducation"
 import { QueryCorrelation } from "./QueryCorrelation"
 import { RawAttributes } from "./RawAttributes"
@@ -149,6 +150,11 @@ export function DetailPanel({
       </section>
 
       <QueryCorrelation queryText={context.statementText} queryTextRedacted={context.queryTextRedacted} />
+      {/* Story 18.13, spec §5 `2c`: "never stack the two [this and the
+          funnel callout] adjacent" — placed here, several sections away
+          from WarningsSection (where FunnelCallout renders), by
+          construction, not just visual styling. */}
+      <ContentStack operatorType={node.operatorType} ruleIds={node.warnings.map((w) => w.ruleId)} />
       <RawAttributes attributes={node.attributes} expertMode={expertMode} />
     </div>
   )

@@ -36,6 +36,11 @@ export function categorizeFinding(warning: Warning): FindingCategory {
   return RULE_FAMILY_CATEGORY[ruleFamily(warning.ruleId)] ?? "General notes"
 }
 
+/** Episode 18, Story 18.13 — the content stack's own "seen but unmapped"
+ * validation (`posts.test.ts`) checks a post's `ruleIds` against this same
+ * canonical rule-family list, rather than maintaining a second one. */
+export const KNOWN_RULE_FAMILIES: readonly string[] = Object.keys(RULE_FAMILY_CATEGORY)
+
 /** Stable display order for the category filter — roughly execution-path
  * order (scan -> index -> join -> estimate -> spill -> loop), general notes
  * last since they're plan-wide rather than operator-specific. */

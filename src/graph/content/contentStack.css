@@ -1,0 +1,58 @@
+/* Episode 18, Story 18.13 — deliberately NEUTRAL/editorial, not the
+   teal/accent treatment FunnelCallout.tsx uses for its product nudge
+   (detailPanel.css's --dp-callout-* tokens) — a plain border, no tint
+   background, no dismiss button (this isn't a nudge to dismiss, it's a
+   reference list). */
+.content-stack {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.content-stack__heading {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.content-stack__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.content-stack__link {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 12.5px;
+}
+
+.content-stack__link:hover {
+  text-decoration: underline;
+}
+
+.content-stack__kind {
+  flex: none;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.content-stack__title {
+  flex: 1;
+}
+
+.content-stack__minutes {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}

@@ -28,6 +28,17 @@ describe("DetailPanel", () => {
     expect(screen.getByTestId("query-correlation")).toBeInTheDocument()
   })
 
+  // Episode 18, Story 18.13 — posts.ts ships with zero real entries by
+  // design (see that file's own comment); this locks in that the
+  // currently-shipped app never shows a broken/empty content-stack
+  // section for real fixture-shaped nodes, using the REAL posts.ts, not
+  // a mock.
+  it("never shows the content stack today — the real posts.ts is intentionally empty", () => {
+    const node = makeNode({ engine: "postgres", operatorType: "hash_join", actualTimeMs: 5 })
+    renderPanel(node)
+    expect(screen.queryByTestId("content-stack")).not.toBeInTheDocument()
+  })
+
   it("omits the warnings section entirely when the node has no warnings — not padded with filler", () => {
     const node = makeNode({ operatorType: "seq_scan", actualRows: 5 })
     renderPanel(node)
