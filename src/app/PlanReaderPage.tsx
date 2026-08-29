@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { PasteBox } from "./PasteBox"
+import { ComparePasteBox } from "./ComparePasteBox"
 import { ShareLinkButton } from "./ShareLinkButton"
 import { RestoreSessionBanner } from "./RestoreSessionBanner"
 import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { decodeShareLink } from "./shareLink"
 import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
-import { PlanGraph, FindingsList } from "../graph"
+import { PlanGraph, FindingsList, PlanComparisonView } from "../graph"
 import { PlanParseError, collectNodes } from "../parsers/normalize"
 import {
   saveSession,
@@ -86,6 +87,14 @@ export function PlanReaderPage() {
   // independent components.
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined)
 
+  // Episode 14, Story 14.2 — comparison view. Deliberately independent of
+  // every persistence/share-link concern above: the comparison plan is
+  // never saved, restored, or shareable-linked — only the primary plan is
+  // (see ComparePasteBox's own comment for why).
+  const [compareMode, setCompareMode] = useState(false)
+  const [comparePlan, setComparePlan] = useState<AnalyzedPlan | null>(null)
+  const [compareError, setCompareError] = useState<string | null>(null)
+
   // Episode 17 — local persistence state.
   const [restoreCandidate, setRestoreCandidate] = useState<{ text: string; savedAt: number } | null>(null)
   const [recentPlans, setRecentPlans] = useState<RecentPlanEntry[]>([])
@@ -151,6 +160,24 @@ export function PlanReaderPage() {
     },
     [dontSave, debouncedSaveSession, refreshRecentPlans],
   )
+
+  const handleCompareAnalyze = useCallback((text: string) => {
+    try {
+      setComparePlan(analyzePlanText(text))
+      setCompareError(null)
+    } catch (err) {
+      setComparePlan(null)
+      // Same rule as handleAnalyze above: PlanParseError messages never
+      // echo raw pasted content, so showing err.message directly is safe.
+      setCompareError(err instanceof PlanParseError ? err.message : "Something went wrong reading this plan.")
+    }
+  }, [])
+
+  const handleStopComparing = useCallback(() => {
+    setCompareMode(false)
+    setComparePlan(null)
+    setCompareError(null)
+  }, [])
 
   const handleDismissRestore = useCallback(() => setRestoreCandidate(null), [])
 
@@ -239,7 +266,19 @@ export function PlanReaderPage() {
             <span className="plan-reader-page__engine-badge" data-testid="detected-engine-badge">
               {ENGINE_LABEL[analyzed.engine]}
             </span>
-            <ShareLinkButton rawText={rawText} />
+            <div className="plan-reader-page__result-header-actions">
+              {!compareMode && (
+                <button
+                  type="button"
+                  className="compare-toggle"
+                  data-testid="compare-toggle"
+                  onClick={() => setCompareMode(true)}
+                >
+                  Compare with another plan
+                </button>
+              )}
+              <ShareLinkButton rawText={rawText} />
+            </div>
           </div>
 
           {analyzed.queryTextRedacted && (
@@ -267,16 +306,57 @@ export function PlanReaderPage() {
             {activeStatement.summary.text}
           </p>
 
-          <FindingsList root={activeStatement.root} onSelectNode={setFocusNodeId} />
+          {compareMode ? (
+            <div className="plan-reader-page__compare" data-testid="plan-reader-compare-section">
+              {!comparePlan && <ComparePasteBox onAnalyze={handleCompareAnalyze} onCancel={handleStopComparing} />}
 
-          <div className="plan-reader-page__graph">
-            <PlanGraph
-              root={activeStatement.root}
-              context={activeStatement.context}
-              focusNodeId={focusNodeId}
-              onFocusHandled={() => setFocusNodeId(undefined)}
-            />
-          </div>
+              {compareError && (
+                <p className="plan-reader-page__error" role="alert" data-testid="compare-parse-error">
+                  {compareError}
+                </p>
+              )}
+
+              {comparePlan && (
+                <>
+                  <button
+                    type="button"
+                    className="compare-toggle"
+                    data-testid="stop-comparing"
+                    onClick={handleStopComparing}
+                  >
+                    Stop comparing
+                  </button>
+                  {/* Story 14.2 scopes to one statement pair — the currently
+                      active tab on the primary side, the first statement on
+                      the comparison side. Comparing a specific pair from a
+                      multi-statement batch on both sides is a real gap, not
+                      silently papered over; documented here rather than
+                      guessing which of N×M pairings the user meant. */}
+                  <PlanComparisonView
+                    planA={activeStatement.root}
+                    planB={comparePlan.statements[0].root}
+                    contextA={activeStatement.context}
+                    contextB={comparePlan.statements[0].context}
+                    labelA="Current plan"
+                    labelB="Comparison plan"
+                  />
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              <FindingsList root={activeStatement.root} onSelectNode={setFocusNodeId} />
+
+              <div className="plan-reader-page__graph">
+                <PlanGraph
+                  root={activeStatement.root}
+                  context={activeStatement.context}
+                  focusNodeId={focusNodeId}
+                  onFocusHandled={() => setFocusNodeId(undefined)}
+                />
+              </div>
+            </>
+          )}
         </section>
       )}
 

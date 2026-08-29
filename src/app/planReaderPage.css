@@ -271,6 +271,54 @@
   cursor: not-allowed;
 }
 
+/* Episode 14, Story 14.2 — the second-plan paste form, reusing .paste-box's
+   own field/button styling above (textarea, submit) rather than
+   duplicating it. */
+.compare-paste-box {
+  border: 1px solid var(--pr-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.compare-paste-box__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.compare-paste-box__label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.compare-paste-box__cancel {
+  background: transparent;
+  border: 1px solid var(--pr-border);
+  border-radius: 6px;
+  color: var(--pr-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.plan-reader-page__compare {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.compare-toggle {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--pr-border);
+  background: transparent;
+  color: var(--pr-accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .plan-reader-page__error {
   background: var(--pr-error-bg);
   color: var(--pr-error-text);
@@ -290,6 +338,12 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plan-reader-page__result-header-actions {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 

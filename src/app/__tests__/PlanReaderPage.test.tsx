@@ -428,4 +428,84 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     await waitFor(() => expect(screen.queryByTestId("clear-saved-data-button")).not.toBeInTheDocument())
     expect(screen.queryByTestId("recent-plans-list")).not.toBeInTheDocument()
   })
+
+  describe("Episode 14, Story 14.2 — comparison view", () => {
+    function pasteAndCompare(text: string) {
+      fireEvent.change(screen.getByTestId("compare-paste-textarea"), { target: { value: text } })
+      fireEvent.click(screen.getByTestId("compare-paste-submit"))
+    }
+
+    it("hides the toggle and shows a second paste box once 'Compare with another plan' is clicked", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      expect(screen.queryByTestId("compare-paste-box")).not.toBeInTheDocument()
+      fireEvent.click(screen.getByTestId("compare-toggle"))
+
+      expect(screen.getByTestId("compare-paste-box")).toBeInTheDocument()
+      expect(screen.queryByTestId("compare-toggle")).not.toBeInTheDocument()
+      // The single-plan view is replaced, not just supplemented, while comparing.
+      expect(screen.queryByTestId("plan-graph")).not.toBeInTheDocument()
+    })
+
+    it("renders the comparison view (summary strip + two panes) once both plans are in", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("compare-toggle"))
+      pasteAndCompare(loadFixture("postgres", "multi-way-join.json"))
+
+      expect(screen.getByTestId("plan-comparison-view")).toBeInTheDocument()
+      expect(screen.getByTestId("comparison-summary")).toBeInTheDocument()
+      expect(screen.getByText("Current plan")).toBeInTheDocument()
+      expect(screen.getByText("Comparison plan")).toBeInTheDocument()
+    })
+
+    it("shows a parse error for an invalid second plan without disturbing the first plan's own view", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("compare-toggle"))
+      pasteAndCompare(loadFixture("postgres", "non-plan-text.txt"))
+
+      expect(screen.getByTestId("compare-parse-error")).toBeInTheDocument()
+      expect(screen.queryByTestId("plan-comparison-view")).not.toBeInTheDocument()
+      // Still offered the (still-empty) second paste box, not knocked back
+      // to the toggle button.
+      expect(screen.getByTestId("compare-paste-box")).toBeInTheDocument()
+    })
+
+    it("shows the cross-engine message, not a broken view, when the two plans are from different engines", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("compare-toggle"))
+      pasteAndCompare(loadFixture("sqlserver", "hash-join.xml"))
+
+      expect(screen.getByTestId("plan-comparison-error")).toHaveTextContent(/different database engines/)
+    })
+
+    it("'Stop comparing' returns to the single-plan view with the primary plan intact", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("compare-toggle"))
+      pasteAndCompare(loadFixture("postgres", "multi-way-join.json"))
+      expect(screen.getByTestId("plan-comparison-view")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId("stop-comparing"))
+
+      expect(screen.queryByTestId("plan-comparison-view")).not.toBeInTheDocument()
+      expect(screen.getByTestId("plan-graph")).toBeInTheDocument()
+      expect(screen.getByTestId("compare-toggle")).toBeInTheDocument()
+    })
+
+    it("'Cancel' on the second paste box returns to the single-plan view without requiring a second plan", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("compare-toggle"))
+      expect(screen.getByTestId("compare-paste-box")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId("compare-cancel"))
+
+      expect(screen.queryByTestId("compare-paste-box")).not.toBeInTheDocument()
+      expect(screen.getByTestId("plan-graph")).toBeInTheDocument()
+    })
+  })
 })

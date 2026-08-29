@@ -10,7 +10,7 @@
 // doesn't claim a richer arrow-key/search scheme neither mode has built yet.
 
 import type { PlanNode, Warning } from "../../parsers/normalize"
-import { countDescendants } from "../buildGraphElements"
+import { countDescendants, type ComparisonOverlay } from "../buildGraphElements"
 import "./accessiblePlanList.css"
 
 export interface AccessiblePlanListProps {
@@ -19,6 +19,18 @@ export interface AccessiblePlanListProps {
   selectedNodeId?: string
   onSelectNode: (nodeId: string) => void
   onExpandCollapsedGroup: (parentPlanNodeId: string) => void
+  /** Episode 14, Story 14.2 — same overlay map PlanNodeCard/canvasDraw
+   * render, keyed by this tree's own PlanNode id. Canvas-rendering-
+   * performance skill: state (here, comparison status) is shared between
+   * the canvas view and this accessible list, not two independently-
+   * drifting presentations. */
+  comparisonOverlays?: Map<string, ComparisonOverlay>
+}
+
+const COMPARISON_LABEL: Record<Exclude<ComparisonOverlay["status"], "matched">, string> = {
+  changed: "Changed",
+  addedInB: "Added",
+  removedFromB: "Removed",
 }
 
 type ListRow =
@@ -78,6 +90,7 @@ export function AccessiblePlanList({
   selectedNodeId,
   onSelectNode,
   onExpandCollapsedGroup,
+  comparisonOverlays,
 }: AccessiblePlanListProps) {
   const rows = buildRows(root, collapsedIds)
 
@@ -101,6 +114,7 @@ export function AccessiblePlanList({
 
         const severity = worstSeverity(row.node)
         const isSelected = row.node.id === selectedNodeId
+        const comparisonStatus = comparisonOverlays?.get(row.node.id)?.status
         return (
           <li key={`${row.node.id}-${row.isSharedReference ? "ref" : "main"}`} style={{ paddingLeft: row.depth * 16 }}>
             <button
@@ -120,6 +134,14 @@ export function AccessiblePlanList({
                   data-testid="accessible-plan-list-severity"
                 >
                   {SEVERITY_LABEL[severity]}
+                </span>
+              )}
+              {comparisonStatus && comparisonStatus !== "matched" && (
+                <span
+                  className={`accessible-plan-list__comparison accessible-plan-list__comparison--${comparisonStatus}`}
+                  data-testid="accessible-plan-list-comparison"
+                >
+                  {COMPARISON_LABEL[comparisonStatus]}
                 </span>
               )}
             </button>

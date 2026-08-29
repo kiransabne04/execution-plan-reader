@@ -25,11 +25,22 @@ export interface DrawGraphParams {
    * CSS variables in every other stylesheet. */
   textColor: string
   selectionColor: string
+  /** Episode 14, Story 14.2 — same `--pg-comparison-*` tokens PlanNodeCard
+   * reads via CSS; resolved here instead since canvas has no cascade.
+   * Undefined entries are fine (a plain single-plan render never passes
+   * this at all) — see canvas-rendering-performance skill's "visual
+   * consistency" checklist item this satisfies. */
+  comparisonColors?: { changed: string; addedInB: string; removedFromB: string }
 }
 
 const SELECTED_OUTLINE_WIDTH = 3
 const CORNER_RADIUS = 6
 const MISMATCH_BADGE_TEXT = "est. mismatch"
+const COMPARISON_BADGE_TEXT: Record<"changed" | "addedInB" | "removedFromB", string> = {
+  changed: "changed",
+  addedInB: "added",
+  removedFromB: "removed",
+}
 
 function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   const r = Math.min(radius, width / 2, height / 2)
@@ -65,26 +76,48 @@ function formatMeta(node: PlanGraphNode): string {
   return parts.join(" · ")
 }
 
-function drawPlanNode(ctx: CanvasRenderingContext2D, node: PlanGraphNode, isSelected: boolean, textColor: string, selectionColor: string) {
+function drawPlanNode(
+  ctx: CanvasRenderingContext2D,
+  node: PlanGraphNode,
+  isSelected: boolean,
+  textColor: string,
+  selectionColor: string,
+  comparisonColors: DrawGraphParams["comparisonColors"],
+) {
   if (node.data.kind !== "plan") return
   const { x, y } = node.position
   const width = node.width ?? 160
   const height = node.height ?? 56
-  const { color, hasMismatch, loopCount, planNode } = node.data
+  const { color, hasMismatch, loopCount, planNode, comparisonOverlay } = node.data
 
   roundedRectPath(ctx, x, y, width, height, CORNER_RADIUS)
   ctx.fillStyle = colorWithAlpha(color, 0.18)
   ctx.fill()
 
-  // Estimate-vs-actual mismatch: a DASHED border, never color alone — same
-  // colorblind-safe rule the DOM/SVG path follows (graph-visualization
-  // skill). Selection gets its own thicker solid outline drawn after, so
-  // the two states stay visually distinct from each other too.
-  ctx.setLineDash(hasMismatch ? [6, 4] : [])
-  ctx.strokeStyle = color
-  ctx.lineWidth = hasMismatch ? 2 : 1.5
-  ctx.stroke()
-  ctx.setLineDash([])
+  // Comparison-view border wins over the plain mismatch encoding when both
+  // apply — same precedence PlanNodeCard's CSS uses (planGraph.css's
+  // comment on the equivalent DOM rules explains why). A SOLID border keeps
+  // it visually distinct from the mismatch encoding's dashed one.
+  const comparisonStatus = comparisonOverlay?.status
+  const comparisonColor =
+    comparisonStatus && comparisonStatus !== "matched" && comparisonColors ? comparisonColors[comparisonStatus] : undefined
+
+  if (comparisonColor) {
+    ctx.setLineDash([])
+    ctx.strokeStyle = comparisonColor
+    ctx.lineWidth = 3
+    ctx.stroke()
+  } else {
+    // Estimate-vs-actual mismatch: a DASHED border, never color alone —
+    // same colorblind-safe rule the DOM/SVG path follows (graph-
+    // visualization skill). Selection gets its own thicker solid outline
+    // drawn after, so the two states stay visually distinct from each other.
+    ctx.setLineDash(hasMismatch ? [6, 4] : [])
+    ctx.strokeStyle = color
+    ctx.lineWidth = hasMismatch ? 2 : 1.5
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
 
   if (isSelected) {
     roundedRectPath(ctx, x - 2, y - 2, width + 4, height + 4, CORNER_RADIUS + 2)
@@ -112,7 +145,10 @@ function drawPlanNode(ctx: CanvasRenderingContext2D, node: PlanGraphNode, isSele
     badgeY = drawBadge(ctx, `×${loopCount.toLocaleString("en-US")}`, x + padding, badgeY, textColor)
   }
   if (hasMismatch) {
-    drawBadge(ctx, MISMATCH_BADGE_TEXT, x + padding, badgeY, textColor)
+    badgeY = drawBadge(ctx, MISMATCH_BADGE_TEXT, x + padding, badgeY, textColor)
+  }
+  if (comparisonStatus && comparisonStatus !== "matched") {
+    drawBadge(ctx, COMPARISON_BADGE_TEXT[comparisonStatus], x + padding, badgeY, comparisonColor ?? textColor)
   }
 }
 
@@ -193,7 +229,7 @@ function colorWithAlpha(color: string, alpha: number): string {
  * this function stays a plain, testable "given a context and data, what
  * gets drawn" — no canvas-setup concerns baked in). */
 export function drawGraph(ctx: CanvasRenderingContext2D, params: DrawGraphParams): void {
-  const { nodes, edges, transform, selectedNodeId, cssWidth, cssHeight, textColor, selectionColor } = params
+  const { nodes, edges, transform, selectedNodeId, cssWidth, cssHeight, textColor, selectionColor, comparisonColors } = params
 
   ctx.save()
   ctx.clearRect(0, 0, cssWidth, cssHeight)
@@ -203,7 +239,7 @@ export function drawGraph(ctx: CanvasRenderingContext2D, params: DrawGraphParams
   drawEdges(ctx, nodes, edges, textColor)
   for (const node of nodes) {
     if (node.data.kind === "plan") {
-      drawPlanNode(ctx, node, node.id === selectedNodeId, textColor, selectionColor)
+      drawPlanNode(ctx, node, node.id === selectedNodeId, textColor, selectionColor, comparisonColors)
     } else {
       drawCollapsedGroupNode(ctx, node, textColor)
     }

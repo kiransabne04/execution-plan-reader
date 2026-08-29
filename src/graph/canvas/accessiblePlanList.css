@@ -78,3 +78,29 @@
   background: var(--pg-card-text-muted, #667085);
   color: #ffffff;
 }
+
+/* Episode 14, Story 14.2 — same three comparison states/tokens as
+   PlanNodeCard's badges (planGraph.css), so the accessible list and the
+   canvas/DOM graph views never visually disagree about what a node's
+   comparison status is. */
+.accessible-plan-list__comparison {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  color: #ffffff;
+}
+
+.accessible-plan-list__comparison--changed {
+  background: var(--pg-comparison-changed, #b54708);
+}
+
+.accessible-plan-list__comparison--addedInB {
+  background: var(--pg-comparison-added, #05603a);
+}
+
+.accessible-plan-list__comparison--removedFromB {
+  background: var(--pg-comparison-removed, #6941c6);
+}

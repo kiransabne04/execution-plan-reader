@@ -147,8 +147,30 @@ export function CanvasPlanGraph({
       const container = containerRef.current
       const textColor = container ? resolveCssVar(container, "--pg-card-text", "#1a1a1a") : "#1a1a1a"
       const selectionColor = container ? resolveCssVar(container, "--pg-canvas-selection", "#1a56db") : "#1a56db"
+      // Episode 14, Story 14.2 — cheap to resolve unconditionally (same
+      // handful of getComputedStyle reads as the two colors above); a plain
+      // single-plan render simply never has any node carrying a
+      // comparisonOverlay, so these values go unused rather than needing a
+      // separate "is this a comparison view" flag threaded through here.
+      const comparisonColors = container
+        ? {
+            changed: resolveCssVar(container, "--pg-comparison-changed", "#b54708"),
+            addedInB: resolveCssVar(container, "--pg-comparison-added", "#05603a"),
+            removedFromB: resolveCssVar(container, "--pg-comparison-removed", "#6941c6"),
+          }
+        : undefined
 
-      drawGraph(ctx, { nodes, edges, transform, selectedNodeId, cssWidth: size.width, cssHeight: size.height, textColor, selectionColor })
+      drawGraph(ctx, {
+        nodes,
+        edges,
+        transform,
+        selectedNodeId,
+        cssWidth: size.width,
+        cssHeight: size.height,
+        textColor,
+        selectionColor,
+        comparisonColors,
+      })
     })
 
     return () => {

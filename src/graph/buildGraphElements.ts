@@ -6,7 +6,21 @@
 import type { Edge, Node } from "@xyflow/react"
 import dagre from "@dagrejs/dagre"
 import type { PlanNode } from "../parsers/normalize"
+import type { NodeMatchStatus } from "../comparison/matchNodes"
 import { buildEdgeWidthScale, buildMetricScale, pickMetricValue, type MetricKey } from "./encoding"
+
+/**
+ * Episode 14, Story 14.2 — one node's comparison-view overlay, computed by
+ * `PlanComparisonView` from a `matchNodes` result and passed in per-render
+ * via `BuildGraphElementsOptions.comparisonOverlays`. `counterpart` is only
+ * ever set for `status: "changed"` — the matched node's shape in the OTHER
+ * plan, so the card can show the concrete delta ("Seq Scan -> Index Scan")
+ * without either pane needing to know about the other plan's full tree.
+ */
+export interface ComparisonOverlay {
+  status: NodeMatchStatus
+  counterpart?: { rawOperatorLabel: string; estimatedCost?: number; actualTimeMs?: number }
+}
 
 export interface PlanNodeData extends Record<string, unknown> {
   kind: "plan"
@@ -18,6 +32,7 @@ export interface PlanNodeData extends Record<string, unknown> {
    * finding rather than recomputing a second, possibly-inconsistent threshold. */
   hasMismatch: boolean
   loopCount?: number
+  comparisonOverlay?: ComparisonOverlay
   /** Attached by PlanGraph after this otherwise-plain, testable conversion —
    * lets the card open its own detail panel from a keyboard Enter/Space,
    * not just a mouse click handled at the ReactFlow container level. */
@@ -45,6 +60,10 @@ export type PlanGraphEdge = Edge<PlanEdgeData>
 export interface BuildGraphElementsOptions {
   metric?: MetricKey
   collapsedIds?: Set<string>
+  /** Episode 14, Story 14.2 — keyed by this tree's own `PlanNode.id`. Absent
+   * for a plain single-plan render (the common case); present when this
+   * tree is one side of a comparison view. */
+  comparisonOverlays?: Map<string, ComparisonOverlay>
 }
 
 export interface BuildGraphElementsResult {
@@ -75,6 +94,7 @@ function edgeId(sourceId: string, targetId: string): string {
 export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOptions = {}): BuildGraphElementsResult {
   const metric = options.metric ?? "actualTimeMs"
   const collapsedIds = options.collapsedIds ?? new Set<string>()
+  const comparisonOverlays = options.comparisonOverlays
 
   const metricScale = buildMetricScale(root, metric)
   const edgeScale = buildEdgeWidthScale(root)
@@ -104,6 +124,7 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
           color: metricScale.colorFor(value),
           hasMismatch: node.warnings.some((w) => w.ruleId === "bad-row-estimate"),
           loopCount: node.loops !== undefined && node.loops > 1 ? node.loops : undefined,
+          comparisonOverlay: comparisonOverlays?.get(node.id),
         },
       })
     }
