@@ -78,3 +78,72 @@ test("a plan large enough to cross the canvas threshold renders via the canvas p
   await items.first().click()
   await expect(page.getByTestId("detail-panel")).toBeVisible()
 })
+
+// Episode 18, Story 18.10, spec §5 `1i`.
+test("shows a banner explaining the DOM->canvas switch", async ({ page }) => {
+  await page.goto("/")
+  await page.getByTestId("paste-textarea").fill(buildLargePostgresPlanJson(320))
+  await page.getByRole("button", { name: /analyze plan/i }).click()
+
+  await expect(page.getByTestId("canvas-mode-banner")).toBeVisible()
+  await expect(page.getByTestId("canvas-mode-banner")).toContainText(/321/) // chainLength leaves + the chain itself = 321 nodes
+})
+
+test("labels below the legible-zoom floor degrade to solid blocks — real canvas, not clipped/overlapping text", async ({ page }) => {
+  // Counts real CanvasRenderingContext2D.fillText calls in the page itself
+  // (not just canvasDraw.ts's own unit-tested fake context) — the actual
+  // signal this story's testing approach calls for: "confirming labels
+  // below the zoom floor actually render as solid blocks, not
+  // clipped/overlapping text," in a real browser.
+  await page.addInitScript(() => {
+    ;(window as unknown as { __fillTextCalls: number }).__fillTextCalls = 0
+    const original = CanvasRenderingContext2D.prototype.fillText
+    CanvasRenderingContext2D.prototype.fillText = function (...args: Parameters<typeof original>) {
+      ;(window as unknown as { __fillTextCalls: number }).__fillTextCalls++
+      return original.apply(this, args)
+    }
+  })
+
+  await page.goto("/")
+  // A long enough chain that dagre's own layout height vastly exceeds the
+  // viewport, forcing the canvas path's own initial fit-to-view scale
+  // well below the legible-zoom floor — no manual zoom interaction needed.
+  // (Well short of Story 16.2's documented stack-overflow depth for the
+  // recursive parsers — this needs to actually render, not degrade to
+  // that story's friendly generic error.)
+  await page.getByTestId("paste-textarea").fill(buildLargePostgresPlanJson(1200))
+  await page.getByRole("button", { name: /analyze plan/i }).click()
+
+  const canvas = page.getByTestId("canvas-plan-graph-surface")
+  await expect(canvas).toBeVisible()
+
+  // The canvas still drew SOMETHING (the solid heat-colored blocks) —
+  // never a blank surface.
+  const hasVisibleContent = await canvas.evaluate((el) => {
+    const canvasEl = el as HTMLCanvasElement
+    const ctx = canvasEl.getContext("2d")
+    if (!ctx) return false
+    const { width, height } = canvasEl
+    if (width === 0 || height === 0) return false
+    const { data } = ctx.getImageData(0, 0, width, height)
+    for (let i = 3; i < data.length; i += 4 * 97) {
+      if (data[i] > 0) return true
+    }
+    return false
+  })
+  expect(hasVisibleContent).toBe(true)
+
+  // The FIRST draw (before the fit-to-view effect settles on the real,
+  // tiny scale) legitimately starts at the identity transform and does
+  // draw text — that's expected, not a regression. What this story
+  // actually promises is the STEADY-STATE draw, once the view has fit
+  // itself to a plan this large: reset the counter, give any trailing
+  // redraw a moment to fire, then confirm nothing further drew text.
+  await page.waitForTimeout(400)
+  await page.evaluate(() => {
+    ;(window as unknown as { __fillTextCalls: number }).__fillTextCalls = 0
+  })
+  await page.waitForTimeout(300)
+  const fillTextCallsAfterSettling = await page.evaluate(() => (window as unknown as { __fillTextCalls: number }).__fillTextCalls)
+  expect(fillTextCallsAfterSettling).toBe(0)
+})

@@ -292,6 +292,50 @@ describe("drawGraph", () => {
     })
   })
 
+  describe("Episode 18, Story 18.10 — legible-zoom-floor degrade to solid heat blocks", () => {
+    it("draws no text at all below the legible-zoom floor, but still fills/strokes the card", () => {
+      const ctx = makeFakeContext()
+      const node = planGraphNode({ id: "a", iconKey: "hash", subtitle: "orders", loopCount: 3 })
+      drawGraph(ctx, { ...baseParams, transform: { x: 0, y: 0, scale: 0.3 }, nodes: [node], edges: [] })
+
+      expect(ctx.calls.some((c) => c.method === "fillText")).toBe(false)
+      expect(ctx.calls.some((c) => c.method === "fill")).toBe(true) // the card's own solid heat-colored fill
+      expect(ctx.calls.some((c) => c.method === "stroke")).toBe(true) // the border still draws
+    })
+
+    it("draws normal text at/above the legible-zoom floor", () => {
+      const ctx = makeFakeContext()
+      const node = planGraphNode({ id: "a" })
+      drawGraph(ctx, { ...baseParams, transform: { x: 0, y: 0, scale: 1 }, nodes: [node], edges: [] })
+      expect(ctx.calls.some((c) => c.method === "fillText" && c.args[0] === "Seq Scan")).toBe(true)
+    })
+
+    it("the collapsed-group placeholder also skips its 'N hidden' text below the floor, but keeps its dashed outline", () => {
+      const groupNode: PlanGraphNode = {
+        id: "n::collapsed",
+        type: "collapsedGroup",
+        position: { x: 0, y: 0 },
+        width: 160,
+        height: 48,
+        data: { kind: "collapsed-group", hiddenNodeCount: 42, parentPlanNodeId: "n" },
+      }
+      const ctx = makeFakeContext()
+      drawGraph(ctx, { ...baseParams, transform: { x: 0, y: 0, scale: 0.3 }, nodes: [groupNode], edges: [] })
+
+      expect(ctx.calls.some((c) => c.method === "fillText")).toBe(false)
+      expect(ctx.calls.some((c) => c.method === "setLineDash" && (c.args[0] as number[]).length === 2)).toBe(true)
+    })
+
+    it("selection outline and severity ring still draw below the floor — color signals stay meaningful at any zoom", () => {
+      const ctx = makeFakeContext()
+      const node = planGraphNode({ id: "a", severity: "critical" })
+      drawGraph(ctx, { ...baseParams, transform: { x: 0, y: 0, scale: 0.3 }, nodes: [node], edges: [], selectedNodeId: "a" })
+
+      // Base border + severity ring + selection outline = 3 strokes.
+      expect(ctx.calls.filter((c) => c.method === "stroke").length).toBeGreaterThanOrEqual(3)
+    })
+  })
+
   describe("Episode 18, Story 18.8 — search/filter dimming (canvas mode)", () => {
     it("wraps a dimmed node's draw in save/restore and sets globalAlpha to 0.32, not skipped and not fully opaque", () => {
       const ctx = makeFakeContext()

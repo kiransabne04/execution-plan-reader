@@ -14,11 +14,14 @@
 // offscreen image) — real complexity not warranted for a fallback glyph.
 // Single bold-letter glyphs stand in instead, keeping the per-operator-type
 // MAPPING identical even though the linework differs — see ICON_GLYPH
-// below. Note there is NO legible-zoom-floor text degrade anywhere in this
-// file yet (label/meta text is drawn unconditionally at every zoom level
-// today, same as before this story) — icon/subtitle simply follow that
-// same existing behavior. A "degrade to solid heat blocks below a zoom
-// floor" treatment is Episode 18 Story 18.10's job, not introduced here.
+// below.
+//
+// Episode 18, Story 18.10 — LEGIBLE_ZOOM_FLOOR: below it, `drawPlanNode`
+// skips ALL text (icon/label/subtitle/meta/badges) and fills the card
+// solid with its own metric color instead of the usual translucent tint —
+// spec §5 `1i`'s "solid heat-colored blocks with no text," never
+// illegibly-small text. `drawCollapsedGroupNode`'s "N hidden" label
+// follows the same rule.
 
 import type { PlanGraphEdge, PlanGraphNode } from "../buildGraphElements"
 import { computeHandleOffsetPercent } from "../buildGraphElements"
@@ -83,6 +86,20 @@ const ICON_GLYPH: Record<OperatorIconKey, string> = {
 const ARROWHEAD_SIZE_PX = 11
 const TARGET_HANDLE_GAP_PX = 10
 
+// Story 18.10, spec §5 `1i` — the canvas path's own legible-zoom floor
+// (independent of the DOM/SVG path's MIN_LEGIBLE_ZOOM in PlanGraph.tsx,
+// which floors React Flow's own zoom prop; canvas mode has no such prop —
+// this floor instead gates what `drawPlanNode` draws at the CURRENT
+// `transform.scale`). Text is drawn at `LABEL_FONT_WORLD_PX` in world
+// units, then scaled by `ctx.scale(transform.scale, ...)` in `drawGraph`
+// — so its actual on-screen size is `LABEL_FONT_WORLD_PX * transform.scale`.
+// Below `MIN_LEGIBLE_FONT_SCREEN_PX` on screen, text stops being
+// information and becomes sub-pixel noise — the floor is derived from
+// that ratio, not an arbitrary guess.
+const LABEL_FONT_WORLD_PX = 12
+const MIN_LEGIBLE_FONT_SCREEN_PX = 8
+const LEGIBLE_ZOOM_FLOOR = MIN_LEGIBLE_FONT_SCREEN_PX / LABEL_FONT_WORLD_PX
+
 function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   const r = Math.min(radius, width / 2, height / 2)
   ctx.beginPath()
@@ -125,6 +142,7 @@ function drawPlanNode(
   selectionColor: string,
   comparisonColors: DrawGraphParams["comparisonColors"],
   severityColors: DrawGraphParams["severityColors"],
+  belowLegibleFloor: boolean,
 ) {
   if (node.data.kind !== "plan") return
   const { x, y } = node.position
@@ -141,7 +159,12 @@ function drawPlanNode(
   ctx.globalAlpha = dimAlpha
 
   roundedRectPath(ctx, x, y, width, height, CORNER_RADIUS)
-  ctx.fillStyle = colorWithAlpha(color, 0.18)
+  // Story 18.10, spec §5 `1i` — below the legible-zoom floor the whole
+  // card becomes a SOLID "heat block" in the node's own metric-encoded
+  // color (the same color the normal translucent fill already used, just
+  // opaque) rather than the usual faint 18%-alpha tint meant to sit behind
+  // legible text. At this zoom the color patch itself is the entire signal.
+  ctx.fillStyle = belowLegibleFloor ? color : colorWithAlpha(color, 0.18)
   ctx.fill()
 
   // Comparison-view border wins over the plain mismatch encoding when both
@@ -187,6 +210,17 @@ function drawPlanNode(
     ctx.strokeStyle = selectionColor
     ctx.lineWidth = SELECTED_OUTLINE_WIDTH
     ctx.stroke()
+  }
+
+  // Story 18.10 — below the legible-zoom floor, none of the text below is
+  // drawn at all (icon glyph, label, subtitle, meta, badges): at this
+  // scale it would render as illegible sub-pixel noise, not information —
+  // spec §5 `1i`'s "solid heat-colored blocks with no text," not
+  // illegibly-small text. The color/border/ring/selection signals above
+  // still draw regardless — those stay meaningful at any zoom.
+  if (belowLegibleFloor) {
+    ctx.restore()
+    return
   }
 
   const padding = 8
@@ -249,7 +283,7 @@ function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
   return y - 14
 }
 
-function drawCollapsedGroupNode(ctx: CanvasRenderingContext2D, node: PlanGraphNode, textColor: string) {
+function drawCollapsedGroupNode(ctx: CanvasRenderingContext2D, node: PlanGraphNode, textColor: string, belowLegibleFloor: boolean) {
   if (node.data.kind !== "collapsed-group") return
   const { x, y } = node.position
   const width = node.width ?? 160
@@ -261,6 +295,12 @@ function drawCollapsedGroupNode(ctx: CanvasRenderingContext2D, node: PlanGraphNo
   ctx.lineWidth = 1.5
   ctx.stroke()
   ctx.setLineDash([])
+
+  // Story 18.10 — same legible-zoom-floor rule drawPlanNode follows: its
+  // "N hidden" text is just as illegible at this scale, so it's skipped
+  // the same way, leaving the dashed outline (still a real, visible
+  // signal — "something's collapsed here") without unreadable text noise.
+  if (belowLegibleFloor) return
 
   ctx.fillStyle = textColor
   ctx.textAlign = "center"
@@ -366,12 +406,14 @@ export function drawGraph(ctx: CanvasRenderingContext2D, params: DrawGraphParams
   ctx.translate(transform.x, transform.y)
   ctx.scale(transform.scale, transform.scale)
 
+  const belowLegibleFloor = transform.scale < LEGIBLE_ZOOM_FLOOR
+
   drawEdges(ctx, nodes, edges, edgeColors)
   for (const node of nodes) {
     if (node.data.kind === "plan") {
-      drawPlanNode(ctx, node, node.id === selectedNodeId, textColor, selectionColor, comparisonColors, severityColors)
+      drawPlanNode(ctx, node, node.id === selectedNodeId, textColor, selectionColor, comparisonColors, severityColors, belowLegibleFloor)
     } else {
-      drawCollapsedGroupNode(ctx, node, textColor)
+      drawCollapsedGroupNode(ctx, node, textColor, belowLegibleFloor)
     }
   }
 

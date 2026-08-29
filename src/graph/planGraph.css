@@ -23,6 +23,32 @@
   flex: none;
   padding: 8px;
   border-bottom: 1px solid var(--pg-card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* Story 18.10 — matches src/app/Notice.tsx's info-tier visual language
+   (blurple left-rule, bold label, never color alone) without importing
+   that component — see this banner's own JSX comment for why. */
+.plan-graph__canvas-banner {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--pg-card-bg));
+  color: var(--pg-card-text);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.plan-graph__canvas-banner-label {
+  flex: none;
+  font-weight: 700;
 }
 
 .plan-graph__accessible-list-toggle {

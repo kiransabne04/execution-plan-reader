@@ -295,6 +295,18 @@ function PlanGraphInner({
     return (
       <div className="plan-graph plan-graph--canvas" data-testid="plan-graph">
         <div className="plan-graph__canvas-toolbar">
+          {/* Story 18.10, spec §5 `1i` — explains the DOM->canvas switch
+              rather than leaving a large plan to just feel like a
+              different, possibly-broken tool. A local element (not
+              src/app/Notice.tsx) deliberately: src/graph never imports
+              from src/app (the composing layer imports FROM graph, not
+              the reverse) — this matches Notice's info-tier visual
+              language in planGraph.css without crossing that layering
+              boundary for one banner. */}
+          <p className="plan-graph__canvas-banner" data-testid="canvas-mode-banner" role="status">
+            <span className="plan-graph__canvas-banner-label">Note:</span> This plan has {allNodes.length.toLocaleString("en-US")} nodes —
+            switched to a faster rendering mode for large plans. Everything still works the same.
+          </p>
           <button
             type="button"
             className="plan-graph__accessible-list-toggle"

@@ -317,4 +317,22 @@ describe("PlanGraph — canvas mode (Episode 15)", () => {
     expect(screen.getByTestId("canvas-plan-graph-surface")).toBeInTheDocument()
     expect(screen.queryByTestId("accessible-plan-list")).not.toBeInTheDocument()
   })
+
+  // Episode 18, Story 18.10, spec §5 `1i`.
+  it("shows a banner explaining the DOM->canvas switch, driven by the same allNodes.length basis as the mode switch itself, never below the threshold", () => {
+    const large = buildLargePlan(520)
+    render(<PlanGraph root={large} />)
+    expect(screen.getByTestId("canvas-mode-banner")).toBeInTheDocument()
+
+    const small = makeNode({ id: "root", children: [makeNode({ id: "child" })] })
+    render(<PlanGraph root={small} />)
+    expect(screen.queryAllByTestId("canvas-mode-banner")).toHaveLength(1) // only the large-plan render above, not this one
+  })
+
+  it("the banner's own toggle (accessible-list) stays reachable alongside it — the banner is additive, not a replacement of the always-present toggle", () => {
+    const root = buildLargePlan(520)
+    render(<PlanGraph root={root} />)
+    expect(screen.getByTestId("canvas-mode-banner")).toBeInTheDocument()
+    expect(screen.getByTestId("accessible-list-toggle")).toBeInTheDocument()
+  })
 })
