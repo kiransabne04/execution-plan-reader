@@ -22,6 +22,16 @@ export interface DetailPanelProps {
    * `--in-shell` rules and docs/12-ui-redesign-spec.md §2's breakpoint
    * table. */
   variant?: "overlay" | "shell"
+  /** Story 18.3 — lifts Beginner/Expert to page-level state (the app
+   * bar's segmented control, shared with Story 18.9's walkthrough) so it
+   * doesn't reset every time a different node is opened. Both omitted:
+   * the original self-contained behavior, for every caller with no
+   * page-level toggle to share — PlanGraph's own internal render, and
+   * each PlanComparisonView pane (no app bar wraps those). Passing one
+   * without the other is a caller bug (a controlled toggle needs a way to
+   * change), not a supported half-controlled state. */
+  expertMode?: boolean
+  onExpertModeChange?: (expertMode: boolean) => void
 }
 
 const ENGINE_LABEL: Record<PlanNode["engine"], string> = {
@@ -37,12 +47,20 @@ const ENGINE_LABEL: Record<PlanNode["engine"], string> = {
  * click, satisfying the "rapid clicking across many nodes" edge case for
  * free, since glossary lookup is an O(1) map read).
  */
-export function DetailPanel({ node, context, onClose, variant = "overlay" }: DetailPanelProps) {
-  // Local to the panel for now — a future global Beginner/Expert toggle
-  // (technical spec §3.1) could lift this state up; scoped here since it's
-  // this story's own concern (which text field to show, what's expanded by
-  // default) and nothing today needs it to be shared app-wide.
-  const [expertMode, setExpertMode] = useState(false)
+export function DetailPanel({
+  node,
+  context,
+  onClose,
+  variant = "overlay",
+  expertMode: controlledExpertMode,
+  onExpertModeChange,
+}: DetailPanelProps) {
+  // Uncontrolled fallback for callers with no page-level state to lift
+  // from (see the prop's own doc comment) — this is exactly the local
+  // state this component used unconditionally before Story 18.3.
+  const [uncontrolledExpertMode, setUncontrolledExpertMode] = useState(false)
+  const expertMode = controlledExpertMode ?? uncontrolledExpertMode
+  const setExpertMode = onExpertModeChange ?? setUncontrolledExpertMode
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {

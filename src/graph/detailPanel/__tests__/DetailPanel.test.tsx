@@ -139,4 +139,45 @@ describe("DetailPanel", () => {
     expect(screen.getByText("Time")).toBeInTheDocument()
     expect(screen.queryByText(/cumulated across/)).not.toBeInTheDocument()
   })
+
+  describe("Episode 18, Story 18.3 — controlled expertMode (lifted page-level state)", () => {
+    it("reflects the controlled expertMode prop instead of defaulting to Beginner", () => {
+      const node = makeNode({ operatorType: "seq_scan", actualRows: 50_000, attributes: { "Relation Name": "events" } })
+      const context = buildPlanContext(node)
+      applyRules(node, context)
+      render(<DetailPanel node={node} context={context} onClose={() => {}} expertMode onExpertModeChange={() => {}} />)
+
+      expect(screen.getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true")
+      // Expert-mode content (longText) is showing, not Beginner's shortText.
+      const before = screen.getByTestId("warning-item").textContent
+      expect(before!.length).toBeGreaterThan(0)
+    })
+
+    it("calls onExpertModeChange instead of managing its own state when controlled — clicking Beginner doesn't flip the panel back on its own", () => {
+      let controlledValue = true
+      const onExpertModeChange = (next: boolean) => {
+        controlledValue = next
+      }
+      const node = makeNode({ operatorType: "seq_scan", actualRows: 50_000, attributes: { "Relation Name": "events" } })
+      const context = buildPlanContext(node)
+      applyRules(node, context)
+      render(
+        <DetailPanel node={node} context={context} onClose={() => {}} expertMode={controlledValue} onExpertModeChange={onExpertModeChange} />,
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "Beginner" }))
+      // The panel is still rendering with the prop it was given (true) —
+      // it never had its own state to flip. The callback is what fired.
+      expect(screen.getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true")
+      expect(controlledValue).toBe(false)
+    })
+
+    it("without expertMode/onExpertModeChange (every non-shell caller), the panel keeps managing its own state exactly as before this story", () => {
+      const node = makeNode({ operatorType: "seq_scan", actualRows: 50_000, attributes: { "Relation Name": "events" } })
+      renderPanel(node)
+      expect(screen.getByRole("button", { name: "Beginner" })).toHaveAttribute("aria-pressed", "true")
+      fireEvent.click(screen.getByRole("button", { name: "Expert" }))
+      expect(screen.getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true")
+    })
+  })
 })

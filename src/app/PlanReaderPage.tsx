@@ -98,6 +98,16 @@ export function PlanReaderPage() {
   // mounts elsewhere in the tree.
   const [detailPanel, setDetailPanel] = useState<{ node: PlanNode; context: PlanContext; onClose: () => void } | undefined>(undefined)
 
+  // Episode 18, Story 18.3 — Beginner/Expert lifted to page state (the
+  // app-bar segmented control), replacing DetailPanel.tsx's own former
+  // local useState — that file's doc comment had flagged this as a future
+  // step since Story 6.2 shipped it. Page-scoped, not reset by anything
+  // that resets PlanGraph's own internal state (a different node, a fresh
+  // plan) — that's the entire point of lifting it: picking Expert once and
+  // having it stay Expert while browsing. Shared with Story 18.9's
+  // walkthrough once that exists, per spec §2.
+  const [expertMode, setExpertMode] = useState(false)
+
   // Episode 18, Story 18.2 — spec §2's breakpoint table: below 860px of
   // the SHELL's own width (not the viewport — this is exactly why
   // `.plan-shell` is a `container-type: inline-size` context), Findings
@@ -336,14 +346,30 @@ export function PlanReaderPage() {
               {ENGINE_LABEL[analyzed.engine]}
             </span>
             <span className="plan-shell__spacer" />
-            {/* Beginner/Expert (Story 18.3) and "Walk me through it" (Story
-                18.9) both belong in this exact slot per spec §2's element
-                order — rendered here, disabled, so the app bar's structure
-                is correct now and each story only has to wire up behavior
-                that already has a home, not also invent its placement. */}
-            <div className="plan-shell__mode-toggle-placeholder" aria-disabled="true" title="Beginner/Expert mode — Story 18.3">
-              <span>Beginner</span>
-              <span>Expert</span>
+            {/* Story 18.3: page-level Beginner/Expert, replacing the
+                Story 18.2 placeholder — shared with the detail panel
+                (passed down below) and, per spec §2, Story 18.9's
+                walkthrough once that exists. "Walk me through it" stays a
+                disabled placeholder — that's 18.9's own job. */}
+            <div className="plan-shell__mode-toggle" role="group" aria-label="Detail level">
+              <button
+                type="button"
+                className="plan-shell__mode-toggle-button"
+                aria-pressed={!expertMode}
+                data-testid="shell-mode-beginner"
+                onClick={() => setExpertMode(false)}
+              >
+                Beginner
+              </button>
+              <button
+                type="button"
+                className="plan-shell__mode-toggle-button"
+                aria-pressed={expertMode}
+                data-testid="shell-mode-expert"
+                onClick={() => setExpertMode(true)}
+              >
+                Expert
+              </button>
             </div>
             <button type="button" className="plan-shell__app-bar-button" disabled title="Guided walkthrough — Story 18.9">
               Walk me through it
@@ -503,7 +529,16 @@ export function PlanReaderPage() {
                   `detail-panel--in-shell` variant and this scrim compose to
                   do that; see detailPanel.css and planReaderPage.css. */}
               <aside className="plan-shell__rail plan-shell__rail--right" data-testid="plan-shell-right-rail">
-                {detailPanel && <DetailPanel node={detailPanel.node} context={detailPanel.context} onClose={detailPanel.onClose} variant="shell" />}
+                {detailPanel && (
+                  <DetailPanel
+                    node={detailPanel.node}
+                    context={detailPanel.context}
+                    onClose={detailPanel.onClose}
+                    variant="shell"
+                    expertMode={expertMode}
+                    onExpertModeChange={setExpertMode}
+                  />
+                )}
               </aside>
               {detailPanel && (
                 <div className="plan-shell__detail-scrim" data-testid="plan-shell-detail-scrim" onClick={detailPanel.onClose} />

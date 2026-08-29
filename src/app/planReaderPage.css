@@ -366,26 +366,39 @@
   flex: 1 1 auto;
 }
 
-/* Story 18.3 (Beginner/Expert) and Story 18.9 (guided walkthrough) fill
-   these slots in — deliberately present-but-disabled now so the app bar's
-   element ORDER is correct per spec §2 today, and each of those stories
-   only has to wire up behavior, not also invent where it lives. */
-.plan-shell__mode-toggle-placeholder {
+/* Story 18.3 — the page-level Beginner/Expert segmented control (replaces
+   the Story 18.2 placeholder). Same visual pattern as DetailPanel's own
+   `.detail-panel__mode-toggle`/`.detail-panel__mode-button`
+   (detailPanel.css) — the two controls share the exact same state now, so
+   they should read as the same kind of control, not two different ones. */
+.plan-shell__mode-toggle {
   flex: none;
   display: flex;
   gap: 4px;
   padding: 2px;
   border: 1px solid var(--pr-border);
   border-radius: 6px;
-  font-size: 12px;
+}
+
+.plan-shell__mode-toggle-button {
+  padding: 2px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
   color: var(--pr-text-muted);
-  opacity: 0.5;
+  font-size: 12px;
+  cursor: pointer;
 }
 
-.plan-shell__mode-toggle-placeholder span {
-  padding: 2px 8px;
+.plan-shell__mode-toggle-button[aria-pressed="true"] {
+  background: var(--pr-text);
+  color: var(--pr-bg);
 }
 
+/* Story 18.9 (guided walkthrough) and Story 18.11 (PNG export) fill these
+   in — deliberately present-but-disabled now so the app bar's element
+   ORDER is correct per spec §2 today, and each story only has to wire up
+   behavior, not also invent where it lives. */
 .plan-shell__app-bar-button {
   flex: none;
   white-space: nowrap;

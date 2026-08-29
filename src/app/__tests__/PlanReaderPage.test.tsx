@@ -594,4 +594,47 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       expect(screen.getByTestId("plan-reader-compare-section")).toBeInTheDocument()
     })
   })
+
+  describe("Episode 18, Story 18.3 — Beginner/Expert lifted to page-level state", () => {
+    it("clicking Expert in the app bar switches the currently-open panel to Expert", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      const rightRail = screen.getByTestId("plan-shell-right-rail")
+      expect(within(rightRail).getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "false")
+
+      fireEvent.click(screen.getByTestId("shell-mode-expert"))
+
+      expect(within(rightRail).getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true")
+    })
+
+    it("the mode persists when a different node is opened — not reset per node", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      const cards = screen.getAllByTestId("plan-node-card")
+      expect(cards.length).toBeGreaterThan(1)
+
+      fireEvent.click(cards[0])
+      fireEvent.click(screen.getByTestId("shell-mode-expert"))
+      fireEvent.keyDown(document, { key: "Escape" })
+
+      fireEvent.click(cards[1])
+      const rightRail = screen.getByTestId("plan-shell-right-rail")
+      expect(within(rightRail).getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true")
+      expect(screen.getByTestId("shell-mode-expert")).toHaveAttribute("aria-pressed", "true")
+    })
+
+    it("the app-bar toggle and the open panel's own toggle stay in sync — either one changes both, since they share one state", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+
+      const rightRail = screen.getByTestId("plan-shell-right-rail")
+      // Change it from the PANEL's own in-panel button this time, not the app bar.
+      fireEvent.click(within(rightRail).getByRole("button", { name: "Expert" }))
+
+      expect(screen.getByTestId("shell-mode-expert")).toHaveAttribute("aria-pressed", "true")
+      expect(screen.getByTestId("shell-mode-beginner")).toHaveAttribute("aria-pressed", "false")
+    })
+  })
 })
