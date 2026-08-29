@@ -49,6 +49,9 @@ function singleNode(id = "a"): PlanGraphNode {
       height: 56,
       color: "hsl(0, 70%, 55%)",
       hasMismatch: false,
+      iconKey: "unknown",
+      childCount: 0,
+      isDimmed: false,
     },
   }
 }

@@ -68,6 +68,7 @@ function planGraphNode(
       loopCount: undefined,
       iconKey: "unknown",
       childCount: 0,
+      isDimmed: false,
       ...overrides,
     },
   }

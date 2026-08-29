@@ -14,6 +14,7 @@ describe("StatsTable", () => {
           index: { name: "IX_Orders_CustomerId_OrderDate" },
           predicate: { indexCondition: "[CustomerId]=(42) AND [OrderDate]=('2024-01-01')" },
         })}
+        expertMode={false}
       />,
     )
     const block = screen.getByTestId("stat-block")
@@ -22,7 +23,7 @@ describe("StatsTable", () => {
   })
 
   it("keeps short scalar stats (rows, index name) in the compact table, not as blocks", () => {
-    render(<StatsTable node={makeNode({ engine: "sqlserver", actualRows: 5, index: { name: "IX_Foo" } })} />)
+    render(<StatsTable node={makeNode({ engine: "sqlserver", actualRows: 5, index: { name: "IX_Foo" } })} expertMode={false} />)
     expect(screen.queryByTestId("stat-block")).not.toBeInTheDocument()
     expect(screen.getByTestId("stats-table").querySelector("table")).toBeInTheDocument()
   })
@@ -35,7 +36,10 @@ describe("StatsTable", () => {
       join: { logicalType: "inner" },
     })
     const expectedOrder = buildStatRows(node).map((r) => r.label)
-    render(<StatsTable node={node} />)
+    // Expert mode: the unfiltered set (Story 18.7 — Beginner hides gap
+    // rows), matching the unfiltered buildStatRows() output this test
+    // compares against.
+    render(<StatsTable node={node} expertMode={true} />)
     const section = screen.getByTestId("stats-table")
     const labels = Array.from(section.querySelectorAll("td:first-child, .detail-panel__stat-block-label")).map(
       (el) => el.textContent,

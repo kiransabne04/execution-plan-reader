@@ -3,7 +3,12 @@ import { computeExportLayout } from "../exportPng"
 import type { PlanGraphNode, PlanNodeData } from "../../buildGraphElements"
 import { makeNode } from "../../../rules/__tests__/testHelpers"
 
-function planGraphNode(id: string, x: number, y: number, overrides: Partial<Omit<PlanNodeData, "kind" | "planNode">> = {}): PlanGraphNode {
+function planGraphNode(
+  id: string,
+  x: number,
+  y: number,
+  overrides: Partial<Omit<PlanNodeData, "kind" | "planNode">> & { width?: number; height?: number } = {},
+): PlanGraphNode {
   const width = overrides.width ?? 160
   const height = overrides.height ?? 56
   return {

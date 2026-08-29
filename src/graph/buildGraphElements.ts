@@ -16,7 +16,7 @@
 // OWN parent) on Top, `target` (incoming, from this node's children) on
 // Bottom — see PlanNodeCard.tsx.
 
-import type { Edge, Node } from "@xyflow/react"
+import type { Edge, Node, SmoothStepPathOptions } from "@xyflow/react"
 import dagre from "@dagrejs/dagre"
 import type { PlanNode, Warning } from "../parsers/normalize"
 import { relationIdentity, indexIdentity } from "../parsers/relationIdentity"
@@ -107,7 +107,11 @@ export interface PlanEdgeData extends Record<string, unknown> {
   targetChildIndex: number
 }
 
-export type PlanGraphEdge = Edge<PlanEdgeData>
+// Every edge this module produces is always `type: "smoothstep"` (Story
+// 18.4) — `Edge<PlanEdgeData>` alone doesn't carry `pathOptions` (that's
+// only on React Flow's internal, non-exported `SmoothStepEdge<T>` type);
+// added directly here rather than importing an unexported type.
+export type PlanGraphEdge = Edge<PlanEdgeData> & { pathOptions?: SmoothStepPathOptions }
 
 export interface BuildGraphElementsOptions {
   metric?: MetricKey

@@ -17,6 +17,9 @@ function planNode(id: string, x: number, y: number, width = 160, height = 56): P
       height,
       color: "hsl(0, 70%, 55%)",
       hasMismatch: false,
+      iconKey: "unknown",
+      childCount: 0,
+      isDimmed: false,
     },
   }
 }
