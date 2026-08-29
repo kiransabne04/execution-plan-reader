@@ -134,4 +134,56 @@ test.describe("app shell breakpoints (spec §2)", () => {
     // shrinking alone — the viewport itself never changed.
     await expect(page.getByTestId("shell-tab-graph")).toBeVisible()
   })
+
+  // Spec §2: "Share and Export drop to icon-only before wrapping." 760px
+  // is a measured (not assumed) threshold — see planReaderPage.css's own
+  // comment on the throwaway script that found the app bar's natural
+  // content stops fitting between 746px and 726px of shell width.
+  test("above 760px, Share and Export show icon + full text", async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+
+    const shellWidth = await page.locator(".plan-shell").evaluate((el) => el.getBoundingClientRect().width)
+    expect(shellWidth).toBeGreaterThan(760)
+
+    await expect(page.locator(".share-link__button-label")).toBeVisible()
+    await expect(page.locator(".share-link__button-label")).toHaveText("Copy shareable link")
+    await expect(page.locator(".plan-shell__app-bar-button-label")).toBeVisible()
+    await expect(page.locator(".plan-shell__app-bar-button-label")).toHaveText("Export")
+  })
+
+  test("below 760px of the shell's own width, Share and Export drop to icon-only — text hidden, accessible name unchanged, no app-bar overflow", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+    await page.getByTestId("plan-node-card").first().waitFor()
+
+    await page.evaluate(() => {
+      const el = document.querySelector(".plan-reader-page") as HTMLElement
+      el.style.maxWidth = "700px"
+    })
+    await page.waitForTimeout(150)
+
+    const shellWidth = await page.locator(".plan-shell").evaluate((el) => el.getBoundingClientRect().width)
+    expect(shellWidth).toBeLessThan(760)
+
+    await expect(page.locator(".share-link__button-label")).toBeHidden()
+    await expect(page.locator(".plan-shell__app-bar-button-label")).toBeHidden()
+    // Still reachable via their accessible name (aria-label), not just
+    // visible text — the icon-only state must stay a real button, not a
+    // decoration-only one.
+    await expect(page.getByRole("button", { name: "Copy shareable link" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Export as PNG" })).toBeVisible()
+
+    // The whole point of dropping to icon-only "before wrapping" — the
+    // app bar's natural content must actually fit now, not just look
+    // different while still needing to scroll to reach these buttons.
+    const overflowing = await page.locator(".plan-shell__app-bar").evaluate((el) => el.scrollWidth > el.clientWidth + 1)
+    expect(overflowing).toBe(false)
+  })
 })

@@ -489,6 +489,9 @@
    behavior, not also invent where it lives. */
 .plan-shell__app-bar-button {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
   padding: 4px 12px;
   border-radius: 6px;
@@ -497,11 +500,51 @@
   color: var(--pr-text-muted);
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .plan-shell__app-bar-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.plan-shell__app-bar-button-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+/* Spec §2: "Share and Export drop to icon-only before wrapping." Below
+   this SHELL width (`@container`, not `@media` — same "measures against
+   the shell's own width" rule every other breakpoint in this file
+   follows), the app bar's natural content (brand, engine badge, mode
+   toggle, walkthrough/compare buttons, Share, Export) needs more space
+   than it has and would otherwise force horizontal scroll —
+   `.plan-shell__app-bar`'s own `overflow-x: auto` was silently absorbing
+   that instead of ever actually wrapping, which is why this went
+   unnoticed: nothing looked visibly broken, it just meant scrolling to
+   reach Export at these widths. 760px is a measured, not assumed,
+   threshold: a throwaway Playwright script driving the real built app
+   found the app bar's natural (un-scrollable) content stops fitting
+   somewhere between 746px and 726px of shell width — 760px keeps a
+   deliberate margin above that so icon-only kicks in BEFORE scrolling
+   would ever be needed, matching the spec's literal "before wrapping"
+   framing (there's no wrap here, only scroll-or-not). Scoped to Share
+   and Export specifically, per the spec's own wording — the mode
+   toggle/walkthrough/compare buttons keep their full text at every
+   width, unchanged. */
+@container (max-width: 759px) {
+  .plan-shell__app-bar-button-label,
+  .share-link__button-label {
+    display: none;
+  }
+
+  /* Symmetric padding once only the icon remains — the asymmetric 4px/12px
+     padding was sized for icon+text, not a bare square icon button. */
+  .plan-shell__app-bar-button--icon-only,
+  .share-link__button {
+    padding: 6px;
+  }
 }
 
 .plan-shell__body {
@@ -683,6 +726,9 @@
 }
 
 .share-link__button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 12px;
   border-radius: 6px;
   border: 1px solid var(--pr-border);
@@ -691,6 +737,12 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.share-link__button-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
 }
 
 .share-link__message {

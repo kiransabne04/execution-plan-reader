@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { DownloadSimple } from "@phosphor-icons/react"
 import { PasteBox } from "./PasteBox"
 import { Notice } from "./Notice"
 import { ComparePasteBox } from "./ComparePasteBox"
@@ -508,11 +509,19 @@ export function PlanReaderPage() {
             )}
             <ShareLinkButton rawText={rawText} />
             {/* Spec §2: "Share and Export drop to icon-only before
-                wrapping" — deferred until real icon assets exist (Story
-                18.4 introduces the icon set this app bar would draw from);
-                both stay full-width buttons at every width until then. */}
-            <button type="button" className="plan-shell__app-bar-button" data-testid="export-png-button" onClick={handleExportPng}>
-              Export
+                wrapping." Was deferred pending real icon assets — Story
+                18.4's operator icon set (@phosphor-icons/react) shipped
+                since, so that blocker's gone; see planReaderPage.css's
+                own comment for the measured (not assumed) breakpoint. */}
+            <button
+              type="button"
+              className="plan-shell__app-bar-button plan-shell__app-bar-button--icon-only"
+              data-testid="export-png-button"
+              onClick={handleExportPng}
+              aria-label="Export as PNG"
+            >
+              <DownloadSimple className="plan-shell__app-bar-button-icon" weight="regular" aria-hidden="true" />
+              <span className="plan-shell__app-bar-button-label">Export</span>
             </button>
           </header>
 

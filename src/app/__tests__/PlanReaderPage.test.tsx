@@ -684,8 +684,12 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       // Story 18.9 shipped "Walk me through it" and Story 18.11 shipped
       // "Export" — see each story's own describe block below for behavior.
+      // Story 18.2's own follow-up (icon-only Share/Export below 760px,
+      // fixed once Story 18.4's icons existed) gave Export an aria-label
+      // ("Export as PNG") distinct from its visible text ("Export") — the
+      // accessible name is what getByRole matches against.
       expect(within(appBar).getByRole("button", { name: /walk me through it/i })).toBeEnabled()
-      expect(within(appBar).getByRole("button", { name: /^export$/i })).toBeEnabled()
+      expect(within(appBar).getByRole("button", { name: /export as png/i })).toBeEnabled()
     })
 
     it("puts Findings in the left rail and the graph in the centre column", () => {

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "@phosphor-icons/react"
 import { encodeShareLink } from "./shareLink"
 
 export interface ShareLinkButtonProps {
@@ -39,8 +40,13 @@ export function ShareLinkButton({ rawText }: ShareLinkButtonProps) {
 
   return (
     <div className="share-link">
-      <button type="button" className="share-link__button" onClick={handleClick}>
-        Copy shareable link
+      {/* Spec §2: "Share and Export drop to icon-only before wrapping" —
+          see planReaderPage.css's own comment for the measured breakpoint.
+          `aria-label` carries the accessible name regardless of whether
+          the text label is visually hidden. */}
+      <button type="button" className="share-link__button" onClick={handleClick} aria-label="Copy shareable link">
+        <Link className="share-link__button-icon" weight="regular" aria-hidden="true" />
+        <span className="share-link__button-label">Copy shareable link</span>
       </button>
 
       {status === "copied" && (
