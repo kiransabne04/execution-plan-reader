@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react"
+import { useState, type ChangeEvent, type DragEvent, type FormEvent } from "react"
 import { PRIVACY_CAVEAT_NOTE, PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
 import { PASTE_BOX_PLACEHOLDER } from "./positioningCopy"
+import { SAMPLE_PLANS } from "./samplePlans"
 
 export interface PasteBoxProps {
   onAnalyze: (text: string) => void
@@ -22,6 +23,22 @@ export interface PasteBoxProps {
   onClearSavedData: () => void
 }
 
+/** Story 18.5 — reads a dropped/picked File entirely client-side and hands
+ * the text to the SAME `onAnalyze` callback a paste already uses — no new
+ * parse path, no upload, no `fetch`/`XMLHttpRequest` anywhere in this flow
+ * (privacy-architecture skill). A binary or non-plan file just produces
+ * garbage text that `analyzePlanText` already rejects with its existing
+ * friendly `PlanParseError` — that path doesn't need a second, divergent
+ * error case built for it here. */
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "")
+    reader.onerror = () => reject(reader.error ?? new Error("File could not be read."))
+    reader.readAsText(file)
+  })
+}
+
 /**
  * The privacy statement lives directly above the textarea, not just in a
  * footer/docs link — the trust decision happens right here (see the PEV2
@@ -30,11 +47,61 @@ export interface PasteBoxProps {
  */
 export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, hasSavedData, onClearSavedData }: PasteBoxProps) {
   const [text, setText] = useState(initialText ?? "")
+  // Story 18.5 — visual affordance only (a highlighted dropzone while a
+  // file is being dragged over it); not required by anything functional.
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
     if (text.trim().length === 0) return
     onAnalyze(text)
+  }
+
+  // Loads a File's text into both the textarea (visible, re-copyable — same
+  // treatment a recovered share link already gets) and straight into
+  // analysis, matching the existing "paste and go" flow rather than
+  // requiring an extra click on the Analyze button too.
+  const loadFile = async (file: File) => {
+    // Reading is inherently async, but genuinely fast even at a few MB —
+    // Story 16.2 already measured this class of "is a Web Worker
+    // warranted" question for the paste path and concluded no without
+    // evidence of a real freeze; nothing here suggests file reads are any
+    // different, so this doesn't add a loading spinner for what would be a
+    // sub-second wait in the overwhelming majority of real files.
+    try {
+      const fileText = await readFileAsText(file)
+      setText(fileText)
+      onAnalyze(fileText)
+    } catch {
+      // A real file-read failure (permissions, a mid-read device error) is
+      // rare and distinct from "this isn't a valid plan" — analyzePlanText
+      // never even runs, so there's nothing for the existing parse-error
+      // channel to report. Left as a silent no-op rather than inventing a
+      // second error-display path for an edge case this unlikely.
+    }
+  }
+
+  const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = "" // lets picking the SAME file again still fire onChange
+    if (file) void loadFile(file)
+  }
+
+  const handleDrop = (event: DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault()
+    setIsDraggingOver(false)
+    const file = event.dataTransfer.files[0]
+    if (file) void loadFile(file)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault() // required for the drop event to fire at all
+    setIsDraggingOver(true)
+  }
+
+  const handleSampleClick = (sampleText: string) => {
+    setText(sampleText)
+    onAnalyze(sampleText)
   }
 
   return (
@@ -73,15 +140,60 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
         )}
       </div>
 
+      {/* Story 18.5 — the dropzone IS the existing textarea (no separate
+          overlay element competing for the same space): dragging a file
+          over it and dropping loads that file's text the same way typing
+          would, while it stays a normal, always-available text input.
+          `accept` is advisory only (browsers don't enforce plan-format
+          extensions) — the real validation is the same `analyzePlanText`
+          every other input path already goes through. */}
       <textarea
-        className="paste-box__textarea"
+        className={isDraggingOver ? "paste-box__textarea paste-box__textarea--drag-over" : "paste-box__textarea"}
         data-testid="paste-textarea"
         value={text}
         onChange={(event) => setText(event.target.value)}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={() => setIsDraggingOver(false)}
         placeholder={PASTE_BOX_PLACEHOLDER}
         rows={12}
-        aria-label="Paste your execution plan"
+        aria-label="Paste your execution plan, or drag a file onto this box"
       />
+
+      <div className="paste-box__file-row">
+        {/* A styled label wrapping a visually-hidden file input — clicking
+            anywhere on the label opens the native file picker, standard
+            accessible pattern (no ref-driven synthetic click needed). Drag-
+            and-drop is meaningless on touch (Story 18.12 hides this whole
+            row below the mobile breakpoint); this button is the reachable
+            path there regardless. */}
+        <label className="paste-box__file-button" data-testid="file-picker-label">
+          Browse a file…
+          <input
+            type="file"
+            accept=".json,.xml,.txt,text/plain,application/json,text/xml,application/xml"
+            onChange={handleFileInputChange}
+            data-testid="file-picker-input"
+            className="paste-box__file-input"
+          />
+        </label>
+
+        <div className="paste-box__samples">
+          <span className="paste-box__samples-label">Try a sample:</span>
+          {SAMPLE_PLANS.map((sample) => (
+            <button
+              key={sample.engine}
+              type="button"
+              className="paste-box__sample-button"
+              data-testid={`sample-plan-${sample.engine}`}
+              onClick={() => handleSampleClick(sample.text)}
+            >
+              {sample.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <button type="submit" className="paste-box__submit" disabled={text.trim().length === 0}>
         Analyze plan
       </button>

@@ -11,9 +11,12 @@
 // page loaded with zero.
 
 import { test, expect } from "@playwright/test"
+import { fileURLToPath } from "node:url"
+import path from "node:path"
 import { loadFixture } from "./testUtils.js"
 
 const ANALYZE_BUTTON = /analyze plan/i
+const FIXTURES_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/fixtures")
 
 test("zero outbound requests while analyzing a Postgres plan", async ({ page }) => {
   await page.goto("/")
@@ -177,6 +180,32 @@ test("Story 14.2: zero outbound requests while comparing two plans, including a 
 
   await page.getByTestId("plan-graph").first().getByTestId("plan-node-card").first().click()
   await page.waitForTimeout(500)
+
+  expect(requests).toEqual([])
+})
+
+// Episode 18, Story 18.5: two new input paths into the same client-side
+// pipeline (a picked file, read via FileReader; a bundled sample plan) —
+// each needs its own explicit check, same reasoning as every other new
+// code path in this list, not an assumption that the paste-path guarding
+// above covers them too.
+test("Story 18.5: zero outbound requests when picking a file or loading a sample plan", async ({ page }) => {
+  await page.goto("/")
+  await expect(page.getByTestId("paste-textarea")).toBeVisible()
+
+  const requests: string[] = []
+  page.on("request", (req) => requests.push(req.url()))
+
+  await page.setInputFiles(
+    "[data-testid='file-picker-input']",
+    path.join(FIXTURES_ROOT, "sqlserver", "missing-index-recommendation.xml"),
+  )
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+  await page.waitForTimeout(300)
+
+  await page.getByTestId("sample-plan-snowflake").click()
+  await expect(page.getByTestId("detected-engine-badge")).toHaveText("Snowflake")
+  await page.waitForTimeout(300)
 
   expect(requests).toEqual([])
 })
