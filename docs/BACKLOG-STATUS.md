@@ -110,4 +110,25 @@ Verified in a real browser, not just fake-indexeddb: `e2e/local-persistence.spec
 
 **`docs/11-manual-testing-gaps-episode8.md` is fully closed** — all 4 original gaps resolved (one real fix, two confirmed data-source limitations rather than bugs, one confirmed already-correct), plus a real Snowflake time-breakdown gap and a real SQL Server composite-seek-predicate bug found during re-verification, both fixed. Nothing outstanding there.
 
+## Episode 18 — UI redesign
+
+Spec: `docs/12-ui-redesign-spec.md` (status: confirmed). Building on branch `new-ui`, not `main` — merge back to `main` per-story or once the whole episode is stable, same as any other episode, but note the branch deviates from the usual `feat/N.M-slug`-per-story convention (`CLAUDE.md`) since this episode spans the whole app shell and the user asked to keep one branch for the full effort. **Full stories**: `docs/08-episodes-and-stories.md` Episode 18.
+
+| Story | Status | Notes |
+|---|---|---|
+| 18.1 — Design token consolidation | not started | One dark palette replacing `--pr-*`/`--pg-*`/`--dp-*`/`--fl-*`; deletes every `prefers-color-scheme` branch under `src/` |
+| 18.2 — App shell layout | not started | Three-column `container-type: inline-size` grid, detail panel un-fixed above 1180px |
+| 18.3 — Beginner/Expert mode as page-level state | not started | Lifts `expertMode` out of `DetailPanel.tsx`'s local state — that file already flags this as a TODO |
+| 18.4 — Node encoding, operator icons, edge rendering | not started | `rankdir: "BT"`, severity ring, new operator-icon map, orthogonal `smoothstep` edges with fixed-size arrowheads |
+| 18.5 — Landing/input redesign | not started | File drop/picker via `FileReader` + existing `analyzePlanText()`, per-engine sample loaders from `src/fixtures/` |
+| 18.6 — Error and edge-state treatments | not started | Three severity treatments for `PlanParseError` messages; drop the "parsing…" indicator if parsing stays synchronous |
+| 18.7 — Detail panel Beginner/Expert densities | not started | Depends on 18.3 for the lifted mode state |
+| 18.8 — Search & filter palette | not started | `/` / `⌘K`, dims non-matches to 32% opacity, reuses `focusNodeId` |
+| 18.9 — Guided walkthrough | not started | New `src/graph/walkthrough/`; spec's own "longest single item" |
+| 18.10 — Large-plan canvas mode: banner, degrade, list toggle | not started | Restyle of Episode 15's existing canvas path, not new capability |
+| 18.11 — Batch tabs, share link, PNG export | not started | PNG export is new; offscreen-renders the existing `canvasDraw.ts` path |
+| 18.12 — Mobile breakpoints | not started | Findings-tab-leads, bottom sheet below 480px, drag-and-drop absent on touch |
+| 18.13 — Content stack | not started | `posts.ts` starts with zero entries by design — content is a separate, later fill-in (tracks against Episode 12.1's real-URL blocker); the component itself is not blocked |
+| 18.14 — Comparison view: restyle onto new shell | not started | **Read before starting**: spec §8 ("parked — plan comparison") describes the feature Episode 14 already shipped, written without that context — this story restyles the existing `PlanComparisonView`, it does not redesign its interaction per spec §8's modal concept |
+
 Keep this file current going forward — update the relevant row the moment a story starts or finishes, as part of the same PR/commit, not as a separate cleanup pass later.

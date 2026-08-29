@@ -681,3 +681,329 @@ As a user who works with a handful of recurring problem queries, I want to see a
 |---|---|---|
 | Two plans that happen to produce the same auto-generated label | Ambiguous list entries | Include enough distinguishing detail (timestamp granularity, node count) in the label to avoid confusing duplicates |
 | Recent-plans list itself growing the storage footprint over time | Ten plans' worth of large SQL Server XML could add up | Consider storing a lighter summary (root operator, key stats, warning count) plus the full plan, evaluated against actual storage measurements rather than assumed to be fine |
+
+---
+
+## Episode 18 — UI redesign
+
+**Goal**: A restyle plus five new surfaces, built on `docs/12-ui-redesign-spec.md` (status: confirmed — read it in full before starting any story below; each story here cross-references its section rather than re-explaining it). Dark-only: every `prefers-color-scheme` branch across the codebase's CSS is deleted, not just overridden. No parser, analyzer, or rule-engine change anywhere in this episode — restyle and new client-side UI surfaces only, so the privacy-architecture skill's "no network call in `src/parsers/`, `src/rules/`, `src/graph/`" constraint is unaffected by construction, not something each story needs to re-verify. Building on branch `new-ui`.
+
+**Cross-check against Episode 14 (read before Story 18.14)**: the spec's own §8 ("Parked — plan comparison") describes exactly the comparison feature Episode 14 already shipped (`src/comparison/matchNodes.ts`, `src/graph/comparison/PlanComparisonView.tsx`) — the spec was evidently written without that context. Its "full-screen modal, not a route change" interaction and per-node diff/delta content are **not** a green-field design decision anymore; Episode 14's side-by-side-panes UI already exists and is tested. Story 18.14 scopes to restyling the existing comparison view onto the new shell/tokens, not redesigning its interaction model from the spec's parked notes — see that story for the reasoning.
+
+### Story 18.1 — Design token consolidation
+
+As a developer maintaining this codebase, I want one dark palette instead of four independent per-component token sets, so a future style change happens in one place instead of four.
+
+**Acceptance criteria**
+- The `--pr-*` (`src/app/planReaderPage.css`), `--pg-*` (`src/graph/planGraph.css`, `src/graph/canvas/*.css`), `--dp-*` (`src/graph/detailPanel/detailPanel.css`), and `--fl-*` (`src/graph/findings/findingsList.css`) token blocks are replaced by one shared palette per spec §1's table (page/canvas/rail grounds, surface, border, text tiers, accent, critical, warning, funnel-callout teal, radius scale, type).
+- Every `@media (prefers-color-scheme: dark)` block in every `.css` file under `src/` is deleted — this product is dark-only now, not "dark-first." A light-mode fallback is not a smaller/safer version of this story; the spec is explicit that the branches themselves go away.
+- `:focus-visible { outline: 2px solid #9184d9; outline-offset: 2px }` applies to every interactive element (buttons, node cards, tabs, textarea) with no default browser ring visible anywhere.
+- Tinted fills use `color-mix(in srgb, <hue> 14–24%, #232532)`; severity chips are the severity colour at 18% over the surface with a 40–50% border — not flat saturated fills anywhere.
+- No layout or component-structure change in this story — pure token/color substitution, per spec §6's own build-order note ("Steps 1–4 are the low-risk restyle block").
+
+**Testing approach**
+- A single shared-tokens stylesheet (or CSS custom-property module) is the one place these values are asserted — a grep-style test confirming no `--pr-`/`--pg-`/`--dp-`/`--fl-` token declaration remains outside it, and no `prefers-color-scheme` media query remains anywhere under `src/`.
+- Existing component tests (PlanGraph, DetailPanel, FindingsList, PlanReaderPage) must all still pass unmodified — this story changes color values, not DOM structure or test ids, so a passing existing suite is itself the regression check.
+- Visual check (manual or the existing `visual-regression.spec.ts` baselines re-captured) that no surface is left rendering the old light palette.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A component reads a token via a fallback value (`var(--pg-card-bg, #ffffff)`, seen in `accessiblePlanList.css`) | The light-mode fallback hardcoded inline would silently survive even after the token itself is renamed/removed | Audit every `var(--x, <fallback>)` usage during this story, not just the `:root`/`.plan-graph` block declarations, and update the fallback to the new dark value too |
+| The comparison-view tokens added in Episode 14 (`--pg-comparison-changed/added/removed`, `src/graph/planGraph.css`) | A new, recently-shipped token family that isn't in the spec's own table | Fold these into the consolidated palette using the spec's accent/critical/warning hues rather than inventing new colors, and keep the three states visually distinct from each other per Episode 14's colorblind-safety requirement |
+| Any inline `style={{ color: ... }}` in a `.tsx` file bypassing CSS custom properties entirely | Would silently keep rendering the old hardcoded color after the token file changes | Grep every `.tsx` file under `src/graph` and `src/app` for hardcoded hex/hsl literals outside `encoding.ts`'s metric scale (which is deliberately data-driven, not a static token) |
+
+### Story 18.2 — App shell layout
+
+As a user viewing an analyzed plan, I want the three-column layout (input+findings rail, graph canvas, detail panel rail) from spec §2, so the tool reads as one coherent workspace instead of a stacked page.
+
+**Acceptance criteria**
+- `PlanReaderPage.tsx`'s result section becomes the `container-type: inline-size` shell described in spec §2, with the exact `grid-template-columns` from the spec (rails flexible, canvas holding a 360px floor).
+- Shell height is `100dvh`; only the rails and the detail panel scroll — `min-height: 0` set on every scroll container so the page itself never scrolls independently of them.
+- The app bar (52px) matches spec §2's element order and its "Share/Export drop to icon-only before wrapping" rule.
+- Left rail stacks Plan input over Findings exactly as spec §2 describes; `FindingsList.tsx`'s two filter selects use `grid-template-columns: repeat(auto-fit, minmax(96px,1fr))`.
+- The three breakpoints in spec §2's table (1180 detail-panel-becomes-overlay, 860 input-rail-collapses/tabs, 620 mobile) are implemented as structural changes, not just smaller versions of the same layout — deferred fully to Story 18.12 for the 620 (`1k`) mobile layout itself, but the 1180/860 structural changes belong here since they're shell-level, not mobile-specific.
+- The detail panel (`DetailPanel.tsx`) is un-fixed above 1180 — a grid track participating in layout, not a `position: fixed` overlay — and becomes a scrim-backed overlay only below 1180.
+
+**Testing approach**
+- Component tests asserting the shell's grid-template-columns and breakpoint class/attribute changes at the three widths (jsdom + a resize/matchMedia mock, or a container-query-aware test approach — note during implementation which the repo's existing test tooling actually supports).
+- e2e (Playwright, real browser, real `container-type` support — jsdom does not implement container queries) verifying the detail panel is a grid track above 1180px and an overlay-with-scrim below it, mirroring the existing `mobile-viewport.spec.ts` pattern for viewport-driven assertions.
+- Regression: every existing `data-testid` this story's markup changes touch (`plan-graph`, `detail-panel`, findings filters) must still resolve the same way for any test file that isn't specifically about layout.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Comparison view (Episode 14's `PlanComparisonView`, two side-by-side `PlanGraph` panes) rendered inside the new shell | The new shell's column layout wasn't designed with two graph panes in mind | Confirm during implementation whether the comparison view sits inside the three-column shell or replaces it entirely while active — not specified in spec §2, which predates Episode 14's shipped comparison feature (see this episode's goal note) |
+| Embedded usage (the shell is deliberately built to `container-type: inline-size` so it "behaves the same embedded or full-page") | A future embed scenario is a real design goal, not speculative — spec §2 says so explicitly | Add at least one test rendering the shell inside a narrower parent container (not just a narrower viewport) confirming the container-query breakpoints respond to container width, not viewport width |
+| A very short viewport (laptop with a large OS toolbar, or a browser window resized short rather than narrow) | `100dvh` + internal scroll containers could clip content if the app bar + rail minimums exceed available height | Verify the shell degrades to internal scrolling within the rails/panel rather than clipping the app bar or overflowing the page |
+
+### Story 18.3 — Beginner/Expert mode as page-level state
+
+As a user, I want the Beginner/Expert toggle to live in the app bar and apply everywhere (detail panel, and later the guided walkthrough), so I don't have to re-choose it every time I open a different node.
+
+**Acceptance criteria**
+- `expertMode` moves out of `DetailPanel.tsx`'s local `useState` (currently explicitly flagged there as "Local to the panel for now — a future global Beginner/Expert toggle...") up to `PlanReaderPage.tsx` (or an equivalent shared location), passed down as a prop.
+- The toggle renders as the app-bar segmented control per spec §2's element order (between the engine badge/spacer and "Walk me through it").
+- `DetailPanel.tsx` and every section component that reads `expertMode` today continues to work from the lifted prop with no behavior change to Story 6.2's Beginner/Expert content split (education vs. findings visual separation stays intact).
+- Story 18.9's guided walkthrough reads the same lifted state (per spec §5 `1g`: "Beginner mode by default; entering from Expert keeps the toggle") — this story's AC is satisfied once the state is genuinely shared, not duplicated into a second toggle.
+
+**Testing approach**
+- Component test: toggling Beginner/Expert in the app bar changes the currently-open detail panel's density without needing to close and reopen it.
+- Regression: every existing `DetailPanel.tsx` test that currently drives the toggle via an in-panel control needs updating to drive it via the lifted prop/control instead — audit `src/graph/detailPanel/__tests__/` for this.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| No plan analyzed yet (app bar renders, but there's no detail panel or plan open) | The segmented control has nothing to affect yet | Render it disabled or hidden until a plan is analyzed, rather than a live control with no visible effect |
+| Mode persists across selecting a different node | Basic usability — re-picking Beginner every click would be a regression from even the current per-panel state | Confirm the lifted state is genuinely page-scoped, not accidentally reset by `PlanGraph`'s existing "reset state when root changes" logic (`PlanGraph.tsx`'s `prevRoot` check) |
+
+### Story 18.4 — Node encoding, operator icons, and edge rendering
+
+As a user reading a plan graph, I want each node's fill/width/edge-thickness/severity-ring/badges to follow spec §3's exact encoding, and edges to route orthogonally with correctly-sized arrowheads per spec §4, so the graph reads as flow rather than as an aesthetic-only diagram.
+
+**Acceptance criteria**
+- `buildGraphElements.ts`'s dagre layout switches to `rankdir: "BT"` (leaves at the bottom); React Flow `Handle` components in `PlanNodeCard.tsx` swap source/target to Top/Bottom accordingly.
+- Node fill/width/severity-ring/dashed-mismatch-border/badges match spec §3's table — the severity ring is a new signal (2px amber / 3px red box-shadow + faint glow) additive to, not replacing, the existing "never color alone" mismatch dashed-border encoding (`graph-visualization` skill).
+- A new operator-icon module (e.g. `src/graph/operatorIcons.ts`, alongside — not inside — the per-engine `operatorMap.ts` files, since `operatorType` is the shared, normalized vocabulary those files map *into*) provides spec §3's icon table keyed on `operatorType`, with an explicit `unknown`/fallback icon — same "every mapping needs a fallback" rule the `plan-normalization` skill already requires of the operator-type maps themselves.
+- Edges use React Flow's `smoothstep` type with `borderRadius: 8`, multiple inputs entering a parent's bottom edge at separate x offsets (one target handle per input index, not one shared point), fixed-11px arrowheads (`markerUnits="userSpaceOnUse"`) regardless of stroke weight, a 10px gap before the parent border, and exactly two stroke colors (hot-path vs. not) per spec §4.
+- Node subtitle (relation/index name, mono, ellipsised) is sourced the same way Episode 14's `matchNodes.ts` already had to solve relation/index identity extraction from `PlanNode.attributes` (see that file's `relationIdentity`/`indexIdentity` — `PlanNode` still has no normalized relation field; reuse that same per-engine-key reading, don't re-derive it a third way).
+
+**Testing approach**
+- `buildGraphElements.test.ts` extended for the new `rankdir`, edge `type`/`borderRadius`, per-input target-handle-index assignment, and severity-ring/badge data.
+- A colorblindness-simulator check on the new severity ring, per the graph-visualization skill's explicit checklist item for any change touching mismatch/severity encoding.
+- Visual regression: re-capture `visual-regression.spec.ts`'s existing baselines (small and larger plan graphs) against the new encoding.
+- Unit test confirming the operator-icon map has a fallback for `operatorType: "unknown"`, mirroring the `plan-normalization` skill's testing checklist for the operator-type maps themselves.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A node with many parents pointing into it (Snowflake's shared-reference/multi-parent case, already handled distinctly via a dashed edge — see `buildGraphElements.ts`'s module comment) | Spec §4's "separate x offsets per input" rule and the existing shared-reference dashed-edge convention both apply to the same edges | Confirm the two encodings compose (a shared-reference edge still gets its own offset target handle, and keeps its dashed styling) rather than one silently overriding the other |
+| A node carrying both a severity ring (new) and the existing loop-count/spill/mismatch badges | Multiple simultaneous visual signals on one small card | Confirm legibility at the card's minimum width (150px per spec §3) with all applicable signals present at once — this is exactly the kind of card the guided walkthrough (Story 18.9) will want to explain, so it can't be visually noisy |
+| Canvas-mode rendering (`canvasDraw.ts`) must mirror every DOM/SVG encoding change in this story | The canvas-rendering-performance skill's "visual consistency" checklist item — a user switching between plan sizes shouldn't perceive a different tool | Update `canvasDraw.ts`'s hand-rolled drawing (icons, severity ring, orthogonal edges, arrowheads) in the same story, not a follow-up — same "not optional, not deferred" rule Episode 15 established for the accessible-list fallback |
+| Very low zoom (canvas mode's existing legible-zoom-floor degrade to solid heat blocks, spec §5 `1i`) | Icons and subtitles becoming illegible before the block-degrade kicks in | Confirm the new per-node signals (icon, subtitle) degrade at or before the existing legible-zoom floor, not independently of it |
+
+### Story 18.5 — Landing/input redesign: file drop, file picker, sample loaders
+
+As a first-time visitor, I want to drag-drop or pick a plan file, or load a one-click sample per engine, instead of only pasting text, so getting started doesn't require me to already have a plan copied to my clipboard.
+
+**Acceptance criteria**
+- Hero copy (headline, subheadline, engine list, placeholder, privacy statement, extensions caveat) renders unchanged, character-for-character, from `positioningCopy.ts` and `privacy/copy.ts` — Story 8.1's exact-match assertion is not relaxed by this restyle.
+- A dropzone accepts a file; `FileReader.readAsText` reads it and hands the resulting string to the existing `analyzePlanText()` — no new parse path, no upload, no `fetch`/`XMLHttpRequest` anywhere in this flow.
+- A file picker (`<input type="file">`) is offered alongside the dropzone as a non-drag-dependent alternative.
+- Sample-plan buttons, one per engine, load real fixtures from `src/fixtures/` chosen specifically because each fires a different rule (Story 8.1's "immediately demonstrate value" spirit, extended) — reuses existing fixture files, does not fabricate new sample content.
+- "Analyze" stays disabled while the textarea/dropzone/picker has no content, matching the existing `PasteBox` disabled-submit pattern.
+
+**Testing approach**
+- Component test: dropping a `File` object (jsdom's drag-and-drop + `FileReader` support is limited — use Testing Library's `fireEvent.drop` with a mocked `DataTransfer`, or move this specific assertion to e2e if jsdom can't exercise the real `FileReader` path) results in the same `analyzed` state a paste would.
+- e2e test using Playwright's real file-chooser API (`page.setInputFiles`) against an actual fixture file, extending `privacy-no-network-calls.spec.ts`'s pattern to assert zero outbound requests during a file-drop analyze — this is a new input path into the same guaranteed-client-side pipeline, so it needs its own explicit check, not an assumption that the existing paste-path guarding covers it (same reasoning Episode 17 used for its own new persistence code path).
+- Each sample-loader button is tested against its real fixture file, asserting the specific rule it's meant to fire actually appears in the resulting findings/warnings.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A dropped/picked file that isn't a valid plan at all (wrong file type, or valid text but not a plan) | Same failure mode `PasteBox` already handles for pasted text | Route through the exact same `PlanParseError` handling `handleAnalyze` already has — never a second, divergent error path for the file-input case |
+| A very large file dropped (multi-MB SQL Server XML, matching Story 16.2's 5MB-paste bounded-time test) | `FileReader.readAsText` on a large file is async — a naive implementation could show no feedback for a noticeable duration | Reuse Story 16.2's bounded-time reasoning; confirm the UI doesn't look frozen/unresponsive while the read completes |
+| A binary or non-text file dropped by mistake | `FileReader.readAsText` on binary content produces garbage, not an exception | Confirm this still surfaces as the existing friendly `PlanParseError`-driven message (garbage text simply fails to parse as any known plan format) rather than a raw/confusing error |
+| Drag-and-drop on a touch device | Meaningless interaction model on mobile, per spec §5 `1k`'s own note | Confirm the dropzone gracefully degrades to just the file-picker button below the mobile breakpoint (Story 18.12) — don't rely on drag events being reachable there |
+
+### Story 18.6 — Error and edge-state treatments
+
+As a user who pastes something that doesn't parse, I want a clearly-differentiated error treatment (can't proceed vs. partial result vs. informational), so I know at a glance whether the tool is blocked or just giving me a heads-up.
+
+**Acceptance criteria**
+- Three severities render with three distinct treatments per spec §5 `1e`: red left-rule (can't proceed), amber (partial result available), blurple/accent (informational) — never color alone; each carries a label/icon too, consistent with the mismatch/severity-ring "never color alone" rule established elsewhere in this codebase.
+- All error copy continues to come directly from `PlanParseError.message` (`err.message` rendered as-is) — this story adds visual severity treatment around that text, it does not rewrite or template the message itself, and it never echoes raw pasted content (privacy-architecture skill).
+- Estimate-only and parameter-sensitivity notes (PRD §3 commitments, already implemented as rule-engine findings) are visible directly in the result view, not only reachable via docs.
+- Parsing is synchronous today (`analyzePlanText` has no `await` in its hot path) — if a "parsing…" indicator is added per spec §5 `1e`'s new-element note, it must reflect genuinely asynchronous work; if parsing stays synchronous, the spec's own instruction is to drop the indicator rather than fake a delay.
+
+**Testing approach**
+- Component tests asserting each of the three severities' visual treatment (class/attribute, not just presence of text) for representative cases: `PlanParseError` codes that are genuinely blocking (`NOT_A_PLAN`, `INVALID_JSON`) vs. a successful-but-partial result carrying an estimate-only or parameter-sensitivity finding.
+- Regression: every existing test asserting on `data-testid="parse-error"` content continues to pass — this story changes surrounding treatment, not the underlying error-message contract.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A plan that parses successfully but the rule engine's parameter-sensitivity honesty note fires (SQL Server) | This is the specific "PRD §3 commitment, must be visible in the result" case the spec calls out by name | Confirm it renders as the informational (blurple) treatment inline in the result, not buried in the detail panel of one specific node only |
+| Multiple simultaneous conditions (e.g. a truncated-but-still-partially-parseable Postgres text plan, which the existing `TRUNCATED_INPUT` fixtures cover) | Could plausibly want more than one severity treatment shown at once | Confirm the UI handles zero, one, or multiple simultaneous notices without them visually colliding or one silently suppressing another |
+
+### Story 18.7 — Detail panel Beginner/Expert densities
+
+As a user who opened a node's detail panel, I want the Beginner view to teach me and the Expert view to give me everything at once, matching spec §5 `1f`'s exact content rules, so the panel serves both a first-time user and someone who already knows what they're looking at.
+
+**Acceptance criteria**
+- Section order stays exactly as `DetailPanel.tsx` already has it — this story changes density per section, not ordering.
+- Education (blurple tint, via the now-consolidated token from Story 18.1) and findings (severity left-rule) stay visually distinct per Story 6.2's original acceptance criterion — this redesign restyles that distinction, it does not merge the two back together.
+- Beginner: long glossary definition plus when-it's-fine/when-to-look-closer (`glossary/entries.ts`), prose warning text (`Warning.longText`... actually `shortText` per the existing beginner/expert text-field split — confirm against `OperatorEducation.tsx`/`WarningsSection.tsx`'s existing implementation, don't re-derive which field belongs to which mode), curated stat rows, query correlation visible, raw attributes hidden.
+- Expert: education collapsed to one line, rule id shown, full `buildStatRows()` output including gap rows, raw attributes expanded by default (a reversal of the existing collapsed-by-default `RawAttributes.tsx` behavior — confirm this is genuinely mode-conditional, not a blanket default change that would also affect Beginner).
+- Gap rows keep the italic/muted treatment (an explicit "not available" state, never a fabricated zero) — this is the field catalog's own "genuine cross-engine gaps" principle (`docs/10-node-stats-field-catalog.md`), unchanged by the restyle.
+- Cumulated-vs-per-execution timing fields stay separately labelled in both densities (an existing field-catalog distinction, not new to this story, but must survive the restyle).
+- Escape closes the panel and returns focus to the triggering node card — not a focus trap. This already exists (`PlanGraph.tsx`'s `triggerElementRef`); confirm it survives the panel becoming an overlay-with-scrim below 1180px (Story 18.2).
+
+**Testing approach**
+- Component tests for each density's exact section content (Beginner shows X, hides Y; Expert shows Y, collapses X) against a representative multi-warning, multi-gap-field fixture.
+- Regression: `RawAttributes.tsx`'s existing 500-field collapsed-by-default test (Story 16.1) needs a companion asserting the Expert-mode default is expanded instead, without breaking the Beginner-mode collapsed case.
+- Accessibility: keep the existing Escape/focus-restoration test passing, and add one for the panel-as-overlay-with-scrim case (below 1180px) specifically, since a scrim changes the DOM structure the focus-restoration logic operates within.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A node with zero warnings, in Expert mode | Nothing to show in the findings section | Confirm this renders the existing "no findings" state (reused from Story 5.2's zero-findings copy per the findings-list precedent), not an empty gap |
+| A node whose operator type has no glossary entry (`getGlossaryFallback`) | Beginner mode's "long definition" section has nothing engine-specific to show | Confirm the existing fallback content renders in both densities, appropriately collapsed in Expert |
+| Switching Beginner→Expert while the panel is open on a node with a very large raw-attributes bag | Expert's new "expanded by default" rule could reintroduce the exact performance concern Story 16.1 fixed (memoization is what made the collapsed-by-default state cheap) | Confirm the Story 16.1 `React.memo`/`useMemo` guards still cover the expanded-by-default Expert case — expanding 500 fields by default must not reintroduce the open-latency regression that story fixed |
+
+### Story 18.8 — Search & filter palette
+
+As a user with a large plan open, I want to hit `/` or `⌘K` and jump straight to a node by name, table, or severity, so I don't have to visually scan a big graph.
+
+**Acceptance criteria**
+- Opens on `/` or `⌘K` (`Cmd/Ctrl+K`), per spec §5 `1h`.
+- Searches `rawOperatorLabel`, relation name, `index.name`, and warning severity over `collectNodes(root)` — reuses that existing traversal helper (`parsers/normalize.ts`), not a second tree-walk.
+- Non-matching nodes drop to 32% opacity rather than unmounting — same "never disappear from the DOM, dim instead" rule the graph-visualization skill already states for search/filter, now with the spec's specific opacity value.
+- Selecting a result reuses the existing `focusNodeId` prop on `PlanGraph` (Story 13.1's mechanism, and the exact one Episode 14's synced-selection also builds on) — it already handles expanding collapsed ancestors; this story doesn't reimplement that.
+- Filter chips are additive and share one source of truth with `FindingsList.tsx`'s two existing filter selects — not a second, independently-drifting filter-state implementation.
+
+**Testing approach**
+- Component test: typing a query dims non-matching cards (opacity, not removal — assert the DOM node count is unchanged) and highlights matches.
+- Component test: selecting a search result opens that node's detail panel and expands any collapsed ancestor, reusing the existing `findCollapsedAncestors`-based test pattern from Story 13.1's `FindingsList` tests.
+- e2e test: `/` and `⌘K` both open the palette from anywhere on the page (not just while a specific element has focus), and `Escape` closes it.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| `/` pressed while a text input (the paste textarea, or the palette's own search field) has focus | `/` is a printable character — it should type into the field, not hijack it as a global shortcut | Guard the global `/` handler to only fire when no text-input element currently has focus (standard pattern; `⌘K` doesn't need this guard since it's not a printable character in an input) |
+| A query matching zero nodes | Every node would dim to 32%, which could read as "broken" rather than "no matches" | Show an explicit "no matches" state in the palette itself, distinct from the dimmed-graph state |
+| Canvas mode active (300+ node plans) when search is used | Canvas has no DOM nodes to dim via opacity — `canvasDraw.ts` draws directly to pixels | Confirm search/highlight has a real canvas-mode equivalent (redraw with matched/dimmed treatment baked into the paint call, same "state shared between canvas and accessible-list views" rule Episode 15 established) rather than silently doing nothing above the canvas threshold |
+
+### Story 18.9 — Guided walkthrough mode
+
+As a beginner user, I want a full-screen, one-node-at-a-time walkthrough of my plan in execution order, so I can understand it as a narrated sequence instead of having to know where to start reading a graph.
+
+**Acceptance criteria**
+- New component directory `src/graph/walkthrough/`. Full-screen focus mode; the graph dims behind it (not hidden — spec §5 `1g` says "graph dimmed behind," not replaced).
+- Step order is a post-order traversal of the `PlanNode` tree (leaves/execution order first), filtered to nodes carrying a warning or ≥10% contribution (reusing `computeContributionPercent.ts`, Episode 6's existing contribution-% logic — not a new percentage calculation), root always included regardless of the filter.
+- Narration is generated from the same `glossary/` + `Warning.shortText` data the detail panel already uses — explicitly **not** a second content-authoring surface, per the graph-visualization skill's own existing rule for this exact feature ("Reuses `Warning.shortText`/`longText` from the rule engine — this must never become a second content-authoring surface with its own copy").
+- Beginner mode by default when entering the walkthrough; entering from Expert keeps the toggle available but shortens the narration (reusing Story 18.7's density split, not a third density).
+- Keyboard: `←`/`→` step through, `Esc` exits, focus lands on the step heading on each advance (an explicit, testable focus-management requirement, not assumed to fall out of DOM order).
+- Exiting returns to the shell with the last-viewed node selected in the detail panel — reuses the `focusNodeId` mechanism again, consistent with Story 18.8's reuse of the same plumbing.
+
+**Testing approach**
+- Unit test for the step-order/filter logic in isolation (pure function over a `PlanNode` tree + `PlanContext`, independent of the walkthrough's rendering) — mirrors how `buildGraphElements.ts` and the rule engine are both tested as pure logic separate from their React wrappers.
+- Component test: `←`/`→`/`Esc` keyboard behavior, and that exiting mid-walkthrough opens the detail panel on the correct (last-viewed) node.
+- Content-source test: assert the walkthrough's narration strings are drawn from the same `glossary`/`Warning` data as the detail panel for a representative node — literally comparing the two rendered strings — as a regression guard against the "second content-authoring surface" drift the skill warns about.
+- e2e test walking through a real multi-warning fixture start to finish, confirming the graph is visible-but-dimmed behind the full-screen overlay throughout.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A plan where nothing meets the ≥10%-contribution-or-warning filter beyond the root itself | The walkthrough would be a one-step tour, which may read as broken rather than "this plan is small/clean" | Render an honest single-step "nothing else stood out" state rather than an empty or confusing sequence |
+| A very deep, narrow plan (Story 16.2's documented "pathologically deep chain" edge case, already a known limitation for the recursive tree-builders) | Post-order traversal over such a tree has the same recursion-depth exposure the parsers already flagged as a known limitation | Reuse Story 16.2's existing framing (already degrades to a friendly error elsewhere, never a blank page) rather than treating this as a new problem to solve from scratch in the walkthrough specifically |
+| A shared-reference (multi-parent) node, e.g. Snowflake's CTE case | Post-order traversal of a DAG needs the same "visit once" dedup `collectNodes`/`buildGraphElements` already implement | Reuse the existing dedup-by-id pattern rather than re-deriving traversal semantics for what is still, underneath, the same DAG those other traversals already handle correctly |
+| User switches Beginner↔Expert mid-walkthrough | Narration length changes; the current step shouldn't reset or feel jarring | Confirm the step position is preserved across the mode switch — only narration length/density changes |
+
+### Story 18.10 — Large-plan canvas mode: banner, degrade, and list toggle
+
+As a user whose plan crosses the canvas-rendering threshold, I want the switch explained rather than just noticing a different-feeling graph, so a large plan doesn't feel like a worse or broken experience.
+
+**Acceptance criteria**
+- A banner explains the DOM→canvas switch when `allNodes.length > CANVAS_NODE_COUNT_THRESHOLD` (`PlanGraph.tsx`'s existing constant, currently 300 — unchanged by this story) — per spec §5 `1i`.
+- Node labels below the legible-zoom floor (`canvasDraw.ts`'s existing text-fitting logic) degrade to solid heat-colored blocks with no text, rather than illegibly-small text.
+- Selection in canvas mode is a drawn 2px accent-colored outline (`canvasDraw.ts`'s existing `SELECTED_OUTLINE_WIDTH`/`selectionColor` mechanism, restyled to the new accent token from Story 18.1) — there's no DOM focus ring to fall back on in canvas mode, so this outline IS the only selection indicator and must stay clearly visible against the new dark palette.
+- The accessible-list toggle stays always-visible in the canvas toolbar (unchanged from Episode 15's "not buried" requirement); `AccessiblePlanList.tsx` still only mounts once opened.
+- List indentation continues to equal depth; the collapsed-group row's hidden-count text stays byte-for-byte consistent with the graph's own collapsed-group placeholder node text (Episode 15's "single source of truth for what collapsed means" rule).
+
+**Testing approach**
+- Component/e2e test confirming the banner appears exactly when the canvas threshold is crossed and not below it, extending `canvas-large-plan.spec.ts`'s existing 320-node synthetic-plan pattern.
+- Visual/pixel test (real browser, `getImageData` — jsdom has no real canvas 2d context, per the existing test file's own comment) confirming labels below the zoom floor actually render as solid blocks, not clipped/overlapping text.
+- Regression: the existing canvas-mode accessibility test suite (screen-reader reachability, keyboard parity via `AccessiblePlanList`) must keep passing unmodified — this story restyles the banner/selection-outline/degrade behavior, not the accessibility contract Episode 15 already established.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A plan that hovers right at the threshold (299 vs. 301 nodes) across a collapse/expand interaction | The banner shouldn't flicker in and out as the user expands/collapses subtrees near the boundary | Confirm the banner's appearance is driven by the same `allNodes.length` (total nodes, not currently-visible/collapsed count) `PlanGraph.tsx` already uses for the DOM/canvas mode switch itself, so the two never disagree |
+| The comparison view (Episode 14) running canvas mode on both panes independently, per that episode's own documented edge case | Two independent canvas instances, each needing its own banner/degrade/selection-outline state | Confirm this story's changes apply per-pane without assuming there's only ever one `CanvasPlanGraph` instance on the page at a time |
+
+### Story 18.11 — Batch tabs, share link, and PNG export
+
+As a user, I want richer statement tabs (duration + severity dot), the existing share-link long-warning treatment restyled, and a one-click PNG export of the graph, so I have a way to save/share a static view of what I'm looking at.
+
+**Acceptance criteria**
+- Statement tabs (`PlanReaderPage.tsx`'s existing `role="tablist"`, shown when `statements.length > 1`) gain a duration figure and a severity dot per tab — additive to the existing tab structure, not a replacement of the `role="tab"`/`aria-selected` contract already in place.
+- Share link (`shareLink.ts`) keeps its existing behavior and long-link warning state (`share-link__message--warning`) — this story restyles it onto the new tokens, it does not change `encodeShareLink`/`decodeShareLink` logic.
+- **New**: PNG export renders the `canvasDraw.ts` drawing path offscreen at export size and calls `toBlob()` — both the DOM/SVG and canvas rendering modes must export visually identically (per spec §5 `1j`, since `canvasDraw.ts` is already the single source of truth `PlanNodeCard.tsx`'s DOM styling is checked against for visual consistency), and nothing leaves the browser (a client-side `toBlob()` + download, no upload).
+
+**Testing approach**
+- Component test for the tab additions (duration/severity-dot presence and correctness against a representative multi-statement, multi-severity fixture).
+- Unit test for the offscreen-canvas export function in isolation, asserting it produces a non-empty blob and that its content matches (pixel-sampling, similar to `canvas-large-plan.spec.ts`'s existing `getImageData` approach) what the visible canvas/DOM path renders for the same plan.
+- Privacy check: extend `privacy-no-network-calls.spec.ts` with a PNG-export interaction, confirming zero outbound requests — a new user-triggered action producing a file is exactly the kind of new code path Episode 17 and Story 18.5 both required their own explicit check for, not an assumption.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Exporting a plan currently in DOM/SVG mode (below the canvas threshold) | The export path is specified as going through `canvasDraw.ts` regardless of which mode is currently on-screen | Confirm the offscreen render genuinely reuses `canvasDraw.ts`'s drawing functions (per the canvas skill's "layout and rendering stay separate, never fork" rule) rather than a second, DOM-screenshot-based export path that could visually drift from the canvas one |
+| A collapsed plan (some subtrees hidden behind collapsed-group placeholders) | Exporting should reflect what the user is actually looking at | Confirm the export uses the current `collapsedIds` state, not a forced full-expand — matches what's on screen, not a hypothetical complete view |
+| Export triggered on a very large (1000+ node) plan | Offscreen canvas at "export size" could be large/slow | Confirm this stays within a reasonable bounded time, following the same evidence-based-before-assuming-a-problem approach Story 16.2 used (measure before adding complexity like a size cap or a worker) |
+
+### Story 18.12 — Mobile breakpoints
+
+As a user on a phone, I want Findings to lead (not the graph), the detail panel as a bottom sheet, and every touch target ≥44px, so the tool is actually usable on a small screen rather than a scaled-down desktop layout.
+
+**Acceptance criteria**
+- Below 900px: input screen → result screen with Findings/Graph tabs → detail panel as a bottom sheet, per spec §5 `1k`. Findings tab is the default/leading one, not the graph — a phone can't usefully show a full node graph, per the spec's own reasoning.
+- All touch targets ≥44px (buttons, tabs, the sheet's own controls).
+- The bottom sheet replaces the fixed side detail panel below 480px specifically (spec notes this is "partly handled in `detailPanel.css`" already — confirm exactly what already exists there before rebuilding it).
+- Paste stays the primary input on mobile; the file picker (Story 18.5) is a secondary button — drag-and-drop is not offered as an interaction on touch, per spec §5 `1k`.
+- The existing mobile e2e assertions (`mobile-viewport.spec.ts`, `mobile-cpu-throttled.spec.ts`: hero/summary reachable without scrolling, detail panel visible/closable, real CPU-throttled responsiveness) all continue to pass against the redesigned layout — this story restyles/restructures mobile, it does not relax any of Episode 8/16's existing mobile commitments.
+
+**Testing approach**
+- e2e tests at the 900px and 480px breakpoints specifically (extending the existing `mobile-viewport.spec.ts` pattern, which already tests hero/summary/detail-panel usability at a mobile width) confirming the Findings-tab-leads, bottom-sheet, and drag-and-drop-absent behaviors.
+- Touch-target size assertion (bounding-box height/width ≥44px) for the tab controls, sheet controls, and app-bar icon-only buttons from Story 18.2.
+- Regression: rerun `mobile-cpu-throttled.spec.ts`'s real-CPU-throttling test against the redesigned mobile layout, since Story 16.2 measured this specifically with real throttling, not viewport-width emulation alone — this story's layout change shouldn't be assumed not to affect that without re-measuring.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A multi-statement batch (statement tabs, Story 18.11) on mobile | Two independent tab systems (statement tabs and the new Findings/Graph tabs) on one small screen | Confirm the two tab layers compose clearly (visually distinct levels) rather than reading as one confusing row of tabs |
+| The guided walkthrough (Story 18.9) entered from mobile | A full-screen overlay on top of an already-narrow mobile layout | Confirm the walkthrough's keyboard-first interaction (←/→) has a touch equivalent (swipe or visible next/prev buttons) on mobile — the spec doesn't call this out explicitly, so treat it as a real gap to resolve during implementation, not to silently ship keyboard-only on a touch device |
+| Rotating a phone mid-session (portrait↔landscape) | Breakpoint-driven structural changes could re-trigger unexpectedly | Confirm state (open detail panel, active tab, scroll position) survives an orientation change rather than resetting |
+
+### Story 18.13 — Content stack
+
+As a user who opened a node and wants to learn more, I want a small, editorially-distinct panel linking to related @scalingbackend content (blog/video), so I have a next step beyond the built-in glossary.
+
+**Acceptance criteria**
+- New `src/app/content/ContentStack.tsx` + `src/app/content/posts.ts` with the exact shape from spec §5 `2c`: `{id, kind:"blog"|"video", title, url, minutes, operatorTypes[], ruleIds[]}`.
+- Placement matches on the open node's `operatorType` or a fired `Warning.ruleId`; renders nothing when there's no match — additive, never a required section.
+- Visually distinct from the pgsuite/QueryDoc funnel callout (Episode 9: teal, a product nudge) — this is neutral/editorial styling, and the two are never rendered stacked adjacent to each other in the same panel.
+- `posts.ts` starts with **zero entries** — per spec §5 `2c`'s explicit instruction ("Do not ship invented links; render the stack only once `posts.ts` has real entries") and this project's existing rule against fabricated placeholder content (Episode 12.1's "do not fabricate placeholder links claiming to be real content"). The component itself is fully buildable and testable now; the content is a separate, later fill-in (tracked against Episode 12.1's same real-URL blocker) — this story is not blocked by that, only its content data is.
+- External links open in a new tab with `rel="noopener"`. No analytics/tracking call on click — a click-tracking beacon would breach the no-network-call guarantee (privacy-architecture skill) the same as any other outbound request would.
+
+**Testing approach**
+- Unit test for the match/placement logic against a synthetic `posts.ts` fixture (not the real, currently-empty one) covering: match by `operatorType`, match by `ruleIds`, and the empty/no-match render-nothing case.
+- Component test confirming zero network requests fire on rendering or clicking a content-stack entry (extends the same pattern `privacy-no-network-calls.spec.ts` already uses elsewhere).
+- Regression test asserting the real, shipped `posts.ts` and the funnel-callout component (`funnelCallouts.ts`) are never both visible in the same detail-panel render for the same node — a structural test, not just a visual convention.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| `posts.ts` empty (the real, shipped starting state) | The component must not error or render a broken-looking empty section | Confirm `ContentStack` renders `null`/nothing entirely when there are zero entries, not an empty-but-visible container |
+| A node matching multiple posts | Which one(s) to show, and how many | Cap at a small number (e.g. 2-3) rather than an unbounded list, consistent with this project's general "cap with an option to expand" pattern used elsewhere (Story 5.1's per-node warning cap) — exact number is an implementation decision, not specified by the spec |
+| A post's `operatorTypes`/`ruleIds` referencing a value that no longer exists (a rule renamed, an operator type remapped) | Silent content drift as the rest of the codebase evolves | Add the same kind of "seen but unmapped" tracking the `plan-normalization` skill already requires of operator-type tables, applied here to `posts.ts` entries referencing stale `ruleIds`/`operatorTypes` |
+
+### Story 18.14 — Comparison view: restyle onto the new shell
+
+As a user comparing two plans (Episode 14), I want the comparison view to use the same dark tokens, node encoding, and shell conventions as the rest of the redesigned app, so it doesn't look like a leftover screen from a different product.
+
+**Acceptance criteria**
+- `src/graph/comparison/PlanComparisonView.tsx` and its CSS move onto the Story 18.1 consolidated tokens and Story 18.4 node encoding (severity ring, operator icons, orthogonal edges) — the three comparison states (changed/added/removed) keep their own distinct treatment (Episode 14's explicit "never one generic 'different' highlight" requirement) using colors drawn from the same consolidated palette, not reinvented.
+- The app-bar gets a "Compare" action (spec §8's own suggested touch point) that opens the *existing* second-plan input flow (`ComparePasteBox.tsx`), not a new one — this story is a restyle/relocation of the entry point, not a rebuild of the comparison feature.
+- **Explicitly not in scope for this story** (see this episode's goal-section cross-check): redesigning the comparison interaction itself into spec §8's "full-screen modal, not a route change" — that description was written before Episode 14 shipped a working side-by-side-panes UI, and spec §8 itself says "not designed." Keep the existing side-by-side/stacked-toggle interaction (`PlanComparisonView`'s current `orientation` state) as-is; only the visual treatment changes in this story.
+
+**Testing approach**
+- Regression: every existing `PlanComparisonView.test.tsx` and `e2e/plan-comparison.spec.ts` test continues to pass — this story changes tokens/styling, not the component's behavior or test ids.
+- Visual check that the three comparison states remain distinguishable (not just individually styled) against the new dark palette — a colorblindness-simulator pass, same requirement Story 18.4 applies to the base node encoding.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| The "Compare" app-bar action's relationship to Story 18.2's shell/breakpoints | Where does a two-pane comparison fit in a shell designed around one canvas track? | Cross-reference Story 18.2's own edge case about this — don't resolve it twice independently; if 18.2 already answered it, this story just applies that answer to the restyled comparison view |
+| A future real redesign of the comparison interaction (spec §8's modal concept) | This story deliberately doesn't attempt it | Leave a clear note in code (mirroring this story's own scoping) that the interaction model is a known, deliberate gap — not silently closed by this restyle — so a future session doesn't assume spec §8 is already fully implemented just because the visuals match |
