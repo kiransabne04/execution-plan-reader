@@ -1,6 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from "react"
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react"
-import type { ComparisonOverlay, PlanNodeData } from "./buildGraphElements"
+import { computeHandleOffsetPercent, targetHandleId, type ComparisonOverlay, type PlanNodeData } from "./buildGraphElements"
+import { OPERATOR_ICON_COMPONENT } from "./operatorIcons"
 import { buildNodeTooltip } from "./nodeTooltip"
 
 type PlanNodeCardProps = NodeProps<Node<PlanNodeData, "planNode">>
@@ -20,19 +21,38 @@ const COMPARISON_MODIFIER_CLASS: Record<Exclude<ComparisonOverlay["status"], "ma
   removedFromB: "plan-node-card--comparison-removed",
 }
 
+// Story 18.4, spec §3: "Severity ring | Warning.severity | 2px amber / 3px
+// red box-shadow + faint glow." Info-severity warnings get no ring — the
+// ring is reserved for the two levels spec names explicitly.
+const SEVERITY_RING_CLASS: Partial<Record<PlanNodeData["severity"] & string, string>> = {
+  critical: "plan-node-card--severity-critical",
+  warning: "plan-node-card--severity-warning",
+}
+
+// Story 18.4, spec §4: edges stop 10px short of the parent's border so an
+// arrival reads as an arrival, not an overlap — applied at the TARGET end
+// (this node, receiving edges from its children on its bottom edge).
+const TARGET_HANDLE_GAP_PX = 10
+
 export function PlanNodeCard({ data }: PlanNodeCardProps) {
-  const { planNode, color, hasMismatch, loopCount, comparisonOverlay, onOpen } = data
+  const { planNode, color, hasMismatch, loopCount, comparisonOverlay, severity, iconKey, subtitle, childCount, onOpen } = data
   const classNames = ["plan-node-card"]
   if (hasMismatch) classNames.push("plan-node-card--mismatch")
   if (comparisonOverlay && comparisonOverlay.status !== "matched") {
     classNames.push(COMPARISON_MODIFIER_CLASS[comparisonOverlay.status])
   }
+  // Never color alone (spec §3): the ring is always paired with the
+  // severity badge in the badges row below, same rule the mismatch
+  // dashed-border+badge pairing already follows.
+  const severityRingClass = severity ? SEVERITY_RING_CLASS[severity] : undefined
+  if (severityRingClass) classNames.push(severityRingClass)
   const className = classNames.join(" ")
   // Hover tooltip (graph-visualization skill: hover tooltip and click detail
   // panel are two separate components) — CSS-only reveal (:hover/:focus-
   // within in planGraph.css), no extra state or render cost per card, and
   // the same content stays reachable via keyboard focus, not mouse-only.
   const tooltip = buildNodeTooltip(planNode)
+  const Icon = OPERATOR_ICON_COMPONENT[iconKey]
 
   // Keyboard access (Story 6.2's accessibility acceptance criterion):
   // Enter/Space on a focused card opens the same detail panel a click
@@ -64,10 +84,11 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
       <div
         className={className}
         style={{
-          // undefined here lets the mismatch/comparison CSS class's own
-          // border-color win instead of this inline metric-encoded color —
-          // an inline style always beats a class on specificity, so this is
-          // the one place that distinction actually has to be made explicit.
+          // undefined here lets the mismatch/comparison/severity CSS
+          // class's own border-color win instead of this inline metric-
+          // encoded color — an inline style always beats a class on
+          // specificity, so this is the one place that distinction
+          // actually has to be made explicit.
           borderColor: hasMismatch || (comparisonOverlay && comparisonOverlay.status !== "matched") ? undefined : color,
           background: `color-mix(in srgb, ${color} 18%, var(--pg-card-bg))`,
         }}
@@ -80,8 +101,33 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
         onKeyDown={handleKeyDown}
         onClick={handleClick}
       >
-        <Handle type="target" position={Position.Top} />
-        <div className="plan-node-card__label">{planNode.rawOperatorLabel}</div>
+        {/* Story 18.4: handles swap — `source` (this node's OWN outgoing
+            edge, to ITS parent) on Top, `target` (incoming edges, from
+            THIS node's children) on Bottom — see buildGraphElements.ts's
+            module comment for why. One source handle (every node has at
+            most one parent); `childCount` target handles, spread across
+            the bottom edge via the exact same offset math
+            canvasDraw.ts uses, so the DOM/SVG and canvas paths never
+            visually disagree about where an edge lands. */}
+        <Handle type="source" position={Position.Top} id="source" />
+        {Array.from({ length: childCount }, (_, i) => (
+          <Handle
+            key={targetHandleId(i)}
+            id={targetHandleId(i)}
+            type="target"
+            position={Position.Bottom}
+            style={{ left: `${computeHandleOffsetPercent(i, childCount)}%`, bottom: -TARGET_HANDLE_GAP_PX }}
+          />
+        ))}
+        <div className="plan-node-card__label">
+          {Icon && <Icon className="plan-node-card__icon" weight="regular" aria-hidden="true" />}
+          <span>{planNode.rawOperatorLabel}</span>
+        </div>
+        {subtitle && (
+          <div className="plan-node-card__subtitle" title={subtitle}>
+            {subtitle}
+          </div>
+        )}
         <div className="plan-node-card__meta">{formatMeta(planNode)}</div>
         {/* Story 14.2's AC: a changed node shows "the specific delta ... e.g.
             Seq Scan -> Index Scan, cost/time delta" directly, not tucked
@@ -98,6 +144,11 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
               est. mismatch
             </span>
           )}
+          {severity && (
+            <span className={`plan-node-card__badge plan-node-card__badge--severity-${severity}`} data-testid="severity-badge">
+              {severity}
+            </span>
+          )}
           {loopCount !== undefined && (
             <span className="plan-node-card__badge" data-testid="loop-badge">
               ×{loopCount.toLocaleString("en-US")}
@@ -112,7 +163,6 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
             </span>
           )}
         </div>
-        <Handle type="source" position={Position.Bottom} />
       </div>
       {tooltip && (
         <div className="plan-node-card__tooltip" data-testid="plan-node-tooltip" role="tooltip">

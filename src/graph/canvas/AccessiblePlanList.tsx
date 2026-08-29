@@ -9,8 +9,9 @@
 // (PlanNodeCard.tsx) actually provides today; this list intentionally
 // doesn't claim a richer arrow-key/search scheme neither mode has built yet.
 
-import type { PlanNode, Warning } from "../../parsers/normalize"
+import type { PlanNode } from "../../parsers/normalize"
 import { countDescendants, type ComparisonOverlay } from "../buildGraphElements"
+import { SEVERITY_LABEL, worstSeverity } from "../nodeSeverity"
 import "./accessiblePlanList.css"
 
 export interface AccessiblePlanListProps {
@@ -37,16 +38,6 @@ type ListRow =
   | { kind: "node"; node: PlanNode; depth: number; isSharedReference: boolean }
   | { kind: "collapsed"; parentPlanNodeId: string; depth: number; hiddenCount: number }
 
-const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }
-const SEVERITY_LABEL: Record<Warning["severity"], string> = { critical: "Critical", warning: "Warning", info: "Info" }
-
-function worstSeverity(node: PlanNode): Warning["severity"] | undefined {
-  if (node.warnings.length === 0) return undefined
-  return node.warnings.reduce<Warning["severity"]>(
-    (worst, w) => (SEVERITY_RANK[w.severity] < SEVERITY_RANK[worst] ? w.severity : worst),
-    node.warnings[0].severity,
-  )
-}
 
 function formatMeta(node: PlanNode): string {
   const rows = node.actualRows ?? node.estimatedRows

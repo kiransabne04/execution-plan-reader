@@ -161,12 +161,25 @@ export function CanvasPlanGraph({
             removedFromB: resolveCssVar(container, "--pg-comparison-removed", "#b692f6"),
           }
         : undefined
+      // Episode 18, Story 18.4 — spec §4's two edge stroke colors and §3's
+      // severity-ring colors, resolved the same way as every other token
+      // this component reads.
+      const edgeColors = {
+        hot: container ? resolveCssVar(container, "--color-edge-hot", "#8d6a6a") : "#8d6a6a",
+        muted: container ? resolveCssVar(container, "--color-edge-muted", "#6b6f82") : "#6b6f82",
+      }
+      const severityColors = {
+        critical: container ? resolveCssVar(container, "--color-critical", "#f97066") : "#f97066",
+        warning: container ? resolveCssVar(container, "--color-warning", "#f79009") : "#f79009",
+      }
 
       drawGraph(ctx, {
         nodes,
         edges,
         transform,
         selectedNodeId,
+        edgeColors,
+        severityColors,
         cssWidth: size.width,
         cssHeight: size.height,
         textColor,

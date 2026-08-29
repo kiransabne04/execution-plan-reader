@@ -323,6 +323,7 @@ function PlanGraphInner({
 
   return (
     <div className="plan-graph" data-testid="plan-graph">
+      <EdgeArrowheadDefs />
       <ReactFlow
         nodes={nodesWithHandlers}
         edges={edges}
@@ -337,6 +338,36 @@ function PlanGraphInner({
       </ReactFlow>
       {!externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
     </div>
+  )
+}
+
+/**
+ * Story 18.4, spec §4: "Arrowheads are a fixed 11px regardless of stroke
+ * weight: markerUnits="userSpaceOnUse"... Default strokeWidth scaling makes
+ * a 7px hot edge sprout a ~40px head." React Flow's own built-in
+ * `markerEnd` option uses `markerUnits="strokeWidth"` internally (scales
+ * WITH the edge, exactly the problem spec calls out) — a hand-defined
+ * `<marker>` with `markerUnits="userSpaceOnUse"` is the only way to get a
+ * genuinely fixed size. `marker-end: url(#id)` works across separate `<svg>`
+ * elements in the same document, so this can render once here rather than
+ * once per edge; each edge (buildGraphElements.ts) references one of these
+ * two ids directly as a plain string. `orient="auto"` rotates the triangle
+ * to match each edge's actual direction at its endpoint — no per-edge
+ * rotation math needed even though smoothstep edges curve at different
+ * angles depending on layout.
+ */
+function EdgeArrowheadDefs() {
+  return (
+    <svg width={0} height={0} style={{ position: "absolute" }} aria-hidden="true">
+      <defs>
+        <marker id="pg-arrow-hot" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={11} markerHeight={11} markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" style={{ fill: "var(--color-edge-hot)" }} />
+        </marker>
+        <marker id="pg-arrow-muted" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={11} markerHeight={11} markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" style={{ fill: "var(--color-edge-muted)" }} />
+        </marker>
+      </defs>
+    </svg>
   )
 }
 

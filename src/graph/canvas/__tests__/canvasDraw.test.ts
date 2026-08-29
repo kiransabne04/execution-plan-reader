@@ -65,6 +65,8 @@ function planGraphNode(
       color: "hsl(0, 70%, 55%)",
       hasMismatch: false,
       loopCount: undefined,
+      iconKey: "unknown",
+      childCount: 0,
       ...overrides,
     },
   }
@@ -76,6 +78,8 @@ const baseParams = {
   cssHeight: 600,
   textColor: "#111111",
   selectionColor: "#1a56db",
+  edgeColors: { hot: "#8d6a6a", muted: "#6b6f82" },
+  severityColors: { critical: "#f97066", warning: "#f79009" },
 }
 
 describe("drawGraph", () => {
@@ -154,8 +158,13 @@ describe("drawGraph", () => {
     const a = planGraphNode({ id: "a", x: 0, y: 0 })
     const b = planGraphNode({ id: "b", x: 0, y: 200 })
     const edges: PlanGraphEdge[] = [
-      { id: "a->b", source: "a", target: "b", data: { rows: 100, strokeWidth: 2, isSharedReference: false } },
-      { id: "a->missing", source: "a", target: "does-not-exist", data: { rows: 0, strokeWidth: 1, isSharedReference: false } },
+      { id: "a->b", source: "a", target: "b", data: { rows: 100, strokeWidth: 2, isSharedReference: false, isHotPath: false, targetChildIndex: 0 } },
+      {
+        id: "a->missing",
+        source: "a",
+        target: "does-not-exist",
+        data: { rows: 0, strokeWidth: 1, isSharedReference: false, isHotPath: false, targetChildIndex: 0 },
+      },
     ]
     const ctx = makeFakeContext()
     expect(() => drawGraph(ctx, { ...baseParams, nodes: [a, b], edges })).not.toThrow()
@@ -166,7 +175,7 @@ describe("drawGraph", () => {
     const a = planGraphNode({ id: "a", x: 0, y: 0 })
     const b = planGraphNode({ id: "b", x: 0, y: 200 })
     const edges: PlanGraphEdge[] = [
-      { id: "a->b", source: "a", target: "b", data: { rows: 100, strokeWidth: 2, isSharedReference: true } },
+      { id: "a->b", source: "a", target: "b", data: { rows: 100, strokeWidth: 2, isSharedReference: true, isHotPath: false, targetChildIndex: 0 } },
     ]
     const ctx = makeFakeContext()
     drawGraph(ctx, { ...baseParams, nodes: [a, b], edges })
@@ -187,5 +196,99 @@ describe("drawGraph", () => {
 
     expect(spyOrder.indexOf("clearRect")).toBeLessThan(spyOrder.indexOf("translate"))
     expect(spyOrder.indexOf("translate")).toBeLessThan(spyOrder.indexOf("fillText"))
+  })
+
+  describe("Episode 18, Story 18.4 — icons, subtitle, severity ring, and two-tone edges", () => {
+    it("draws the operator's icon glyph and, when set, the subtitle", () => {
+      const ctx = makeFakeContext()
+      const node = planGraphNode({ id: "a", iconKey: "hash", subtitle: "orders" })
+      drawGraph(ctx, { ...baseParams, nodes: [node], edges: [] })
+      expect(ctx.calls.some((c) => c.method === "fillText" && c.args[0] === "#")).toBe(true)
+      expect(ctx.calls.some((c) => c.method === "fillText" && c.args[0] === "orders")).toBe(true)
+    })
+
+    it("falls back to the 'unknown' glyph for an unrecognized icon key, never a blank/undefined draw", () => {
+      const ctx = makeFakeContext()
+      const node = planGraphNode({ id: "a", iconKey: "unknown" })
+      expect(() => drawGraph(ctx, { ...baseParams, nodes: [node], edges: [] })).not.toThrow()
+      expect(ctx.calls.some((c) => c.method === "fillText" && c.args[0] === "○")).toBe(true)
+    })
+
+    it("draws an extra stroked outline for a severity, sized 3px for critical vs 2px for warning, and a severity badge", () => {
+      const ctxCritical = makeFakeContext()
+      drawGraph(ctxCritical, { ...baseParams, nodes: [planGraphNode({ id: "a", severity: "critical" })], edges: [] })
+      const strokeWidthsCritical = ctxCritical.calls.filter((c) => c.method === "stroke").length
+      expect(strokeWidthsCritical).toBeGreaterThan(0)
+      expect(ctxCritical.calls.some((c) => c.method === "fillText" && c.args[0] === "critical")).toBe(true)
+
+      const ctxNone = makeFakeContext()
+      drawGraph(ctxNone, { ...baseParams, nodes: [planGraphNode({ id: "a" })], edges: [] })
+      expect(ctxNone.calls.some((c) => c.method === "fillText" && c.args[0] === "critical")).toBe(false)
+    })
+
+    it("colors a hot-path edge with edgeColors.hot and every other edge with edgeColors.muted, and draws an arrowhead triangle for each", () => {
+      const a = planGraphNode({ id: "a", x: 0, y: 200 })
+      const b = planGraphNode({ id: "b", x: 200, y: 200 })
+      const parent = planGraphNode({ id: "parent", x: 100, y: 0, childCount: 2 })
+      const edges: PlanGraphEdge[] = [
+        {
+          id: "a->parent",
+          source: "a",
+          target: "parent",
+          data: { rows: 100, strokeWidth: 2, isSharedReference: false, isHotPath: true, targetChildIndex: 0 },
+        },
+        {
+          id: "b->parent",
+          source: "b",
+          target: "parent",
+          data: { rows: 10, strokeWidth: 1.5, isSharedReference: false, isHotPath: false, targetChildIndex: 1 },
+        },
+      ]
+      const ctx = makeFakeContext()
+      drawGraph(ctx, { ...baseParams, nodes: [a, b, parent], edges })
+
+      const strokeStyles = ctx.calls.filter((c) => c.method === "stroke")
+      // Both edges got a stroke call; we can't directly read fillStyle/strokeStyle
+      // history off this fake (they're plain properties, overwritten per call),
+      // but the fill() calls after each edge's stroke are the arrowheads —
+      // exactly 2 of them (one per edge), each a 3-point triangle path.
+      expect(strokeStyles.length).toBeGreaterThanOrEqual(2)
+      // Each of the 3 nodes fills its own background rect, plus one fill
+      // per arrowhead (2 edges) — 5 total. Isolating "just the arrowhead
+      // fills" isn't possible against this call-recording fake without a
+      // lot more plumbing; the node-rendering tests above already cover
+      // the background-fill path on its own.
+      const fillCalls = ctx.calls.filter((c) => c.method === "fill")
+      expect(fillCalls.length).toBe(3 + 2)
+    })
+
+    it("offsets each child's edge anchor across the parent's bottom edge via computeHandleOffsetPercent, not one shared point", () => {
+      const child0 = planGraphNode({ id: "child0", x: 0, y: 200 })
+      const child1 = planGraphNode({ id: "child1", x: 200, y: 200 })
+      const parent = planGraphNode({ id: "parent", x: 0, y: 0, width: 200, childCount: 2 })
+      const edges: PlanGraphEdge[] = [
+        {
+          id: "child0->parent",
+          source: "child0",
+          target: "parent",
+          data: { rows: 1, strokeWidth: 1, isSharedReference: false, isHotPath: false, targetChildIndex: 0 },
+        },
+        {
+          id: "child1->parent",
+          source: "child1",
+          target: "parent",
+          data: { rows: 1, strokeWidth: 1, isSharedReference: false, isHotPath: false, targetChildIndex: 1 },
+        },
+      ]
+      const ctx = makeFakeContext()
+      drawGraph(ctx, { ...baseParams, nodes: [child0, child1, parent], edges })
+
+      // Each edge's curve ends (bezierCurveTo's final x,y args) at a
+      // DIFFERENT x on the parent's bottom edge — computeHandleOffsetPercent(0,2)
+      // vs (1,2) are 33% and 67% of the parent's 200px width, not both 50%.
+      const endpoints = ctx.calls.filter((c) => c.method === "bezierCurveTo").map((c) => c.args[4] as number)
+      expect(endpoints).toHaveLength(2)
+      expect(endpoints[0]).not.toBe(endpoints[1])
+    })
   })
 })

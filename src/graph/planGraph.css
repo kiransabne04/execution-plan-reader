@@ -41,6 +41,20 @@
   min-height: 0;
 }
 
+/* Story 18.4 — React Flow's default Handle styling is a visible round dot,
+   meant for an interactive flow-BUILDER (drag a new connection from one).
+   This app never lets a user draw connections; the Handles here exist
+   purely so React Flow knows where each edge should anchor (spec §4's
+   per-input offsets on the bottom edge). Left visible, they'd read as
+   decoration at best and a false interactive affordance at worst —
+   especially now that a node can have several target handles spread
+   across its bottom edge at once. Hidden, not removed: they still work
+   for edge anchoring and hit-testing, just render nothing themselves. */
+.plan-graph .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .plan-node-card-wrapper {
   position: relative;
   width: 100%;
@@ -96,6 +110,34 @@
   border-color: var(--pg-comparison-removed);
 }
 
+/* Story 18.4, spec §3: "Severity ring | Warning.severity | 2px amber / 3px
+   red box-shadow + faint glow." A box-shadow, not a border — layers
+   outside the card's existing border (mismatch/comparison) instead of
+   fighting it for the same property, so a node carrying more than one
+   signal at once still shows all of them. Always paired with the severity
+   badge below (never colour alone). */
+.plan-node-card--severity-warning {
+  box-shadow:
+    0 0 0 2px var(--color-warning),
+    0 0 10px 2px color-mix(in srgb, var(--color-warning) 50%, transparent);
+}
+
+.plan-node-card--severity-critical {
+  box-shadow:
+    0 0 0 3px var(--color-critical),
+    0 0 12px 2px color-mix(in srgb, var(--color-critical) 50%, transparent);
+}
+
+.plan-node-card__badge--severity-critical {
+  background: var(--color-critical);
+  color: var(--pg-badge-text);
+}
+
+.plan-node-card__badge--severity-warning {
+  background: var(--color-warning);
+  color: var(--pg-badge-text);
+}
+
 .plan-node-card__comparison-delta {
   font-size: 11px;
   font-weight: 600;
@@ -120,7 +162,36 @@
 }
 
 .plan-node-card__label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.plan-node-card__label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Story 18.4, spec §3's operator-icon table. Sized against the label's own
+   12px text rather than a fixed px value, so it scales the same way the
+   card's other type does if that base size ever changes. */
+.plan-node-card__icon {
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+  color: var(--pg-card-text-muted);
+}
+
+/* Story 18.4 — relation/index name, mono per spec §1's type table
+   ("mono... for identifiers and plan text"), ellipsised rather than
+   wrapped (this card is already tight on vertical space). */
+.plan-node-card__subtitle {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--pg-card-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

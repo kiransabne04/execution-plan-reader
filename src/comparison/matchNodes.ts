@@ -8,6 +8,7 @@
 // network calls, consistent with the privacy-architecture skill.
 
 import type { Engine, PlanNode } from "../parsers/normalize"
+import { relationIdentity, indexIdentity } from "../parsers/relationIdentity"
 
 export type NodeMatchStatus = "matched" | "changed" | "addedInB" | "removedFromB"
 
@@ -34,59 +35,11 @@ export class PlanComparisonError extends Error {
   }
 }
 
-/**
- * `PlanNode` has no normalized "relation name" field (see
- * `.claude/skills/plan-normalization/SKILL.md` — the field catalog covers
- * predicate/index/join/io/spill/pruning/parallel/timeBreakdown, but never
- * promoted a table-identity field, since no rule or panel needed one before
- * this). Matching needs relation identity, so this reads it from the same
- * per-engine `attributes` keys each parser already populates — no parser
- * change required, per "normalization never discards information."
- *
- * Cross-engine attribute keys used here:
- * - Postgres: `attributes["Relation Name"]` (`src/parsers/postgres/*`)
- * - SQL Server: `attributes["Object.Table"]` + `attributes["Object.Schema"]`,
- *   bracket-quoted (`src/parsers/sqlserver/parseShowplanXml.ts`)
- * - Snowflake: `attributes["attr.table_name"]` (`src/parsers/snowflake/buildTree.ts`)
- */
-function relationIdentity(node: PlanNode): string | undefined {
-  switch (node.engine) {
-    case "postgres": {
-      const relation = node.attributes["Relation Name"]
-      return relation !== undefined ? String(relation) : undefined
-    }
-    case "sqlserver": {
-      const table = node.attributes["Object.Table"]
-      if (table === undefined) return undefined
-      const schema = node.attributes["Object.Schema"]
-      return schema !== undefined ? `${stripBrackets(String(schema))}.${stripBrackets(String(table))}` : stripBrackets(String(table))
-    }
-    case "snowflake": {
-      const table = node.attributes["attr.table_name"]
-      return table !== undefined ? String(table) : undefined
-    }
-    default:
-      return undefined
-  }
-}
-
-/**
- * Index identity. `node.index?.name` is the normalized field (populated
- * today only by the SQL Server parser — see `src/parsers/sqlserver/parseShowplanXml.ts`);
- * Postgres never promotes it onto `PlanNode.index`, so this falls back to
- * the raw `attributes["Index Name"]` the text/JSON parsers do set. Snowflake
- * has no per-node index concept (micro-partition pruning instead, see
- * `PruningInfo`), so it's intentionally absent here.
- */
-function indexIdentity(node: PlanNode): string | undefined {
-  if (node.index?.name) return node.index.name
-  const raw = node.attributes["Index Name"]
-  return raw !== undefined ? String(raw) : undefined
-}
-
-function stripBrackets(value: string): string {
-  return value.replace(/^\[|\]$/g, "")
-}
+// relationIdentity/indexIdentity moved to src/parsers/relationIdentity.ts in
+// Episode 18 Story 18.4, once the graph layer (node subtitles) needed the
+// exact same per-engine reading this module first solved — re-exported here
+// so every existing import of these two names from this file still works.
+export { relationIdentity, indexIdentity }
 
 /**
  * A node's identity for matching purposes: relation name when present,
@@ -304,8 +257,7 @@ export function summarizeMatches(matches: NodeMatch[]): ComparisonSummary {
   }
 }
 
-// Exported for Story 14.2 and tests — not part of the matching algorithm
-// itself, but the same "no normalized field yet" reasoning as above applies
-// wherever the comparison UI wants to show what a node's identity actually
-// is (e.g. a match tooltip).
-export { relationIdentity, indexIdentity, nodeIdentity }
+// nodeIdentity (relation-or-index, matchNodes' own combined key) exported
+// for Story 14.2 and tests; relationIdentity/indexIdentity are already
+// re-exported near the top of this file.
+export { nodeIdentity }

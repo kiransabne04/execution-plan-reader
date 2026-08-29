@@ -49,6 +49,12 @@
   --color-success: #47cd89; /* Episode 14's "added" comparison state */
   --color-comparison-removed: #b692f6; /* Episode 14's "removed" comparison state — deliberately near, but not equal to, --color-accent, so it never reads as "hover me" */
   --color-funnel-text: #5eead4; /* lighter on-tint pairing for --color-funnel, same two-tone pattern spec's own warning/warning-text pair uses */
+  /* Story 18.4, spec §4: "Two stroke colours only" for edges — these two
+     exact values are spec's own, not derived from the base palette (edge
+     color here means "hot path membership," a different axis than the
+     surface/text/accent roles above). */
+  --color-edge-hot: #8d6a6a;
+  --color-edge-muted: #6b6f82;
 
   --radius-sm: 4px;
   --radius-md: 8px;
