@@ -72,6 +72,25 @@ export interface PlanGraphProps {
    * `focusNodeId` — see PlanComparisonView.tsx. Optional and additive:
    * omitting it changes nothing about single-plan behavior. */
   onNodeSelected?: (nodeId: string | undefined) => void
+  /** Story 18.2 — the app shell wants the detail panel rendered as a true
+   * grid track (a sibling of the rails, not nested inside PlanGraph's own
+   * DOM), so it can be a normal document-flow element above 1180px and an
+   * overlay-with-scrim below it — see docs/12-ui-redesign-spec.md §2's
+   * breakpoint table. When true, PlanGraph stops rendering `<DetailPanel>`
+   * itself and instead reports the panel's contents via
+   * `onDetailPanelChange`; selection state and focus-restoration (this
+   * component already owns both) are unaffected — only WHERE the panel's
+   * JSX gets mounted changes. Defaults to false: PlanComparisonView
+   * (Episode 14) isn't part of the app shell's grid and keeps the
+   * original self-contained, always-fixed-overlay behavior unchanged. */
+  externalDetailPanel?: boolean
+  /** Required when `externalDetailPanel` is true. Fires whenever the open
+   * node changes (including to `undefined` on close) with everything the
+   * caller needs to render `<DetailPanel>` itself — `onClose` IS this
+   * component's own `closePanel`, so Escape/the close button still restore
+   * focus to the triggering card correctly even though the panel now
+   * renders elsewhere in the tree. */
+  onDetailPanelChange?: (panel: { node: PlanNode; context: PlanContext; onClose: () => void } | undefined) => void
 }
 
 function PlanGraphInner({
@@ -82,6 +101,8 @@ function PlanGraphInner({
   onFocusHandled,
   comparisonOverlays,
   onNodeSelected,
+  externalDetailPanel = false,
+  onDetailPanelChange,
 }: PlanGraphProps) {
   const allNodes = useMemo(() => collectNodes(root), [root])
   const resolvedContext = useMemo(() => context ?? buildPlanContext(root), [context, root])
@@ -242,6 +263,16 @@ function PlanGraphInner({
 
   const selectedNode = selectedNodeId !== undefined ? allNodes.find((n) => n.id === selectedNodeId) : undefined
 
+  // Story 18.2 — report the panel outward instead of rendering it here,
+  // when the caller has taken over placement. A plain effect (not computed
+  // inline in the return below): `onDetailPanelChange` is how the PARENT's
+  // own state gets updated, which has to happen as a reaction to this
+  // component's state changing, not as a value read during render.
+  useEffect(() => {
+    if (!externalDetailPanel) return
+    onDetailPanelChange?.(selectedNode ? { node: selectedNode, context: resolvedContext, onClose: closePanel } : undefined)
+  }, [externalDetailPanel, selectedNode, resolvedContext, closePanel, onDetailPanelChange])
+
   // Keyboard access (Story 6.2's accessibility acceptance criterion: the
   // panel opens via Enter/Space on a focused node) needs each card to call
   // back into this component's own selection state — attached here, after
@@ -285,7 +316,7 @@ function PlanGraphInner({
             onExpandCollapsedGroup={expandCollapsedGroup}
           />
         )}
-        {selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
+        {!externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
       </div>
     )
   }
@@ -304,7 +335,7 @@ function PlanGraphInner({
         <Background />
         <Controls />
       </ReactFlow>
-      {selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
+      {!externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
     </div>
   )
 }

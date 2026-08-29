@@ -13,6 +13,15 @@ export interface DetailPanelProps {
   node: PlanNode
   context: PlanContext
   onClose: () => void
+  /** Story 18.2 — "overlay" (default) is the original always-fixed
+   * behavior every existing caller (including PlanGraph's own internal
+   * render, and each PlanComparisonView pane) still gets unchanged.
+   * "shell" is for the app shell's right rail specifically: a normal
+   * grid-track element above 1180px, falling back to the same fixed-
+   * overlay-with-scrim behavior below it — see detailPanel.css's
+   * `--in-shell` rules and docs/12-ui-redesign-spec.md §2's breakpoint
+   * table. */
+  variant?: "overlay" | "shell"
 }
 
 const ENGINE_LABEL: Record<PlanNode["engine"], string> = {
@@ -28,7 +37,7 @@ const ENGINE_LABEL: Record<PlanNode["engine"], string> = {
  * click, satisfying the "rapid clicking across many nodes" edge case for
  * free, since glossary lookup is an O(1) map read).
  */
-export function DetailPanel({ node, context, onClose }: DetailPanelProps) {
+export function DetailPanel({ node, context, onClose, variant = "overlay" }: DetailPanelProps) {
   // Local to the panel for now — a future global Beginner/Expert toggle
   // (technical spec §3.1) could lift this state up; scoped here since it's
   // this story's own concern (which text field to show, what's expanded by
@@ -65,7 +74,12 @@ export function DetailPanel({ node, context, onClose }: DetailPanelProps) {
   const contributionPercent = useMemo(() => computeContributionPercent(node, context), [node, context])
 
   return (
-    <div className="detail-panel" role="dialog" aria-label={`Details for ${node.rawOperatorLabel}`} data-testid="detail-panel">
+    <div
+      className={variant === "shell" ? "detail-panel detail-panel--in-shell" : "detail-panel"}
+      role="dialog"
+      aria-label={`Details for ${node.rawOperatorLabel}`}
+      data-testid="detail-panel"
+    >
       <button
         ref={closeButtonRef}
         type="button"

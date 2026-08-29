@@ -48,6 +48,40 @@
   }
 }
 
+/* Episode 18, Story 18.2 — the app shell's right rail: this SAME component
+   behaves as a normal grid-track element above 1180px of the SHELL's own
+   width (not the viewport — `@container`, not `@media`, per spec §2's
+   "everything measures against the shell's own width" design goal; the
+   shell sets `container-type: inline-size` on `.plan-shell`, see
+   planReaderPage.css), and keeps the ordinary fixed-overlay behavior below
+   that width (a scrim element sits behind it there — see
+   .plan-shell__detail-scrim in planReaderPage.css). Scoped to `--in-shell`
+   specifically: every other caller (PlanGraph's own default internal
+   render, each PlanComparisonView pane) keeps the base `.detail-panel`
+   rule's always-fixed behavior at every width — those aren't inside a
+   `container-type` ancestor at all, so this query simply never matches
+   there, on top of the modifier class already scoping it. See
+   docs/08-episodes-and-stories.md Episode 18 Story 18.2's own edge-case
+   table. jsdom implements neither container queries nor `@media` layout,
+   so this is verified in a real browser (e2e), not a component test — see
+   that story's testing approach. */
+@container (min-width: 1180px) {
+  .detail-panel--in-shell {
+    position: static;
+    inset: auto;
+    width: 100%;
+    /* Deliberately NOT height: 100% — a percentage height resolves against
+       a stretched CSS Grid item's containing block unreliably (a
+       long-known cross-browser gotcha; this genuinely rendered a
+       zero-height, "hidden"-per-Playwright panel during this story's own
+       e2e run). Natural content height inside the rail's own
+       `overflow-y: auto` (planReaderPage.css) is correct anyway — this is
+       exactly how the left rail's Findings content already behaves. */
+    border-left: none;
+    z-index: auto;
+  }
+}
+
 .detail-panel__close {
   position: absolute;
   top: 12px;

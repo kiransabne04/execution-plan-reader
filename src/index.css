@@ -19,8 +19,15 @@
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
+  /* Episode 18, Story 18.2 — was a hardcoded `1126px` (a leftover Vite
+     template value from before this project's own pages existed). That
+     capped every page under it — including `.plan-reader-page`'s own,
+     much larger `max-width: 1320px` — to ~1126px regardless of viewport
+     width, which meant the app shell's 1180px breakpoint (spec §2) could
+     never actually be reached in a real browser no matter how wide the
+     window was. A real, functional blocker for this story's own AC, not
+     a cosmetic leftover — fixed here rather than deferred. */
+  width: 100%;
   margin: 0 auto;
   text-align: center;
   border-inline: 1px solid var(--border);

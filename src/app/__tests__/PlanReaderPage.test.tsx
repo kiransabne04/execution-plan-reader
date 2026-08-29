@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { PlanReaderPage, SESSION_SAVE_DEBOUNCE_MS } from "../PlanReaderPage"
 import { encodeShareLink } from "../shareLink"
 import { _deleteDatabaseForTests, saveSession, addRecentPlan } from "../../persistence"
@@ -506,6 +506,92 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       expect(screen.queryByTestId("compare-paste-box")).not.toBeInTheDocument()
       expect(screen.getByTestId("plan-graph")).toBeInTheDocument()
+    })
+  })
+
+  describe("Episode 18, Story 18.2 — app shell", () => {
+    it("renders the app bar in spec §2's element order: brand, engine badge, mode-toggle placeholder, walkthrough placeholder, compare toggle, share, export placeholder", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      const appBar = document.querySelector(".plan-shell__app-bar") as HTMLElement
+      expect(appBar).toBeInTheDocument()
+      const text = appBar.textContent ?? ""
+      const brandIndex = text.indexOf("PlanReader")
+      const engineIndex = text.indexOf("Postgres")
+      const modeIndex = text.indexOf("Beginner")
+      const walkthroughIndex = text.indexOf("Walk me through it")
+      const compareIndex = text.indexOf("Compare with another plan")
+      const exportIndex = text.indexOf("Export")
+      expect(brandIndex).toBeGreaterThanOrEqual(0)
+      expect(brandIndex).toBeLessThan(engineIndex)
+      expect(engineIndex).toBeLessThan(modeIndex)
+      expect(modeIndex).toBeLessThan(walkthroughIndex)
+      expect(walkthroughIndex).toBeLessThan(compareIndex)
+      expect(compareIndex).toBeLessThan(exportIndex)
+
+      // Story 18.3/18.9/18.11's own jobs — present now, disabled until then.
+      expect(within(appBar).getByRole("button", { name: /walk me through it/i })).toBeDisabled()
+      expect(within(appBar).getByRole("button", { name: /^export$/i })).toBeDisabled()
+    })
+
+    it("puts Findings in the left rail and the graph in the centre column", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      const leftRail = screen.getByTestId("plan-shell-left-rail")
+      expect(within(leftRail).getByTestId("findings-list")).toBeInTheDocument()
+
+      const canvas = screen.getByTestId("plan-shell-canvas")
+      expect(within(canvas).getByTestId("plan-summary")).toBeInTheDocument()
+      expect(within(canvas).getByTestId("plan-shell-metrics")).toBeInTheDocument()
+      expect(within(canvas).getByTestId("plan-graph")).toBeInTheDocument()
+    })
+
+    // jsdom's ResizeObserver is a no-op stub (src/__tests__/setup.ts) — this
+    // exercises the "wide" branch only; the narrow-tabs branch and the
+    // real 1180px/860px container-query breakpoints are verified in a real
+    // browser (e2e/plan-shell.spec.ts), per this story's own testing
+    // approach.
+    it("does not show Findings/Graph tabs in the default (untested-narrow) branch", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      expect(screen.queryByTestId("shell-tab-findings")).not.toBeInTheDocument()
+      expect(screen.queryByTestId("shell-tab-graph")).not.toBeInTheDocument()
+    })
+
+    it("opens the detail panel in the shell's right rail (not PlanGraph's own internal overlay) when a node is clicked", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+
+      const rightRail = screen.getByTestId("plan-shell-right-rail")
+      const panel = within(rightRail).getByTestId("detail-panel")
+      expect(panel).toHaveClass("detail-panel--in-shell")
+    })
+
+    it("closing the shell-rendered panel (Escape) restores focus to the triggering card, same as the original internal panel did", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      const card = screen.getAllByTestId("plan-node-card")[0]
+      fireEvent.click(card)
+      expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+
+      fireEvent.keyDown(document, { key: "Escape" })
+      expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+      expect(card).toHaveFocus()
+    })
+
+    it("switching to compare mode does not render the app-shell grid — Story 18.14 owns integrating it later", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getByTestId("compare-toggle"))
+
+      expect(screen.queryByTestId("plan-shell-body")).not.toBeInTheDocument()
+      expect(screen.getByTestId("plan-reader-compare-section")).toBeInTheDocument()
     })
   })
 })

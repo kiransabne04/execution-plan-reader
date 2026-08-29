@@ -27,10 +27,14 @@
   margin: 8px 0 0;
 }
 
+/* Episode 18, Story 18.2 — spec §2: "grid-template-columns: repeat(auto-
+   fit, minmax(96px,1fr)) so they stack in one step" — a narrow left rail
+   goes straight from side-by-side to stacked, never an awkward
+   in-between wrap. */
 .findings-list__filters {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   gap: 16px;
-  flex-wrap: wrap;
   margin-bottom: 12px;
 }
 

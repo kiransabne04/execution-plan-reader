@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { PasteBox } from "./PasteBox"
 import { ComparePasteBox } from "./ComparePasteBox"
 import { ShareLinkButton } from "./ShareLinkButton"
@@ -7,8 +7,9 @@ import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { decodeShareLink } from "./shareLink"
 import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
-import { PlanGraph, FindingsList, PlanComparisonView } from "../graph"
-import { PlanParseError, collectNodes } from "../parsers/normalize"
+import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel } from "../graph"
+import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
+import type { PlanContext } from "../rules/types"
 import {
   saveSession,
   loadSession,
@@ -86,6 +87,33 @@ export function PlanReaderPage() {
   // FindingsList) since it's the thing connecting those two otherwise-
   // independent components.
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined)
+
+  // Episode 18, Story 18.2 — the app shell's right rail: PlanGraph reports
+  // the currently-open node's panel contents here instead of rendering
+  // `<DetailPanel>` itself (see PlanGraph.tsx's `externalDetailPanel`),
+  // since a true grid-track panel has to be a sibling of the rails, not
+  // nested three levels deep inside PlanGraph's own DOM. `onClose` below
+  // IS PlanGraph's own internal `closePanel` — focus-restoration to the
+  // triggering card still works correctly even though the panel now
+  // mounts elsewhere in the tree.
+  const [detailPanel, setDetailPanel] = useState<{ node: PlanNode; context: PlanContext; onClose: () => void } | undefined>(undefined)
+
+  // Episode 18, Story 18.2 — spec §2's breakpoint table: below 860px of
+  // the SHELL's own width (not the viewport — this is exactly why
+  // `.plan-shell` is a `container-type: inline-size` context), Findings
+  // and the graph become tabs instead of a side-by-side rail+canvas.
+  // jsdom's ResizeObserver is a no-op stub (src/__tests__/setup.ts) — this
+  // only ever fires in a real browser, so component tests exercise the
+  // "wide" branch and e2e tests exercise the narrow one, matching this
+  // story's own testing approach.
+  const NARROW_SHELL_BREAKPOINT_PX = 860
+  const shellRef = useRef<HTMLElement>(null)
+  const [isNarrowShell, setIsNarrowShell] = useState(false)
+  // Which tab shows at narrow widths. Defaults to "graph" — this
+  // breakpoint is tablet-territory, which can still usefully show a
+  // graph; "Findings lead, not the graph" is specifically the true-mobile
+  // (620px, Story 18.12) rule, not this one.
+  const [activeShellTab, setActiveShellTab] = useState<"findings" | "graph">("graph")
 
   // Episode 14, Story 14.2 — comparison view. Deliberately independent of
   // every persistence/share-link concern above: the comparison plan is
@@ -177,6 +205,12 @@ export function PlanReaderPage() {
     setCompareMode(false)
     setComparePlan(null)
     setCompareError(null)
+    setDetailPanel(undefined) // stale reference into a PlanGraph instance that's about to unmount
+  }, [])
+
+  const handleEnterCompareMode = useCallback(() => {
+    setCompareMode(true)
+    setDetailPanel(undefined)
   }, [])
 
   const handleDismissRestore = useCallback(() => setRestoreCandidate(null), [])
@@ -204,6 +238,28 @@ export function PlanReaderPage() {
   }, [refreshRecentPlans])
 
   const activeStatement = analyzed?.statements[activeStatementIndex]
+
+  // Story 18.2's shell only exists once a plan is analyzed and compare
+  // mode isn't active (the comparison view isn't part of this grid — see
+  // Story 18.14) — re-observe whenever that flips true so the ref (null
+  // until the section actually mounts) gets attached.
+  const shellMounted = Boolean(analyzed && activeStatement && !compareMode)
+  useLayoutEffect(() => {
+    const el = shellRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      setIsNarrowShell(entry.contentRect.width < NARROW_SHELL_BREAKPOINT_PX)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [shellMounted])
+
+  const handleDetailPanelChange = useCallback(
+    (panel: { node: PlanNode; context: PlanContext; onClose: () => void } | undefined) => setDetailPanel(panel),
+    [],
+  )
 
   return (
     <main className="plan-reader-page">
@@ -261,25 +317,51 @@ export function PlanReaderPage() {
       )}
 
       {analyzed && activeStatement && (
-        <section className="plan-reader-page__result" data-testid="plan-result">
-          <div className="plan-reader-page__result-header">
-            <span className="plan-reader-page__engine-badge" data-testid="detected-engine-badge">
+        // Episode 18, Story 18.2: `.plan-shell` is a `container-type:
+        // inline-size` context — every breakpoint below (the app bar's own
+        // gaps, the 1180px detail-panel switch, the 860px findings/graph
+        // tab switch) measures against THIS element's width, not the
+        // viewport, so the shell behaves the same embedded or full-page
+        // (spec §2). `ref`/`data-testid="plan-result"` kept on the same
+        // element existing tests already target.
+        <section ref={shellRef} className="plan-reader-page__result plan-shell" data-testid="plan-result">
+          <header className="plan-shell__app-bar">
+            <span className="plan-shell__brand">PlanReader</span>
+            {/* spec §2's app-bar order has a "filename" slot here (a
+                dropped/picked file's name, truncating). There's no real
+                filename yet — plans only arrive via paste until Story
+                18.5's file input lands — so this is intentionally omitted
+                rather than showing an empty or fabricated placeholder. */}
+            <span className="plan-shell__engine-badge" data-testid="detected-engine-badge">
               {ENGINE_LABEL[analyzed.engine]}
             </span>
-            <div className="plan-reader-page__result-header-actions">
-              {!compareMode && (
-                <button
-                  type="button"
-                  className="compare-toggle"
-                  data-testid="compare-toggle"
-                  onClick={() => setCompareMode(true)}
-                >
-                  Compare with another plan
-                </button>
-              )}
-              <ShareLinkButton rawText={rawText} />
+            <span className="plan-shell__spacer" />
+            {/* Beginner/Expert (Story 18.3) and "Walk me through it" (Story
+                18.9) both belong in this exact slot per spec §2's element
+                order — rendered here, disabled, so the app bar's structure
+                is correct now and each story only has to wire up behavior
+                that already has a home, not also invent its placement. */}
+            <div className="plan-shell__mode-toggle-placeholder" aria-disabled="true" title="Beginner/Expert mode — Story 18.3">
+              <span>Beginner</span>
+              <span>Expert</span>
             </div>
-          </div>
+            <button type="button" className="plan-shell__app-bar-button" disabled title="Guided walkthrough — Story 18.9">
+              Walk me through it
+            </button>
+            {!compareMode && (
+              <button type="button" className="compare-toggle" data-testid="compare-toggle" onClick={handleEnterCompareMode}>
+                Compare with another plan
+              </button>
+            )}
+            <ShareLinkButton rawText={rawText} />
+            {/* Spec §2: "Share and Export drop to icon-only before
+                wrapping" — deferred until real icon assets exist (Story
+                18.4 introduces the icon set this app bar would draw from);
+                both stay full-width buttons at every width until then. */}
+            <button type="button" className="plan-shell__app-bar-button" disabled title="PNG export — Story 18.11">
+              Export
+            </button>
+          </header>
 
           {analyzed.queryTextRedacted && (
             <p className="plan-reader-page__note">Query text redacted by account policy.</p>
@@ -302,11 +384,12 @@ export function PlanReaderPage() {
             </div>
           )}
 
-          <p className="plan-reader-page__summary" data-testid="plan-summary">
-            {activeStatement.summary.text}
-          </p>
-
           {compareMode ? (
+            // Episode 14's comparison view is deliberately NOT part of the
+            // shell grid below — Story 18.14 owns restyling it onto this
+            // shell; spec §8 itself was written before Episode 14 shipped
+            // this feature (see this episode's own goal note). Unchanged
+            // from before this story.
             <div className="plan-reader-page__compare" data-testid="plan-reader-compare-section">
               {!comparePlan && <ComparePasteBox onAnalyze={handleCompareAnalyze} onCancel={handleStopComparing} />}
 
@@ -344,18 +427,88 @@ export function PlanReaderPage() {
               )}
             </div>
           ) : (
-            <>
-              <FindingsList root={activeStatement.root} onSelectNode={setFocusNodeId} />
+            <div className="plan-shell__body" data-testid="plan-shell-body">
+              {/* Left rail (spec §2): "Plan input ... over Findings." The
+                  plan-input half of this rail — a collapsed source preview
+                  alongside the paste form — is Story 18.5's job (it owns
+                  rebuilding the input experience wholesale); PasteBox stays
+                  in its current pre-shell position above until then. Below
+                  860px this rail becomes the "Findings" tab instead of a
+                  side-by-side column — see the tablist below. */}
+              {(!isNarrowShell || activeShellTab === "findings") && (
+                <aside className="plan-shell__rail plan-shell__rail--left" data-testid="plan-shell-left-rail">
+                  <FindingsList root={activeStatement.root} onSelectNode={setFocusNodeId} />
+                </aside>
+              )}
 
-              <div className="plan-reader-page__graph">
-                <PlanGraph
-                  root={activeStatement.root}
-                  context={activeStatement.context}
-                  focusNodeId={focusNodeId}
-                  onFocusHandled={() => setFocusNodeId(undefined)}
-                />
-              </div>
-            </>
+              {isNarrowShell && (
+                <div className="plan-shell__tabs" role="tablist" aria-label="Findings and graph">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeShellTab === "findings"}
+                    className="plan-shell__tab"
+                    data-testid="shell-tab-findings"
+                    onClick={() => setActiveShellTab("findings")}
+                  >
+                    Findings
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeShellTab === "graph"}
+                    className="plan-shell__tab"
+                    data-testid="shell-tab-graph"
+                    onClick={() => setActiveShellTab("graph")}
+                  >
+                    Graph
+                  </button>
+                </div>
+              )}
+
+              {(!isNarrowShell || activeShellTab === "graph") && (
+                <main className="plan-shell__canvas" data-testid="plan-shell-canvas">
+                  <p className="plan-shell__summary" data-testid="plan-summary">
+                    {activeStatement.summary.text}
+                  </p>
+
+                  {/* Spec §2's metrics strip also calls for a collapsed-
+                      node count and a colour-legend — both read PlanGraph's
+                      own internal collapse state / its metric-scale
+                      encoding, which belong with Story 18.4's node-encoding
+                      work (a legend is meaningless without the encoding it
+                      explains), not this story's shell-structure scope.
+                      Node count and the plain-language caption are real,
+                      shell-appropriate metrics and are included now. */}
+                  <div className="plan-shell__metrics-strip" data-testid="plan-shell-metrics">
+                    <span>{collectNodes(activeStatement.root).length.toLocaleString("en-US")} nodes</span>
+                    <span>Width = rows · Arrows = execution order</span>
+                  </div>
+
+                  <div className="plan-shell__graph">
+                    <PlanGraph
+                      root={activeStatement.root}
+                      context={activeStatement.context}
+                      focusNodeId={focusNodeId}
+                      onFocusHandled={() => setFocusNodeId(undefined)}
+                      externalDetailPanel
+                      onDetailPanelChange={handleDetailPanelChange}
+                    />
+                  </div>
+                </main>
+              )}
+
+              {/* Right rail: a true grid track above 1180px of the shell's
+                  own width, an overlay-with-scrim below it — the
+                  `detail-panel--in-shell` variant and this scrim compose to
+                  do that; see detailPanel.css and planReaderPage.css. */}
+              <aside className="plan-shell__rail plan-shell__rail--right" data-testid="plan-shell-right-rail">
+                {detailPanel && <DetailPanel node={detailPanel.node} context={detailPanel.context} onClose={detailPanel.onClose} variant="shell" />}
+              </aside>
+              {detailPanel && (
+                <div className="plan-shell__detail-scrim" data-testid="plan-shell-detail-scrim" onClick={detailPanel.onClose} />
+              )}
+            </div>
           )}
         </section>
       )}

@@ -11,3 +11,4 @@ export { computeDefaultCollapsedIds, COLLAPSE_NODE_COUNT_THRESHOLD, COLLAPSE_SUB
 export { getGlossaryEntry, getGlossaryFallback, coveredOperatorTypes, type OperatorGlossaryEntry } from "./glossary"
 export { FindingsList, type FindingsListProps } from "./findings/FindingsList"
 export { PlanComparisonView, type PlanComparisonViewProps } from "./comparison/PlanComparisonView"
+export { DetailPanel, type DetailPanelProps } from "./detailPanel/DetailPanel"
