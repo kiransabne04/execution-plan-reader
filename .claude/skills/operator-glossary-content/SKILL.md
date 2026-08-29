@@ -21,8 +21,8 @@ This is the same discipline the detail panel's own spec (Story 6.2, sections 4 v
 interface OperatorGlossaryEntry {
   operatorType: string        // matches the normalized taxonomy (plan-normalization skill) — the map key
   displayName: string          // "Sequential Scan", not the raw engine label
-  shortDefinition: string      // 1-2 sentences, Beginner-mode default
-  longDefinition: string       // fuller paragraph, Expert-mode default
+  shortDefinition: string      // 1-2 sentences — Expert mode's collapsed-to-one-line education (Episode 18, Story 18.7; spec-driven reversal of this field's original Story 6.2 role)
+  longDefinition: string       // fuller paragraph — Beginner mode's "What this does" text (Story 18.7)
   whenItsFine: string          // general "this is often the right choice when..."
   whenToLookCloser: string     // general "this is worth a second look when..."
   learnMoreUrl?: string        // link into existing @scalingbackend content, when available

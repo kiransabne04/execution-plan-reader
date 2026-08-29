@@ -90,20 +90,39 @@ describe("DetailPanel — rapid node switching (Story 16.1 edge case)", () => {
   })
 })
 
-describe("DetailPanel — large raw-attributes bag (Story 16.1 edge case)", () => {
-  it("does not render attribute content until explicitly expanded, even for a very large attributes bag", () => {
+describe("DetailPanel — large raw-attributes bag (Story 16.1 edge case, revised by Story 18.7)", () => {
+  it("Beginner mode never renders attribute content at all, even for a very large attributes bag", () => {
+    const bigAttributes = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`field-${i}`, `value-${i}`]))
+    const node = makeNode({ attributes: bigAttributes })
+    const context = buildPlanContext(node)
+    render(<DetailPanel node={node} context={context} onClose={() => {}} />)
+    expect(screen.queryByTestId("raw-attributes")).not.toBeInTheDocument()
+  })
+
+  it("Story 18.7: Expert mode expands 500 fields by default, within the same bounded-time budget Story 16.2 established for other bulk-content paths, not reintroducing an open-latency regression", () => {
     const bigAttributes = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`field-${i}`, `value-${i}`]))
     const node = makeNode({ attributes: bigAttributes })
     const context = buildPlanContext(node)
     render(<DetailPanel node={node} context={context} onClose={() => {}} />)
 
+    const start = performance.now()
     fireEvent.click(screen.getByRole("button", { name: "Expert" }))
-    expect(screen.getByTestId("raw-attributes")).toBeInTheDocument()
-    // Collapsed by default — none of the 500 fields are in the DOM yet.
-    expect(screen.queryByText(/field-0: value-0/)).not.toBeInTheDocument()
+    const elapsed = performance.now() - start
 
-    fireEvent.click(screen.getByRole("button", { name: /Raw attributes/ }))
+    expect(screen.getByTestId("raw-attributes")).toBeInTheDocument()
+    // Expanded by DEFAULT now — the pre-18.7 behavior (collapsed even in
+    // Expert mode) was Story 16.1's own choice for exactly this 500-field
+    // case; Story 18.7's spec-driven "Expert mode = expanded" reverses it
+    // deliberately (see RawAttributes.tsx's own comment), so this is
+    // re-asserting the NEW intended behavior, not a regression.
     expect(screen.getByText(/field-0: value-0/)).toBeInTheDocument()
+    // Same reasoning as Story 16.2's own bounded-time assertions: a loose
+    // sanity ceiling, not a tuned millisecond budget.
+    expect(elapsed).toBeLessThan(2000)
+
+    // Still manually collapsible.
+    fireEvent.click(screen.getByRole("button", { name: /Raw attributes/ }))
+    expect(screen.queryByText(/field-0: value-0/)).not.toBeInTheDocument()
   })
 })
 

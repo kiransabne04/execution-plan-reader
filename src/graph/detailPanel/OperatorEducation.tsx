@@ -7,11 +7,28 @@ export interface OperatorEducationProps {
   expertMode: boolean
 }
 
-/** Panel sections 2 ("What this does") and 5 ("In general") — both sourced
+/**
+ * Panel sections 2 ("What this does") and 5 ("In general") — both sourced
  * from the same glossary entry, but kept visually distinct per Story 6.2's
  * explicit acceptance criteria: one is general education, the other
  * (rendered separately by WarningsSection) is a specific finding, and the
- * two must never blur together. */
+ * two must never blur together.
+ *
+ * Episode 18, Story 18.7: density flips by mode, per spec §5 `1f` —
+ * **Beginner gets the LONG explanation** (`longDefinition` plus the full
+ * "In general" guidance — a beginner needs the fuller teaching, not less
+ * of it) and **Expert gets education collapsed to one line**
+ * (`shortDefinition` alone, "In general" omitted entirely — an expert
+ * already knows what this operator is and wants the space back for raw
+ * data). This is a deliberate REVERSAL of Story 6.2's original field-level
+ * intent (`shortDefinition`/`longDefinition` were originally documented as
+ * "Beginner-mode default" / "Expert-mode default" respectively) — the
+ * redesign spec is the newer, more deliberate authority here; see
+ * `docs/BACKLOG-STATUS.md`'s Story 18.7 row for the full account, and
+ * `glossary/types.ts` / the operator-glossary-content skill for the
+ * updated field docs (that skill's own instruction: "if this skill and
+ * those docs disagree, the docs win and this file should be updated").
+ */
 function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: OperatorEducationProps) {
   const entry = getGlossaryEntry(operatorType)
 
@@ -25,13 +42,23 @@ function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: 
     )
   }
 
+  if (expertMode) {
+    return (
+      <section className="detail-panel__section" data-testid="operator-education-what">
+        <h3 className="detail-panel__section-heading">What this does</h3>
+        <div className="detail-panel__education">
+          <p>{entry.shortDefinition}</p>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <>
       <section className="detail-panel__section" data-testid="operator-education-what">
         <h3 className="detail-panel__section-heading">What this does</h3>
         <div className="detail-panel__education">
-          <p>{entry.shortDefinition}</p>
-          {expertMode && <p>{entry.longDefinition}</p>}
+          <p>{entry.longDefinition}</p>
         </div>
       </section>
       <section className="detail-panel__section" data-testid="operator-education-general">

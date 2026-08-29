@@ -177,6 +177,17 @@
   border-left-color: var(--dp-warning-critical);
 }
 
+/* Story 18.7 — Expert mode's rule id, a small mono tag before the finding
+   text rather than its own line (keeps the finding itself the visually
+   dominant content). */
+.detail-panel__warning-rule-id {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--dp-text-muted);
+  margin-right: 6px;
+}
+
 /* Story 9.1 — deliberately distinct from the warning treatment above (teal
    accent, not red): a helpful nudge, not another problem being flagged. */
 .detail-panel__funnel-callout {

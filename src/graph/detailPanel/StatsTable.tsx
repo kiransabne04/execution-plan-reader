@@ -4,6 +4,13 @@ import { buildStatRows, type StatRow } from "./buildStatRows"
 
 export interface StatsTableProps {
   node: PlanNode
+  /** Story 18.7, spec §5 `1f`: Beginner gets "curated stat rows" (gap rows
+   * — an honest "not available" per the field catalog — hidden, since a
+   * beginner doesn't need a list of what an engine DIDN'T report), Expert
+   * gets "full buildStatRows() output including gaps" (unfiltered). This
+   * never fabricates a value either way — curation here only ever HIDES a
+   * gap row, never invents a non-gap one. */
+  expertMode: boolean
 }
 
 type Chunk = { kind: "table"; rows: StatRow[] } | { kind: "block"; row: StatRow }
@@ -39,8 +46,9 @@ function chunkRows(rows: StatRow[]): Chunk[] {
  * unrelated reason (e.g. the Beginner/Expert toggle, which this section
  * doesn't even read) never re-derives or re-renders these rows.
  */
-function StatsTableInner({ node }: StatsTableProps) {
-  const rows = useMemo(() => buildStatRows(node), [node])
+function StatsTableInner({ node, expertMode }: StatsTableProps) {
+  const allRows = useMemo(() => buildStatRows(node), [node])
+  const rows = useMemo(() => (expertMode ? allRows : allRows.filter((row) => !row.isGap)), [allRows, expertMode])
   const hasMismatch = node.warnings.some((w) => w.ruleId === "bad-row-estimate")
 
   if (rows.length === 0) return null

@@ -36,6 +36,16 @@ function WarningsSectionInner({ warnings, expertMode, engine }: WarningsSectionP
           }
           data-testid="warning-item"
         >
+          {/* Story 18.7, spec §5 `1f`'s Expert bullet: "rule id shown" —
+              the raw ruleId a power user might reference against docs or a
+              future LLM-narrative-mode debug view, not shown in Beginner
+              (it's an implementation detail, not something a first-time
+              reader needs). */}
+          {expertMode && (
+            <span className="detail-panel__warning-rule-id" data-testid="warning-rule-id">
+              {warning.ruleId}
+            </span>
+          )}
           {expertMode ? warning.longText : warning.shortText}
         </div>
       ))}

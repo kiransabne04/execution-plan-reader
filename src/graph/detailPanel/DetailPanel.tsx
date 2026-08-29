@@ -136,7 +136,7 @@ export function DetailPanel({
       </div>
 
       <OperatorEducation operatorType={node.operatorType} rawOperatorLabel={node.rawOperatorLabel} expertMode={expertMode} />
-      <StatsTable node={node} />
+      <StatsTable node={node} expertMode={expertMode} />
       <WarningsSection warnings={node.warnings} expertMode={expertMode} engine={node.engine} />
 
       <section className="detail-panel__section" data-testid="contribution-summary">

@@ -90,17 +90,20 @@ describe("DetailPanel", () => {
     expect(screen.getByTestId("query-correlation")).toHaveTextContent("SELECT * FROM Orders")
   })
 
-  it("hides raw attributes in Beginner mode and reveals them (collapsed) in Expert mode", () => {
+  it("hides raw attributes in Beginner mode and reveals them, EXPANDED, in Expert mode (Story 18.7)", () => {
     const node = makeNode({ attributes: { "Relation Name": "orders" } })
     renderPanel(node)
     expect(screen.queryByTestId("raw-attributes")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Expert" }))
     expect(screen.getByTestId("raw-attributes")).toBeInTheDocument()
-    // Collapsed by default even in Expert mode — content only after expanding.
-    expect(screen.queryByText(/Relation Name: orders/)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /Raw attributes/ }))
+    // Story 18.7 (spec §5 1f): expanded by default on entering Expert mode
+    // — reversed from the pre-18.7 collapsed-by-default behavior.
     expect(screen.getByText(/Relation Name: orders/)).toBeInTheDocument()
+
+    // Still manually collapsible afterward.
+    fireEvent.click(screen.getByRole("button", { name: /Raw attributes/ }))
+    expect(screen.queryByText(/Relation Name: orders/)).not.toBeInTheDocument()
   })
 
   it("closes when the close button is clicked", () => {
@@ -178,6 +181,48 @@ describe("DetailPanel", () => {
       expect(screen.getByRole("button", { name: "Beginner" })).toHaveAttribute("aria-pressed", "true")
       fireEvent.click(screen.getByRole("button", { name: "Expert" }))
       expect(screen.getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true")
+    })
+  })
+
+  describe("Episode 18, Story 18.7 — Beginner/Expert densities (spec §5 1f)", () => {
+    it("Beginner shows the LONG definition plus the full 'In general' guidance", () => {
+      const node = makeNode({ operatorType: "seq_scan" })
+      renderPanel(node)
+      expect(screen.getByText(/also called a table scan or full scan/)).toBeInTheDocument()
+      expect(screen.getByTestId("operator-education-general")).toBeInTheDocument()
+      // The short (Expert) definition is NOT also shown alongside it.
+      expect(screen.queryByText(/^Reads every row in a table/)).not.toBeInTheDocument()
+    })
+
+    it("Expert collapses education to the one-line short definition, omitting 'In general' entirely", () => {
+      const node = makeNode({ operatorType: "seq_scan" })
+      renderPanel(node)
+      fireEvent.click(screen.getByRole("button", { name: "Expert" }))
+
+      expect(screen.getByText(/Reads every row in a table/)).toBeInTheDocument()
+      expect(screen.queryByText(/also called a table scan or full scan/)).not.toBeInTheDocument()
+      expect(screen.queryByTestId("operator-education-general")).not.toBeInTheDocument()
+    })
+
+    it("shows each finding's ruleId in Expert mode, never in Beginner", () => {
+      const node = makeNode({ operatorType: "seq_scan", actualRows: 50_000, attributes: { "Relation Name": "events" } })
+      renderPanel(node)
+      expect(screen.queryByTestId("warning-rule-id")).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Expert" }))
+      expect(screen.getByTestId("warning-rule-id")).toHaveTextContent("seq-scan-on-large-table")
+    })
+
+    it("Beginner curates stat rows (hides gaps), Expert shows the full set including them", () => {
+      // Snowflake nodes never populate ioReadTimeMs/ioWriteTimeMs — a
+      // real, honest gap (field catalog), not a fabricated zero.
+      const node = makeNode({ engine: "snowflake", operatorType: "seq_scan", actualRows: 100 })
+      renderPanel(node)
+      const statsTable = screen.getByTestId("stats-table")
+      expect(statsTable.querySelector(".detail-panel__stat-gap")).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Expert" }))
+      expect(screen.getByTestId("stats-table").querySelector(".detail-panel__stat-gap")).toBeInTheDocument()
     })
   })
 })

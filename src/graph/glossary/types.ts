@@ -9,9 +9,19 @@ export interface OperatorGlossaryEntry {
   operatorType: string
   /** "Sequential Scan", not the raw engine label. */
   displayName: string
-  /** 1-2 sentences, Beginner-mode default. */
+  /** 1-2 sentences. Episode 18, Story 18.7 (spec §5 `1f`): rendered alone
+   * as Expert mode's collapsed-to-one-line education — an expert already
+   * knows what this operator is. (Originally documented as the Beginner-
+   * mode default when Story 6.2 shipped this field; the redesign spec
+   * reversed that — see OperatorEducation.tsx's own comment for the full
+   * account, and the operator-glossary-content skill's "if this skill and
+   * those docs disagree, the docs win" instruction for why this comment
+   * itself was updated rather than left stale.) */
   shortDefinition: string
-  /** Fuller paragraph, Expert-mode default. */
+  /** Fuller paragraph. Story 18.7: rendered as Beginner mode's "What this
+   * does" text (a beginner needs the fuller teaching), alongside
+   * `whenItsFine`/`whenToLookCloser` below — see `shortDefinition`'s own
+   * comment for why this reverses Story 6.2's original field-level intent. */
   longDefinition: string
   /** General "this is often the right choice when...". */
   whenItsFine: string
