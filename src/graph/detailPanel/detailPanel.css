@@ -1,19 +1,6 @@
+/* Episode 18, Story 18.1 — --dp-* tokens are now aliases declared once in
+   src/styles/tokens.css. Dark-only: no `prefers-color-scheme` branch. */
 .detail-panel {
-  --dp-bg: #ffffff;
-  --dp-border: #d0d5dd;
-  --dp-text: #1a1a1a;
-  --dp-text-muted: #667085;
-  --dp-gap-bg: #f2f4f7;
-  --dp-warning-bg: #fef3f2;
-  --dp-warning-border: #f97066;
-  --dp-warning-critical: #b42318;
-  --dp-education-bg: #eef4ff;
-  --dp-badge-bg: #1a1a1a;
-  --dp-badge-text: #ffffff;
-  --dp-callout-bg: #f0fdf9;
-  --dp-callout-border: #0d9488;
-  --dp-callout-text: #0f766e;
-
   position: fixed;
   top: 0;
   right: 0;
@@ -52,25 +39,6 @@
 @media (prefers-reduced-motion: reduce) {
   .detail-panel {
     animation: none;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .detail-panel {
-    --dp-bg: #14161a;
-    --dp-border: #3a4150;
-    --dp-text: #f2f4f7;
-    --dp-text-muted: #98a2b3;
-    --dp-gap-bg: #1d2129;
-    --dp-warning-bg: #3a1f1d;
-    --dp-warning-border: #f97066;
-    --dp-warning-critical: #f97066;
-    --dp-education-bg: #1a2340;
-    --dp-badge-bg: #f2f4f7;
-    --dp-badge-text: #1a1a1a;
-    --dp-callout-bg: #0f2b26;
-    --dp-callout-border: #2dd4bf;
-    --dp-callout-text: #5eead4;
   }
 }
 

@@ -1,0 +1,151 @@
+/* Episode 18, Story 18.1 — the ONE place every color/radius/type token in
+   this app is declared. See docs/12-ui-redesign-spec.md §1 and
+   docs/08-episodes-and-stories.md Episode 18 Story 18.1.
+
+   Dark-only, by design, not "dark-first": there is no `prefers-color-
+   scheme` branch here or anywhere else under src/ (this story's own
+   acceptance criterion — grep for it if one turns up again, don't add one
+   back). `color-scheme: dark` tells the browser's own UI (scrollbars, form
+   controls) to render dark too, matching what a `prefers-color-scheme`
+   branch would otherwise have coordinated.
+
+   Every existing component-prefixed token (`--pr-*` planReaderPage.css,
+   `--pg-*` planGraph.css + canvas/*.css, `--dp-*` detailPanel.css, `--fl-*`
+   findingsList.css) is kept as an ALIAS to one of the canonical tokens
+   below, declared once, right here — not because the old names are wrong,
+   but because every existing `var(--pg-card-bg)` etc. usage across the
+   codebase stays correct with zero per-usage-site edits, and a future
+   color decision still only ever changes one line (the canonical token
+   the aliases point to). This is the literal target of this story's own
+   acceptance criterion ("a future style change happens in one place
+   instead of four") without the risk of a large mechanical rename. */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Canonical palette (spec §1's table) ---- */
+  --color-bg-page: #161826;
+  --color-bg-canvas: #12131d;
+  --color-bg-rail: #13141f;
+  --color-surface: #232532;
+  --color-border: rgba(233, 233, 237, 0.12);
+  --color-border-strong: #3f424d;
+  --color-text: #e9e9ed;
+  --color-text-secondary: #9397ab;
+  --color-text-muted: #75798c;
+  --color-text-on-tint: #cfd3e5;
+  --color-accent: #9184d9;
+  --color-accent-hover: #b5abfc;
+  --color-accent-on-tint: #d2cefd;
+  --color-critical: #f97066;
+  --color-warning: #f79009;
+  --color-warning-text: #fdb022;
+  --color-funnel: #2dd4bf;
+  /* Extension tokens: real signals this app needs that spec §1's base
+     6-role table doesn't cover (spec itself does the same thing for
+     funnel-callout teal — "stays teal, deliberately unlike a warning" —
+     this follows that same pattern rather than forcing an unrelated
+     signal into one of the six base roles). */
+  --color-success: #47cd89; /* Episode 14's "added" comparison state */
+  --color-comparison-removed: #b692f6; /* Episode 14's "removed" comparison state — deliberately near, but not equal to, --color-accent, so it never reads as "hover me" */
+  --color-funnel-text: #5eead4; /* lighter on-tint pairing for --color-funnel, same two-tone pattern spec's own warning/warning-text pair uses */
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  /* Inter is NOT loaded from a remote font service (Google Fonts etc.) —
+     that would be a real outbound network request on every page view, and
+     any network call anywhere in this app needs the privacy-architecture
+     skill's explicit sign-off first (CLAUDE.md). This falls back to the
+     closest-matching system stack until/unless the team decides to
+     self-host the Inter font FILES (zero network calls, same as every
+     other asset this app already ships) — that's a separate, explicit
+     decision, not something to slip in as a side effect of a token
+     refactor. */
+  --font-sans:
+    Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+
+  /* ---- Legacy component-prefixed aliases (kept for zero usage-site risk — see file header) ---- */
+
+  /* src/app/planReaderPage.css */
+  --pr-bg: var(--color-bg-page);
+  --pr-text: var(--color-text);
+  --pr-text-muted: var(--color-text-muted);
+  --pr-border: var(--color-border);
+  --pr-accent: var(--color-accent);
+  --pr-error-bg: color-mix(in srgb, var(--color-critical) 18%, var(--color-surface));
+  --pr-error-text: var(--color-critical);
+  --pr-badge-bg: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+  --pr-badge-text: var(--color-accent-on-tint);
+
+  /* src/graph/planGraph.css + src/graph/canvas/*.css */
+  --pg-card-bg: var(--color-surface);
+  --pg-card-border: var(--color-border);
+  --pg-card-text: var(--color-text);
+  --pg-card-text-muted: var(--color-text-secondary);
+  --pg-mismatch-border: var(--color-critical);
+  --pg-badge-bg: var(--color-text);
+  --pg-badge-text: var(--color-bg-canvas);
+  --pg-collapsed-bg: var(--color-bg-canvas);
+  --pg-collapsed-border: var(--color-border-strong);
+  --pg-comparison-changed: var(--color-warning);
+  --pg-comparison-added: var(--color-success);
+  --pg-comparison-removed: var(--color-comparison-removed);
+  --pg-canvas-selection: var(--color-accent-hover);
+
+  /* src/graph/detailPanel/detailPanel.css */
+  --dp-bg: var(--color-bg-rail);
+  --dp-border: var(--color-border);
+  --dp-text: var(--color-text);
+  --dp-text-muted: var(--color-text-muted);
+  --dp-gap-bg: color-mix(in srgb, var(--color-border-strong) 20%, var(--color-bg-rail));
+  --dp-warning-bg: color-mix(in srgb, var(--color-critical) 14%, var(--color-surface));
+  --dp-warning-border: var(--color-critical);
+  --dp-warning-critical: var(--color-critical);
+  --dp-education-bg: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
+  --dp-badge-bg: var(--color-text);
+  --dp-badge-text: var(--color-bg-rail);
+  --dp-callout-bg: color-mix(in srgb, var(--color-funnel) 14%, var(--color-surface));
+  --dp-callout-border: var(--color-funnel);
+  --dp-callout-text: var(--color-funnel-text);
+
+  /* src/graph/findings/findingsList.css */
+  --fl-bg: var(--color-bg-rail);
+  --fl-border: var(--color-border);
+  --fl-text: var(--color-text);
+  --fl-text-muted: var(--color-text-muted);
+  --fl-item-bg: var(--color-surface);
+  --fl-item-hover-bg: color-mix(in srgb, var(--color-text) 6%, var(--color-surface));
+  --fl-critical-bg: color-mix(in srgb, var(--color-critical) 18%, var(--color-surface));
+  --fl-critical-border: color-mix(in srgb, var(--color-critical) 45%, transparent);
+  --fl-critical-text: var(--color-critical);
+  --fl-warning-bg: color-mix(in srgb, var(--color-warning) 18%, var(--color-surface));
+  --fl-warning-border: color-mix(in srgb, var(--color-warning) 45%, transparent);
+  --fl-warning-text: var(--color-warning-text);
+  --fl-info-bg: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+  --fl-info-border: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  --fl-info-text: var(--color-accent-hover);
+
+  /* src/index.css — the Vite template's own leftover token names. Kept as
+     aliases for the same zero-usage-site-risk reason as the rest of this
+     file: the generic h1/h2/code/#root rules in index.css still read
+     these, and #root/h1/h2 are still real, rendered elements (App.tsx
+     renders PlanReaderPage, whose own h1 sets its own font-size/margin but
+     not color — it inherits `color` from index.css's generic `h1` rule). */
+  --text: var(--color-text);
+  --text-h: var(--color-text);
+  --bg: var(--color-bg-page);
+  --border: var(--color-border);
+  --code-bg: var(--color-surface);
+  --accent: var(--color-accent);
+  --accent-bg: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  --accent-border: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  --social-bg: color-mix(in srgb, var(--color-surface) 50%, transparent);
+  --shadow:
+    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  --sans: var(--font-sans);
+  --heading: var(--font-sans);
+  --mono: var(--font-mono);
+}

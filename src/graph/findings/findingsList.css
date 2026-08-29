@@ -1,20 +1,6 @@
+/* Episode 18, Story 18.1 — --fl-* tokens are now aliases declared once in
+   src/styles/tokens.css. Dark-only: no `prefers-color-scheme` branch. */
 .findings-list {
-  --fl-bg: #ffffff;
-  --fl-border: #d0d5dd;
-  --fl-text: #1a1a1a;
-  --fl-text-muted: #667085;
-  --fl-item-bg: #f9fafb;
-  --fl-item-hover-bg: #f2f4f7;
-  --fl-critical-bg: #fef3f2;
-  --fl-critical-border: #f97066;
-  --fl-critical-text: #b42318;
-  --fl-warning-bg: #fffaeb;
-  --fl-warning-border: #f79009;
-  --fl-warning-text: #b54708;
-  --fl-info-bg: #eef4ff;
-  --fl-info-border: #7fa5ff;
-  --fl-info-text: #1a56db;
-
   margin-top: 12px;
   border-top: 1px solid var(--fl-border);
   padding-top: 12px;
@@ -130,24 +116,4 @@
 
 .findings-list__text {
   flex: 1 1 auto;
-}
-
-@media (prefers-color-scheme: dark) {
-  .findings-list {
-    --fl-bg: #14161a;
-    --fl-border: #3a4150;
-    --fl-text: #f2f4f7;
-    --fl-text-muted: #98a2b3;
-    --fl-item-bg: #1d2129;
-    --fl-item-hover-bg: #262b35;
-    --fl-critical-bg: #3a1f1d;
-    --fl-critical-border: #f97066;
-    --fl-critical-text: #f97066;
-    --fl-warning-bg: #3a2a1a;
-    --fl-warning-border: #f79009;
-    --fl-warning-text: #fdb022;
-    --fl-info-bg: #1d2540;
-    --fl-info-border: #7fa5ff;
-    --fl-info-text: #7fa5ff;
-  }
 }

@@ -1,14 +1,6 @@
+/* Episode 18, Story 18.1 — --pr-* tokens are now aliases declared once in
+   src/styles/tokens.css. Dark-only: no `prefers-color-scheme` branch. */
 .plan-reader-page {
-  --pr-bg: #ffffff;
-  --pr-text: #1a1a1a;
-  --pr-text-muted: #667085;
-  --pr-border: #d0d5dd;
-  --pr-accent: #1a56db;
-  --pr-error-bg: #fef3f2;
-  --pr-error-text: #b42318;
-  --pr-badge-bg: #eef2ff;
-  --pr-badge-text: #1a56db;
-
   max-width: 960px;
   margin: 0 auto;
   padding: 24px 16px 48px;
@@ -20,20 +12,6 @@
     "Segoe UI",
     sans-serif;
   box-sizing: border-box;
-}
-
-@media (prefers-color-scheme: dark) {
-  .plan-reader-page {
-    --pr-bg: #14161a;
-    --pr-text: #f2f4f7;
-    --pr-text-muted: #98a2b3;
-    --pr-border: #3a4150;
-    --pr-accent: #7fa5ff;
-    --pr-error-bg: #3a1f1d;
-    --pr-error-text: #f97066;
-    --pr-badge-bg: #1d2540;
-    --pr-badge-text: #7fa5ff;
-  }
 }
 
 .plan-reader-page__hero {

@@ -145,8 +145,10 @@ export function CanvasPlanGraph({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
       const container = containerRef.current
-      const textColor = container ? resolveCssVar(container, "--pg-card-text", "#1a1a1a") : "#1a1a1a"
-      const selectionColor = container ? resolveCssVar(container, "--pg-canvas-selection", "#1a56db") : "#1a56db"
+      // Episode 18, Story 18.1: fallbacks below match src/styles/tokens.css's
+      // dark-only palette — this app has no light mode to fall back to.
+      const textColor = container ? resolveCssVar(container, "--pg-card-text", "#e9e9ed") : "#e9e9ed"
+      const selectionColor = container ? resolveCssVar(container, "--pg-canvas-selection", "#b5abfc") : "#b5abfc"
       // Episode 14, Story 14.2 — cheap to resolve unconditionally (same
       // handful of getComputedStyle reads as the two colors above); a plain
       // single-plan render simply never has any node carrying a
@@ -154,9 +156,9 @@ export function CanvasPlanGraph({
       // separate "is this a comparison view" flag threaded through here.
       const comparisonColors = container
         ? {
-            changed: resolveCssVar(container, "--pg-comparison-changed", "#b54708"),
-            addedInB: resolveCssVar(container, "--pg-comparison-added", "#05603a"),
-            removedFromB: resolveCssVar(container, "--pg-comparison-removed", "#6941c6"),
+            changed: resolveCssVar(container, "--pg-comparison-changed", "#f79009"),
+            addedInB: resolveCssVar(container, "--pg-comparison-added", "#47cd89"),
+            removedFromB: resolveCssVar(container, "--pg-comparison-removed", "#b692f6"),
           }
         : undefined
 
