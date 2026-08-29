@@ -81,8 +81,8 @@ _Last audited against `src/` and git history on 2026-08-28 (652/652 tests passin
 ## Episode 14 — Execution plan comparison
 | Story | Status | Notes |
 |---|---|---|
-| 14.1 — Node matching algorithm | not started | New — from manual testing feedback |
-| 14.2 — Comparison view | not started | Depends on 14.1 |
+| 14.1 — Node matching algorithm | done | `src/comparison/matchNodes.ts`: `matchNodes(planA, planB): NodeMatch[]`, layered fallback (exact signature → relation/index identity → positional-only → unmatched), hash-map grouping throughout (no O(n·m) scan). Cross-engine rejected via `PlanComparisonError`. `summarizeMatches()` computes `matchRatio`/`lowConfidence` for the "these may not be comparable plans" warning, ready for 14.2 to render. **Note**: `PlanNode` has no normalized relation-name field (only `index.name`, and only SQL Server populates it) — matching reads per-engine `attributes` keys directly instead (documented in-file); worth a normalized field if a second consumer needs relation identity |
+| 14.2 — Comparison view | not started | Depends on 14.1 (done) |
 
 ## Episode 15 — Canvas-based rendering for large plans
 | Story | Status | Notes |
