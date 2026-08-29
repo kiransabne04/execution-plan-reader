@@ -21,7 +21,10 @@ test("shows a friendly error, not a crash, for pasted non-plan text", async ({ p
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
   await expect(page.getByTestId("parse-error")).toBeVisible()
-  await expect(page.getByTestId("plan-result")).toHaveCount(0)
+  // Episode 19: `plan-result` (the shell) is always present now — a failed
+  // analyze leaves the centre on its empty-state placeholder rather than
+  // rendering a graph.
+  await expect(page.getByTestId("plan-shell-empty-placeholder")).toBeVisible()
 })
 
 test("surfaces every statement in a multi-statement SQL Server batch and switches between them", async ({ page }) => {

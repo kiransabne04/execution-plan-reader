@@ -25,33 +25,13 @@
     sans-serif;
 }
 
-.plan-reader-page__hero {
-  margin-bottom: 20px;
-}
-
-.plan-reader-page__title {
-  margin: 0 0 8px;
-  font-size: 28px;
-  line-height: 1.25;
-}
-
-.plan-reader-page__engine-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-}
-
-.plan-reader-page__hero-engine-badge {
-  background: var(--pr-badge-bg);
-  color: var(--pr-badge-text);
-  border-radius: 999px;
-  padding: 3px 12px;
-  font-size: 13px;
-  font-weight: 600;
-}
+/* Episode 19: the hero (headline/tagline/engine-badge list) that used to
+   render here is retired — the shell is now the app's only page from first
+   load. Rules removed with it (`.plan-reader-page__hero`,
+   `.plan-reader-page__title`, `.plan-reader-page__engine-list`,
+   `.plan-reader-page__hero-engine-badge`, `.plan-reader-page__tagline`) —
+   grep-confirmed zero remaining references before deleting. positioningCopy.ts
+   itself is untouched; see PlanReaderPage.tsx's own Episode 19 comment. */
 
 .plan-reader-page__footer {
   margin-top: 40px;
@@ -63,11 +43,6 @@
 
 .plan-reader-page__footer p {
   margin: 0;
-}
-
-.plan-reader-page__tagline {
-  margin: 0 0 20px;
-  color: var(--pr-text-muted);
 }
 
 .restore-session-banner {
@@ -598,6 +573,64 @@
   flex-direction: column;
   gap: 8px;
   overflow: hidden;
+}
+
+/* Episode 19 — the empty first-load centre state: a plain placeholder, not
+   the retired marketing hero and not a fabricated preview of the graph. */
+.plan-shell__canvas--empty {
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--pr-border);
+  border-radius: 8px;
+}
+
+.plan-shell__empty-placeholder {
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: var(--pr-text-muted);
+  font-size: 14px;
+}
+
+/* Episode 19 — Plan Input's permanent home in the left rail, above
+   Findings, from first load onward (spec §2: "Plan input ... over
+   Findings"). A plain block, not its own scroll region — the rail itself
+   already scrolls (`.plan-shell__rail`) if content overflows. */
+.plan-shell__input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--pr-border);
+}
+
+.plan-shell__input-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.plan-shell__input-section-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pr-text-muted);
+}
+
+.plan-shell__new-plan-button {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--pr-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pr-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .plan-shell__summary {

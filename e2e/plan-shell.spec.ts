@@ -84,7 +84,12 @@ test.describe("app shell breakpoints (spec §2)", () => {
     // Graph tab active by default at this width.
     await expect(page.getByTestId("shell-tab-graph")).toHaveAttribute("aria-selected", "true")
     await expect(page.getByTestId("plan-graph")).toBeVisible()
-    await expect(page.getByTestId("plan-shell-left-rail")).toHaveCount(0)
+    // Episode 19: the left rail itself is always present now (Plan Input
+    // lives there permanently, reachable at every breakpoint) — it's
+    // Findings specifically that the narrow-shell tab switch hides here,
+    // not the whole rail.
+    await expect(page.getByTestId("plan-shell-left-rail")).toBeVisible()
+    await expect(page.getByTestId("findings-list")).toHaveCount(0)
 
     // Each tab button has a real, sane size — the exact regression this
     // story's own align-content bug produced (a ~130px-tall tab button

@@ -42,18 +42,23 @@ function pasteAndAnalyze(text: string) {
 }
 
 describe("PlanReaderPage", () => {
-  it("renders the h1 headline containing 'execution plan', not just the brand name", () => {
+  // Episode 19: the hero (headline/subheadline/engine badges) these two
+  // tests used to check is retired — the three-column shell is the app's
+  // only page now, present from first paint with no loading gate. Rewritten
+  // to check the new default view, not deleted — see
+  // docs/08-episodes-and-stories.md's Episode 19 header for the full
+  // account of what this supersedes (Story 8.1's hero AC, spec §7).
+  it("renders the shell (app bar + Plan Input) immediately on load — no separate hero page, no loading gate", () => {
     render(<PlanReaderPage />)
-    const heading = screen.getByRole("heading", { level: 1 })
-    expect(heading).toHaveTextContent(/execution plan/i)
+    expect(screen.getByTestId("plan-result")).toBeInTheDocument()
+    expect(screen.getByTestId("paste-textarea")).toBeInTheDocument()
   })
 
-  it("shows the subheadline and all three supported engine names above the fold, immediately (no loading gate)", () => {
+  it("shows a plain empty-state placeholder and no plan-specific chrome before anything is analyzed", () => {
     render(<PlanReaderPage />)
-    expect(screen.getByText(/Works with Postgres, SQL Server, and Snowflake/)).toBeInTheDocument()
-    expect(screen.getByText("Postgres")).toBeInTheDocument()
-    expect(screen.getByText("SQL Server")).toBeInTheDocument()
-    expect(screen.getByText("Snowflake")).toBeInTheDocument()
+    expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
+    expect(screen.queryByTestId("detected-engine-badge")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("plan-node-card")).not.toBeInTheDocument()
   })
 
   it("shows a footer connecting the tool to Kiran's existing content, for first-time-visitor credibility", () => {
@@ -65,7 +70,9 @@ describe("PlanReaderPage", () => {
     render(<PlanReaderPage />)
     expect(screen.getByTestId("privacy-statement")).toBeInTheDocument()
     expect(screen.getByTestId("privacy-caveat")).toHaveTextContent(/browser extensions/i)
-    expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
+    // Episode 19: `plan-result` (the shell itself) is always present now —
+    // what matters here is that no plan-specific content has rendered yet.
+    expect(screen.queryByTestId("plan-node-card")).not.toBeInTheDocument()
   })
 
   it("analyzes a pasted Postgres plan and renders the summary + graph", () => {
@@ -84,7 +91,10 @@ describe("PlanReaderPage", () => {
     pasteAndAnalyze(loadFixture("postgres", "non-plan-text.txt"))
 
     expect(screen.getByTestId("parse-error")).toBeInTheDocument()
-    expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
+    // Episode 19: `plan-result` (the shell) is always present — a failed
+    // analyze leaves `analyzed` null, so the centre stays the empty-state
+    // placeholder rather than rendering a graph.
+    expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
   })
 
   it("clears a previous error once a valid plan is analyzed", () => {
@@ -316,7 +326,7 @@ describe("PlanReaderPage", () => {
 
     expect(() => pasteAndAnalyze(deepPlanJson)).not.toThrow()
     expect(screen.getByTestId("parse-error")).toBeInTheDocument()
-    expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
+    expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
   })
 
   // Episode 16, Story 16.2 edge case: "just handling a multi-MB paste
@@ -382,13 +392,13 @@ describe("PlanReaderPage — shareable link (Story 11.2)", () => {
     render(<PlanReaderPage />)
 
     expect(screen.getByTestId("parse-error")).toHaveTextContent(/incomplete|corrupted/i)
-    expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
+    expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
   })
 
   it("makes no attempt at share-link recovery on an ordinary visit with no fragment at all", () => {
     render(<PlanReaderPage />)
     expect(screen.queryByTestId("parse-error")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("plan-result")).not.toBeInTheDocument()
+    expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
     expect(screen.getByTestId("paste-textarea")).toHaveValue("")
   })
 

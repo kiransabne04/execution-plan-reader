@@ -1,48 +1,45 @@
-// Episode 8, Story 8.1: hero headline, subheadline, and engine names must
-// be visible "without scrolling" — the literal, checkable version of that
-// is: each element's bounding box sits within the viewport's visible
-// height on first load, at both a desktop and a mobile width.
+// Episode 19 superseded Episode 8, Story 8.1's hero (headline/subheadline/
+// engine badges, always above the fold, no loading gate): the three-column
+// shell is now the app's only page from first load, and Plan Input lives in
+// its left rail instead of a full-page paste form under a marketing hero.
+// This file used to check the retired hero's above-the-fold placement;
+// rewritten (not deleted) to check the same underlying promise — nothing
+// plan-specific is gated behind a loading state, and the thing a first-time
+// visitor actually needs (Plan Input) is immediately usable without
+// scrolling — for the new default view. See
+// docs/08-episodes-and-stories.md's Episode 19 header for the full account.
 
 import { test, expect } from "@playwright/test"
 
 async function assertAboveTheFold(page: import("@playwright/test").Page, viewportHeight: number) {
-  for (const testId of ["paste-textarea"]) {
+  for (const testId of ["paste-textarea", "plan-result"]) {
     const box = await page.getByTestId(testId).boundingBox()
     expect(box).not.toBeNull()
     expect(box!.y).toBeLessThan(viewportHeight)
   }
-  const heading = page.getByRole("heading", { level: 1 })
-  await expect(heading).toBeVisible()
-  const headingBox = await heading.boundingBox()
-  expect(headingBox!.y).toBeLessThan(viewportHeight)
 }
 
-test("hero headline, subheadline, and paste box are above the fold on desktop", async ({ page }) => {
+test("the shell and Plan Input are above the fold on desktop, immediately (no loading gate)", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto("/")
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(/execution plan/i)
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+  await expect(page.getByTestId("paste-textarea")).toBeVisible()
   await assertAboveTheFold(page, 800)
 })
 
-test("hero headline, subheadline, and paste box are above the fold on a mobile viewport", async ({ page }) => {
+test("the shell and Plan Input are above the fold on a mobile viewport, immediately (no loading gate)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto("/")
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(/execution plan/i)
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+  await expect(page.getByTestId("paste-textarea")).toBeVisible()
   await assertAboveTheFold(page, 844)
 })
 
-test("engine names are visible without scrolling on both viewports", async ({ page }) => {
-  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
-    await page.setViewportSize(viewport)
-    await page.goto("/")
-    for (const engine of ["Postgres", "SQL Server", "Snowflake"]) {
-      await expect(page.getByText(engine, { exact: true }).first()).toBeVisible()
-    }
-  }
-})
-
-test("h1 contains 'execution plan', not just the brand name", async ({ page }) => {
+test("no separate hero/landing page precedes the shell — it's the only page, from the very first paint", async ({ page }) => {
   await page.goto("/")
-  const h1 = page.getByRole("heading", { level: 1 })
-  await expect(h1).toContainText(/execution plan/i)
+  // The shell (brand, Plan Input) is present immediately, with no plan
+  // analyzed yet — no intermediate hero screen ever renders in front of it.
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+  await expect(page.getByTestId("plan-shell-empty-placeholder")).toBeVisible()
+  await expect(page.getByText("PlanReader", { exact: true })).toBeVisible()
 })

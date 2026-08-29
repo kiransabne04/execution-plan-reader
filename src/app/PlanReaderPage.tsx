@@ -9,7 +9,13 @@ import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { formatStatementDuration, statementSeverity } from "./statementTabSummary"
 import { decodeShareLink } from "./shareLink"
-import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
+// Episode 19: the hero landing page this copy served is retired — the
+// three-column shell is now the app's only page, from first load, per the
+// user-supplied mockup screenshot. positioningCopy.ts's exports stay in
+// place (Story 8.1's brief-matching requirement is still true of the
+// source file itself) for a future first-time-visitor-credibility pass to
+// start from, just unused here today. See docs/08-episodes-and-stories.md's
+// Episode 19 header for the full account of what this supersedes.
 import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel, SearchPalette, WalkthroughOverlay, SEVERITY_LABEL, type PlanGraphHandle } from "../graph"
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
 import type { PlanContext } from "../rules/types"
@@ -316,11 +322,10 @@ export function PlanReaderPage() {
 
   const activeStatement = analyzed?.statements[activeStatementIndex]
 
-  // Story 18.2's shell only exists once a plan is analyzed and compare
-  // mode isn't active (the comparison view isn't part of this grid — see
-  // Story 18.14) — re-observe whenever that flips true so the ref (null
-  // until the section actually mounts) gets attached.
-  const shellMounted = Boolean(analyzed && activeStatement && !compareMode)
+  // Episode 19: `.plan-shell` now mounts unconditionally on first paint
+  // (it's the app's only page), so this observes once and never needs to
+  // re-attach — unlike before Episode 19, when the section itself only
+  // existed once a plan was analyzed.
   useLayoutEffect(() => {
     const el = shellRef.current
     if (!el) return
@@ -333,7 +338,8 @@ export function PlanReaderPage() {
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [shellMounted])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Episode 18, Story 18.12 — the mobile default-tab rule, deliberately
   // NOT folded into the ResizeObserver effect above: ResizeObserver only
@@ -383,81 +389,53 @@ export function PlanReaderPage() {
     URL.revokeObjectURL(url)
   }, [analyzed?.engine])
 
+  // Episode 19 — the left rail's "New plan" action: returns to the empty
+  // first-load state without touching anything saved locally (that's the
+  // separate "Clear saved data" control's job, unchanged by this).
+  const handleNewPlan = useCallback(() => {
+    setAnalyzed(null)
+    setRawText("")
+    setError(null)
+    setActiveStatementIndex(0)
+    setDetailPanel(undefined)
+    setFocusNodeId(undefined)
+    setMatchedNodeIds(undefined)
+    setIsWalkthroughOpen(false)
+    setIsSearchPaletteOpen(false)
+    setCompareMode(false)
+    setComparePlan(null)
+    setCompareError(null)
+    setExportError(null)
+  }, [])
+
   return (
     <main className="plan-reader-page">
-      {/* Episode 8 Story 8.1: hero headline/subheadline/engine names must be
-          visible without scrolling, on both desktop and mobile, and must
-          never be hidden behind a loading state — this is plain, immediately
-          rendered JSX with no async/lazy gate in front of it, and the exact
-          wording comes from the reviewed positioning brief (positioningCopy.ts). */}
-      <header className="plan-reader-page__hero">
-        <h1 className="plan-reader-page__title">{HERO_HEADLINE}</h1>
-        <p className="plan-reader-page__tagline">{HERO_SUBHEADLINE}</p>
-        <ul className="plan-reader-page__engine-list" aria-label="Supported database engines">
-          {SUPPORTED_ENGINES.map((engine) => (
-            <li key={engine} className="plan-reader-page__hero-engine-badge">
-              {engine}
-            </li>
-          ))}
-        </ul>
-      </header>
+      {/* Episode 19: `.plan-shell` is now the app's only page — it renders
+          unconditionally from first paint, not gated behind `analyzed` the
+          way it was through Episode 18. Story 8.1's hero (headline/
+          subheadline/engine badges, always above the fold) is retired by
+          this same change — a deliberate, user-directed supersession of
+          that AC and of spec §7's matching hero constraint, not a silent
+          regression. See docs/08-episodes-and-stories.md's Episode 19
+          header and BACKLOG-STATUS.md's matching row for the full account.
 
-      {restoreCandidate && (
-        <RestoreSessionBanner
-          savedAt={restoreCandidate.savedAt}
-          onRestore={() => handleAnalyze(restoreCandidate.text)}
-          onDismiss={handleDismissRestore}
-        />
-      )}
-
-      <PasteBox
-        onAnalyze={handleAnalyze}
-        initialText={initial?.rawText}
-        dontSave={dontSave}
-        onDontSaveChange={setDontSave}
-        hasSavedData={restoreCandidate !== null || recentPlans.length > 0}
-        onClearSavedData={handleClearSavedData}
-      />
-
-      {persistenceNotice && (
-        <p className="plan-reader-page__note" data-testid="persistence-notice">
-          {persistenceNotice}
-        </p>
-      )}
-
-      <RecentPlansList
-        plans={recentPlans}
-        onSelect={handleAnalyze}
-        onDelete={handleDeleteRecentPlan}
-        onClearAll={handleClearAllRecentPlans}
-      />
-
-      {error && (
-        <Notice severity="critical" data-testid="parse-error">
-          {error}
-        </Notice>
-      )}
-
-      {analyzed && activeStatement && (
-        // Episode 18, Story 18.2: `.plan-shell` is a `container-type:
-        // inline-size` context — every breakpoint below (the app bar's own
-        // gaps, the 1180px detail-panel switch, the 860px findings/graph
-        // tab switch) measures against THIS element's width, not the
-        // viewport, so the shell behaves the same embedded or full-page
-        // (spec §2). `ref`/`data-testid="plan-result"` kept on the same
-        // element existing tests already target.
-        <section
-          ref={shellRef}
-          className="plan-reader-page__result plan-shell"
-          data-testid="plan-result"
-          // Episode 18, Story 18.12 — a deterministic hook for tests (and
-          // any future mobile-specific behavior) rather than every
-          // consumer re-deriving "is this the true-mobile breakpoint" from
-          // a raw pixel width of its own. The bottom-sheet/touch-target
-          // CSS itself is still driven by the real `@container`/`@media`
-          // breakpoints (unaffected by this attribute), not this flag.
-          data-mobile-shell={isMobileShell || undefined}
-        >
+          `container-type: inline-size` (Story 18.2) still drives every
+          breakpoint below (app-bar gaps, the 1180px detail-panel switch,
+          the 860px findings/graph tab switch) against THIS element's own
+          width, not the viewport. `ref`/`data-testid="plan-result"` kept on
+          the same element every pre-existing test already targets. */}
+      <section
+        ref={shellRef}
+        className="plan-reader-page__result plan-shell"
+        data-testid="plan-result"
+        // Episode 18, Story 18.12 — a deterministic hook for tests (and
+        // any future mobile-specific behavior) rather than every
+        // consumer re-deriving "is this the true-mobile breakpoint" from
+        // a raw pixel width of its own. The bottom-sheet/touch-target
+        // CSS itself is still driven by the real `@container`/`@media`
+        // breakpoints (unaffected by this attribute), not this flag.
+        data-mobile-shell={isMobileShell || undefined}
+      >
           <header className="plan-shell__app-bar">
             {/* Design-mockup review (post-Episode-18): spec §1's icon row
                 — "Phosphor regular; fill weight only for the brand mark" —
@@ -467,74 +445,82 @@ export function PlanReaderPage() {
               <TreeStructure className="plan-shell__brand-icon" weight="fill" aria-hidden="true" />
               PlanReader
             </span>
-            {/* spec §2's app-bar order has a "filename" slot here (a
-                dropped/picked file's name, truncating). There's no real
-                filename yet — plans only arrive via paste until Story
-                18.5's file input lands — so this is intentionally omitted
-                rather than showing an empty or fabricated placeholder. */}
-            <span className="plan-shell__engine-badge" data-testid="detected-engine-badge">
-              {ENGINE_LABEL[analyzed.engine]}
-            </span>
-            <span className="plan-shell__spacer" />
-            {/* Story 18.3: page-level Beginner/Expert, replacing the
-                Story 18.2 placeholder — shared with the detail panel
-                (passed down below) and, per spec §2, with Story 18.9's
-                walkthrough below (same lifted state, not a third
-                toggle). */}
-            <div className="plan-shell__mode-toggle" role="group" aria-label="Detail level">
-              <button
-                type="button"
-                className="plan-shell__mode-toggle-button"
-                aria-pressed={!expertMode}
-                data-testid="shell-mode-beginner"
-                onClick={() => setExpertMode(false)}
-              >
-                Beginner
-              </button>
-              <button
-                type="button"
-                className="plan-shell__mode-toggle-button"
-                aria-pressed={expertMode}
-                data-testid="shell-mode-expert"
-                onClick={() => setExpertMode(true)}
-              >
-                Expert
-              </button>
-            </div>
-            <button
-              type="button"
-              className="plan-shell__app-bar-button"
-              data-testid="walkthrough-open"
-              onClick={() => setIsWalkthroughOpen(true)}
-            >
-              Walk me through it
-            </button>
-            {!compareMode && (
-              <button type="button" className="compare-toggle" data-testid="compare-toggle" onClick={handleEnterCompareMode}>
-                Compare with another plan
-              </button>
+            {/* Episode 19: every control below only means something once a
+                plan is loaded (an engine to badge, a query to walk through,
+                a link/image to share/export) — absent, not disabled, until
+                then, so the empty first-load app bar shows just the brand. */}
+            {analyzed && (
+              <>
+                {/* spec §2's app-bar order has a "filename" slot here (a
+                    dropped/picked file's name, truncating). There's no real
+                    filename yet — plans only arrive via paste until Story
+                    18.5's file input lands — so this is intentionally omitted
+                    rather than showing an empty or fabricated placeholder. */}
+                <span className="plan-shell__engine-badge" data-testid="detected-engine-badge">
+                  {ENGINE_LABEL[analyzed.engine]}
+                </span>
+                <span className="plan-shell__spacer" />
+                {/* Story 18.3: page-level Beginner/Expert, replacing the
+                    Story 18.2 placeholder — shared with the detail panel
+                    (passed down below) and, per spec §2, with Story 18.9's
+                    walkthrough below (same lifted state, not a third
+                    toggle). */}
+                <div className="plan-shell__mode-toggle" role="group" aria-label="Detail level">
+                  <button
+                    type="button"
+                    className="plan-shell__mode-toggle-button"
+                    aria-pressed={!expertMode}
+                    data-testid="shell-mode-beginner"
+                    onClick={() => setExpertMode(false)}
+                  >
+                    Beginner
+                  </button>
+                  <button
+                    type="button"
+                    className="plan-shell__mode-toggle-button"
+                    aria-pressed={expertMode}
+                    data-testid="shell-mode-expert"
+                    onClick={() => setExpertMode(true)}
+                  >
+                    Expert
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="plan-shell__app-bar-button"
+                  data-testid="walkthrough-open"
+                  onClick={() => setIsWalkthroughOpen(true)}
+                >
+                  Walk me through it
+                </button>
+                {!compareMode && (
+                  <button type="button" className="compare-toggle" data-testid="compare-toggle" onClick={handleEnterCompareMode}>
+                    Compare with another plan
+                  </button>
+                )}
+                <ShareLinkButton rawText={rawText} />
+                {/* Spec §2: "Share and Export drop to icon-only before
+                    wrapping." Was deferred pending real icon assets — Story
+                    18.4's operator icon set (@phosphor-icons/react) shipped
+                    since, so that blocker's gone; see planReaderPage.css's
+                    own comment for the measured (not assumed) breakpoint. */}
+                <button
+                  type="button"
+                  className="plan-shell__app-bar-button plan-shell__app-bar-button--icon-only"
+                  data-testid="export-png-button"
+                  onClick={handleExportPng}
+                  aria-label="Export as PNG"
+                >
+                  <DownloadSimple className="plan-shell__app-bar-button-icon" weight="regular" aria-hidden="true" />
+                  <span className="plan-shell__app-bar-button-label">Export</span>
+                </button>
+              </>
             )}
-            <ShareLinkButton rawText={rawText} />
-            {/* Spec §2: "Share and Export drop to icon-only before
-                wrapping." Was deferred pending real icon assets — Story
-                18.4's operator icon set (@phosphor-icons/react) shipped
-                since, so that blocker's gone; see planReaderPage.css's
-                own comment for the measured (not assumed) breakpoint. */}
-            <button
-              type="button"
-              className="plan-shell__app-bar-button plan-shell__app-bar-button--icon-only"
-              data-testid="export-png-button"
-              onClick={handleExportPng}
-              aria-label="Export as PNG"
-            >
-              <DownloadSimple className="plan-shell__app-bar-button-icon" weight="regular" aria-hidden="true" />
-              <span className="plan-shell__app-bar-button-label">Export</span>
-            </button>
           </header>
 
           {exportError && <Notice severity="critical">{exportError}</Notice>}
 
-          {analyzed.queryTextRedacted && (
+          {analyzed && analyzed.queryTextRedacted && (
             // Warning tier (spec §5 `1e`: "amber = partial result
             // available") — the plan itself parsed and rendered fine, but
             // with a real caveat (no query text to correlate against).
@@ -549,15 +535,16 @@ export function PlanReaderPage() {
               collapsed by default (Story 13.1). Informational tier (spec
               §5 `1e`: "blurple = informational") — nothing is wrong, this
               is a disclosure, not a problem. */}
-          {activeStatement.root.warnings
-            .filter((w) => w.ruleId === "parameter-sensitivity-honesty-note" || w.ruleId === "estimate-only-plan")
-            .map((w) => (
-              <Notice key={w.ruleId} severity="info">
-                {w.shortText}
-              </Notice>
-            ))}
+          {activeStatement &&
+            activeStatement.root.warnings
+              .filter((w) => w.ruleId === "parameter-sensitivity-honesty-note" || w.ruleId === "estimate-only-plan")
+              .map((w) => (
+                <Notice key={w.ruleId} severity="info">
+                  {w.shortText}
+                </Notice>
+              ))}
 
-          {analyzed.statements.length > 1 && (
+          {analyzed && analyzed.statements.length > 1 && (
             <div className="plan-reader-page__statement-tabs" role="tablist" aria-label="Statements in this batch">
               {analyzed.statements.map((stmt, index) => {
                 const duration = formatStatementDuration(stmt.root)
@@ -608,7 +595,7 @@ export function PlanReaderPage() {
             </div>
           )}
 
-          {compareMode ? (
+          {analyzed && activeStatement && compareMode ? (
             // Episode 14's comparison view is deliberately NOT part of the
             // shell grid below — Story 18.14 owns restyling it onto this
             // shell; spec §8 itself was written before Episode 14 shipped
@@ -652,20 +639,74 @@ export function PlanReaderPage() {
             </div>
           ) : (
             <div className="plan-shell__body" data-testid="plan-shell-body">
-              {/* Left rail (spec §2): "Plan input ... over Findings." The
-                  plan-input half of this rail — a collapsed source preview
-                  alongside the paste form — is Story 18.5's job (it owns
-                  rebuilding the input experience wholesale); PasteBox stays
-                  in its current pre-shell position above until then. Below
-                  860px this rail becomes the "Findings" tab instead of a
-                  side-by-side column — see the tablist below. */}
-              {(!isNarrowShell || activeShellTab === "findings") && (
-                <aside className="plan-shell__rail plan-shell__rail--left" data-testid="plan-shell-left-rail">
-                  <FindingsList root={activeStatement.root} onSelectNode={setFocusNodeId} />
-                </aside>
-              )}
+              {/* Left rail (spec §2): "Plan input ... over Findings." Episode
+                  19: Plan Input now lives here permanently, above Findings,
+                  from the very first load — not in its old pre-shell
+                  position, and never hidden by the narrow-shell tab switch
+                  below (a plan must be reachable at every breakpoint, per
+                  the user's own explicit edge case for this change).
+                  Findings itself still respects that tab switch below
+                  860px — it's what actually competes with the graph for
+                  space, not Plan Input. */}
+              <aside className="plan-shell__rail plan-shell__rail--left" data-testid="plan-shell-left-rail">
+                <div className="plan-shell__input-section" data-testid="plan-shell-input-section">
+                  <div className="plan-shell__input-section-header">
+                    <h2 className="plan-shell__input-section-title">Plan input</h2>
+                    {analyzed && (
+                      <button
+                        type="button"
+                        className="plan-shell__new-plan-button"
+                        data-testid="new-plan-button"
+                        onClick={handleNewPlan}
+                      >
+                        New plan
+                      </button>
+                    )}
+                  </div>
 
-              {isNarrowShell && (
+                  {restoreCandidate && (
+                    <RestoreSessionBanner
+                      savedAt={restoreCandidate.savedAt}
+                      onRestore={() => handleAnalyze(restoreCandidate.text)}
+                      onDismiss={handleDismissRestore}
+                    />
+                  )}
+
+                  <PasteBox
+                    onAnalyze={handleAnalyze}
+                    initialText={initial?.rawText}
+                    dontSave={dontSave}
+                    onDontSaveChange={setDontSave}
+                    hasSavedData={restoreCandidate !== null || recentPlans.length > 0}
+                    onClearSavedData={handleClearSavedData}
+                  />
+
+                  {persistenceNotice && (
+                    <p className="plan-reader-page__note" data-testid="persistence-notice">
+                      {persistenceNotice}
+                    </p>
+                  )}
+
+                  <RecentPlansList
+                    plans={recentPlans}
+                    onSelect={handleAnalyze}
+                    onDelete={handleDeleteRecentPlan}
+                    onClearAll={handleClearAllRecentPlans}
+                  />
+
+                  {error && (
+                    <Notice severity="critical" data-testid="parse-error">
+                      {error}
+                    </Notice>
+                  )}
+                </div>
+
+                {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "findings") && (
+                  <FindingsList root={activeStatement.root} onSelectNode={setFocusNodeId} />
+                )}
+              </aside>
+
+              {analyzed && isNarrowShell && (
                 <div className="plan-shell__tabs" role="tablist" aria-label="Findings and graph">
                   <button
                     type="button"
@@ -690,7 +731,18 @@ export function PlanReaderPage() {
                 </div>
               )}
 
-              {(!isNarrowShell || activeShellTab === "graph") && (
+              {!analyzed && (
+                // Episode 19's chosen empty state (confirmed with the user):
+                // a plain, honest placeholder — not the retired marketing
+                // hero, not a fabricated preview of the graph.
+                <main className="plan-shell__canvas plan-shell__canvas--empty" data-testid="plan-shell-canvas">
+                  <p className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
+                    Paste a plan on the left to see it visualized here.
+                  </p>
+                </main>
+              )}
+
+              {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "graph") && (
                 <main className="plan-shell__canvas" data-testid="plan-shell-canvas">
                   <p className="plan-shell__summary" data-testid="plan-summary">
                     {activeStatement.summary.text}
@@ -727,7 +779,9 @@ export function PlanReaderPage() {
               {/* Right rail: a true grid track above 1180px of the shell's
                   own width, an overlay-with-scrim below it — the
                   `detail-panel--in-shell` variant and this scrim compose to
-                  do that; see detailPanel.css and planReaderPage.css. */}
+                  do that; see detailPanel.css and planReaderPage.css. Always
+                  mounted now (Episode 19) — empty until a node is opened,
+                  same as before. */}
               <aside className="plan-shell__rail plan-shell__rail--right" data-testid="plan-shell-right-rail">
                 {detailPanel && (
                   <DetailPanel
@@ -746,7 +800,6 @@ export function PlanReaderPage() {
             </div>
           )}
         </section>
-      )}
 
       {/* Episode 18, Story 18.8 — a global overlay, deliberately rendered
           outside .plan-shell so its `position: fixed` scrim can never be

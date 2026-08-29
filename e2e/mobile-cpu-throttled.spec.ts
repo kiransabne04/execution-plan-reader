@@ -51,7 +51,10 @@ test("page load itself stays responsive on a throttled-CPU mobile viewport", asy
 
   const start = Date.now()
   await page.goto(baseURL ?? "/")
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+  // Episode 19: the hero h1 this test used to wait on is retired — the
+  // shell (and Plan Input inside it) is the first thing on the page now.
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+  await expect(page.getByTestId("paste-textarea")).toBeVisible()
   const loadElapsed = Date.now() - start
   expect(loadElapsed).toBeLessThan(5000)
 
