@@ -155,7 +155,8 @@ function drawPlanNode(
   const { x, y } = node.position
   const width = node.width ?? 160
   const height = node.height ?? 56
-  const { color, hasMismatch, loopCount, planNode, comparisonOverlay, severity, iconKey, subtitle, isDimmed } = node.data
+  const { color, hasMismatch, mismatchFactor, spillBadgeText, loopCount, planNode, comparisonOverlay, severity, iconKey, subtitle, isDimmed } =
+    node.data
 
   // Story 18.8, spec §5 `1h` — canvas-mode equivalent of PlanNodeCard's
   // opacity dimming: globalAlpha applies to every fill/stroke below (the
@@ -266,10 +267,14 @@ function drawPlanNode(
     badgeY = drawBadge(ctx, `×${loopCount.toLocaleString("en-US")}`, x + padding, badgeY, textColor, dimAlpha)
   }
   if (hasMismatch) {
-    badgeY = drawBadge(ctx, MISMATCH_BADGE_TEXT, x + padding, badgeY, textColor, dimAlpha)
+    const mismatchText = mismatchFactor !== undefined ? `${MISMATCH_BADGE_TEXT} ${mismatchFactor}×` : MISMATCH_BADGE_TEXT
+    badgeY = drawBadge(ctx, mismatchText, x + padding, badgeY, textColor, dimAlpha)
   }
   if (severity && severityColor) {
     badgeY = drawBadge(ctx, severity, x + padding, badgeY, severityColor, dimAlpha)
+  }
+  if (spillBadgeText) {
+    badgeY = drawBadge(ctx, spillBadgeText, x + padding, badgeY, textColor, dimAlpha)
   }
   if (comparisonStatus && comparisonStatus !== "matched") {
     drawBadge(ctx, COMPARISON_BADGE_TEXT[comparisonStatus], x + padding, badgeY, comparisonColor ?? textColor, dimAlpha)

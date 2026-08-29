@@ -434,9 +434,18 @@
 
 .plan-shell__brand {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
   white-space: nowrap;
   color: var(--pr-text);
+}
+
+.plan-shell__brand-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--pr-accent);
 }
 
 .plan-shell__engine-badge {
@@ -523,17 +532,24 @@
    `.plan-shell__app-bar`'s own `overflow-x: auto` was silently absorbing
    that instead of ever actually wrapping, which is why this went
    unnoticed: nothing looked visibly broken, it just meant scrolling to
-   reach Export at these widths. 760px is a measured, not assumed,
-   threshold: a throwaway Playwright script driving the real built app
-   found the app bar's natural (un-scrollable) content stops fitting
-   somewhere between 746px and 726px of shell width — 760px keeps a
-   deliberate margin above that so icon-only kicks in BEFORE scrolling
-   would ever be needed, matching the spec's literal "before wrapping"
-   framing (there's no wrap here, only scroll-or-not). Scoped to Share
-   and Export specifically, per the spec's own wording — the mode
-   toggle/walkthrough/compare buttons keep their full text at every
-   width, unchanged. */
-@container (max-width: 759px) {
+   reach Export at these widths.
+
+   859px, matching `NARROW_SHELL_BREAKPOINT_PX`'s own already-established
+   860px threshold (`.plan-shell__body`'s own breakpoint just below): a
+   measured, not assumed, choice — re-measured with a throwaway Playwright
+   script against the real built app (including the brand-mark icon added
+   in the same design-mockup-review pass, which widened the app bar's
+   natural content enough to invalidate an earlier, narrower 759px
+   threshold this rule used before that icon existed) found the full-text
+   app bar stops fitting somewhere between 786px and 816px of shell width.
+   Reusing 860 rather than picking a new bespoke number keeps one
+   breakpoint value doing double duty at a width that's already a real,
+   meaningful structural change (input rail collapse, Story 18.2) instead
+   of accumulating a third close-but-different magic number. Scoped to
+   Share and Export specifically, per the spec's own wording — the mode
+   toggle/walkthrough/compare buttons keep their full text at every width,
+   unchanged. */
+@container (max-width: 859px) {
   .plan-shell__app-bar-button-label,
   .share-link__button-label {
     display: none;

@@ -11,10 +11,27 @@ export const MISMATCH_RATIO_THRESHOLD = 10
 
 const SUPPRESSED_OPERATOR_TYPES = new Set(["bitmap_and", "bitmap_or"])
 
-export const badRowEstimate: Rule = (node) => {
-  if (SUPPRESSED_OPERATOR_TYPES.has(node.operatorType)) return []
+export interface MismatchFactorResult {
+  isBad: boolean
+  /** Rounded whole number, or `undefined` for the near-infinite-ratio case
+   * (actualRows === 0 with a positive estimate) — there's no clean number
+   * to show for that, only "far" (this rule's own prose fallback). */
+  factor: number | undefined
+  direction: "more" | "fewer"
+}
 
-  const { estimatedRows, actualRows } = node
+/**
+ * Pure: the row-count mismatch ratio between estimated and actual rows.
+ * Shared by this rule's own prose (`shortText`/`longText` below) AND
+ * `buildGraphElements.ts`'s node-card mismatch badge (spec §3: "Badges |
+ * ... mismatch factor" — the design mockup renders this as "est. mismatch
+ * 95×") — one source of truth for the number, not two independently
+ * computed ratios that could silently drift apart from each other.
+ */
+export function computeMismatchFactor(
+  estimatedRows: number | undefined,
+  actualRows: number | undefined,
+): MismatchFactorResult | undefined {
   if (
     estimatedRows === undefined ||
     actualRows === undefined ||
@@ -23,16 +40,32 @@ export const badRowEstimate: Rule = (node) => {
     estimatedRows <= 0 ||
     actualRows < 0
   ) {
-    return [] // insufficient/degenerate data — treat as "can't tell", never guess
+    return undefined // insufficient/degenerate data — treat as "can't tell", never guess
   }
 
   const ratio = actualRows === 0 ? Infinity : actualRows / estimatedRows
   const isBad = ratio >= MISMATCH_RATIO_THRESHOLD || ratio <= 1 / MISMATCH_RATIO_THRESHOLD
-  if (!isBad) return []
-
   const direction = ratio > 1 ? "more" : "fewer"
-  const factor = ratio > 1 ? ratio : 1 / ratio
-  const factorText = Number.isFinite(factor) ? `${formatNumber(Math.round(factor))}x` : "far"
+  const rawFactor = ratio > 1 ? ratio : 1 / ratio
+  const factor = Number.isFinite(rawFactor) ? Math.round(rawFactor) : undefined
+  return { isBad, factor, direction }
+}
+
+export const badRowEstimate: Rule = (node) => {
+  if (SUPPRESSED_OPERATOR_TYPES.has(node.operatorType)) return []
+
+  const { estimatedRows, actualRows } = node
+  // Redundant with the guard inside computeMismatchFactor, but restores
+  // TypeScript's narrowing at this call site (a plain function call can't
+  // narrow the caller's own locals the way an inline check can) — cheap,
+  // and keeps this file free of non-null assertions.
+  if (estimatedRows === undefined || actualRows === undefined) return []
+
+  const result = computeMismatchFactor(estimatedRows, actualRows)
+  if (!result || !result.isBad) return []
+
+  const { direction, factor } = result
+  const factorText = factor !== undefined ? `${formatNumber(factor)}x` : "far"
 
   return [
     {

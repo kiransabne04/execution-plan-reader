@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { DownloadSimple } from "@phosphor-icons/react"
+import { DownloadSimple, TreeStructure } from "@phosphor-icons/react"
 import { PasteBox } from "./PasteBox"
 import { Notice } from "./Notice"
 import { ComparePasteBox } from "./ComparePasteBox"
@@ -459,7 +459,14 @@ export function PlanReaderPage() {
           data-mobile-shell={isMobileShell || undefined}
         >
           <header className="plan-shell__app-bar">
-            <span className="plan-shell__brand">PlanReader</span>
+            {/* Design-mockup review (post-Episode-18): spec §1's icon row
+                — "Phosphor regular; fill weight only for the brand mark" —
+                names a brand mark that was never actually built; the
+                mockup renders it as a filled tree-structure glyph. */}
+            <span className="plan-shell__brand">
+              <TreeStructure className="plan-shell__brand-icon" weight="fill" aria-hidden="true" />
+              PlanReader
+            </span>
             {/* spec §2's app-bar order has a "filename" slot here (a
                 dropped/picked file's name, truncating). There's no real
                 filename yet — plans only arrive via paste until Story

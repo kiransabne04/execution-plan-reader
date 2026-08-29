@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { badRowEstimate } from "../badRowEstimate"
+import { badRowEstimate, computeMismatchFactor } from "../badRowEstimate"
 import { makeContext, makeNode } from "./testHelpers"
 
 describe("badRowEstimate", () => {
@@ -53,5 +53,51 @@ describe("badRowEstimate", () => {
     const negativeActual = makeNode({ estimatedRows: 100, actualRows: -5 })
     expect(() => badRowEstimate(negativeActual, makeContext(negativeActual))).not.toThrow()
     expect(badRowEstimate(negativeActual, makeContext(negativeActual))).toEqual([])
+  })
+})
+
+// Design mockup review (post-Episode-18): spec §3's badge table names
+// "mismatch factor" explicitly, rendered in the mockup as "est. mismatch
+// 95×" — this rule's own ratio math, extracted into a reusable function so
+// the node-card badge (buildGraphElements.test.ts) reads the SAME number
+// this rule's prose already reports, not a second independently-computed
+// ratio.
+describe("computeMismatchFactor", () => {
+  it("returns isBad + a rounded whole-number factor for a genuine mismatch", () => {
+    const result = computeMismatchFactor(100, 50_000)
+    expect(result).toEqual({ isBad: true, factor: 500, direction: "more" })
+  })
+
+  it("reports direction: 'fewer' when actual undershoots the estimate", () => {
+    const result = computeMismatchFactor(100_000, 10)
+    expect(result?.isBad).toBe(true)
+    expect(result?.direction).toBe("fewer")
+    expect(result?.factor).toBe(10_000)
+  })
+
+  it("isBad is false for a close estimate, but still returns a (small) factor", () => {
+    const result = computeMismatchFactor(1000, 1100)
+    expect(result?.isBad).toBe(false)
+  })
+
+  it("factor is undefined for the near-infinite-ratio case (actualRows === 0) — badRowEstimate's own 'far' fallback", () => {
+    const result = computeMismatchFactor(500, 0)
+    expect(result?.isBad).toBe(true)
+    expect(result?.factor).toBeUndefined()
+  })
+
+  it("returns undefined entirely for missing/degenerate data, same guard badRowEstimate itself uses", () => {
+    expect(computeMismatchFactor(undefined, 500)).toBeUndefined()
+    expect(computeMismatchFactor(100, undefined)).toBeUndefined()
+    expect(computeMismatchFactor(0, 100)).toBeUndefined()
+    expect(computeMismatchFactor(100, -5)).toBeUndefined()
+    expect(computeMismatchFactor(Number.NaN, 100)).toBeUndefined()
+  })
+
+  it("the rule's own shortText factor and this function's factor agree exactly (same underlying number)", () => {
+    const node = makeNode({ estimatedRows: 12_400, actualRows: 1_182_904 })
+    const warnings = badRowEstimate(node, makeContext(node))
+    const result = computeMismatchFactor(12_400, 1_182_904)
+    expect(warnings[0].shortText).toContain(`${result?.factor}x`)
   })
 })

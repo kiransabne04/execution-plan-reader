@@ -55,6 +55,66 @@ describe("buildGraphElements", () => {
     expect(cleanNode.data.kind === "plan" && cleanNode.data.hasMismatch).toBe(false)
   })
 
+  // Design mockup review (post-Episode-18): spec §3's badge table names
+  // "mismatch factor" explicitly.
+  it("sets mismatchFactor from the node's own estimated/actual rows, reusing badRowEstimate.ts's own ratio math", () => {
+    const node = makeNode({ id: "a", estimatedRows: 12_400, actualRows: 1_182_904 })
+    const root = makeNode({ id: "root", children: [node] })
+    const { nodes } = buildGraphElements(root)
+    const found = nodes.find((n) => n.id === "a")!
+    expect(found.data.kind === "plan" && found.data.mismatchFactor).toBe(95)
+  })
+
+  it("leaves mismatchFactor undefined for a close, unremarkable estimate — the number isn't fabricated when it's not a real mismatch", () => {
+    const node = makeNode({ id: "a", estimatedRows: 1000, actualRows: 1100 })
+    const root = makeNode({ id: "root", children: [node] })
+    const { nodes } = buildGraphElements(root)
+    const found = nodes.find((n) => n.id === "a")!
+    expect(found.data.kind === "plan" && found.data.mismatchFactor).toBeUndefined()
+  })
+
+  it("leaves mismatchFactor undefined for the near-infinite-ratio case (actualRows === 0) — no clean number to show", () => {
+    const node = makeNode({ id: "a", operatorType: "index_scan", estimatedRows: 500, actualRows: 0 })
+    const root = makeNode({ id: "root", children: [node] })
+    const { nodes } = buildGraphElements(root)
+    const found = nodes.find((n) => n.id === "a")!
+    expect(found.data.kind === "plan" && found.data.mismatchFactor).toBeUndefined()
+  })
+
+  // Design mockup review (post-Episode-18): spec §3's badge table names
+  // "spill size" as its own badge.
+  it("sets spillBadgeText with a compact byte size when the node spilled with known byte counts", () => {
+    const node = makeNode({ id: "a", spill: { occurred: true, bytesLocal: 104_857_600 } })
+    const root = makeNode({ id: "root", children: [node] })
+    const { nodes } = buildGraphElements(root)
+    const found = nodes.find((n) => n.id === "a")!
+    expect(found.data.kind === "plan" && found.data.spillBadgeText).toBe("spilled 100 MB")
+  })
+
+  it("sums local + remote spill bytes into one badge (Snowflake's split, Postgres/SQL Server's local-only)", () => {
+    const node = makeNode({ id: "a", spill: { occurred: true, bytesLocal: 104_857_600, bytesRemote: 52_428_800 } })
+    const root = makeNode({ id: "root", children: [node] })
+    const { nodes } = buildGraphElements(root)
+    const found = nodes.find((n) => n.id === "a")!
+    expect(found.data.kind === "plan" && found.data.spillBadgeText).toBe("spilled 150 MB")
+  })
+
+  it("falls back to plain 'spilled to disk' text when spill occurred but no byte count is available", () => {
+    const node = makeNode({ id: "a", spill: { occurred: true, detail: "sort spill" } })
+    const root = makeNode({ id: "root", children: [node] })
+    const { nodes } = buildGraphElements(root)
+    const found = nodes.find((n) => n.id === "a")!
+    expect(found.data.kind === "plan" && found.data.spillBadgeText).toBe("spilled to disk")
+  })
+
+  it("leaves spillBadgeText undefined for a node with no spill at all", () => {
+    const node = makeNode({ id: "a" })
+    const root = makeNode({ id: "root", children: [node] })
+    const { nodes } = buildGraphElements(root)
+    const found = nodes.find((n) => n.id === "a")!
+    expect(found.data.kind === "plan" && found.data.spillBadgeText).toBeUndefined()
+  })
+
   it("sets a loop badge count only when loops > 1", () => {
     const looped = makeNode({ id: "looped", loops: 950 })
     const single = makeNode({ id: "single", loops: 1 })

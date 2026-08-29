@@ -121,6 +121,30 @@ describe("drawGraph", () => {
     expect(ctxClean.calls.filter((c) => c.method === "setLineDash").every((c) => (c.args[0] as number[]).length === 0)).toBe(true)
   })
 
+  // Design mockup review (post-Episode-18): spec §3's badge table names
+  // "mismatch factor" explicitly (mockup renders "est. mismatch 95×") —
+  // the canvas path must mirror the DOM path's badge text, same visual-
+  // consistency rule every other encoding in this file already follows.
+  it("the mismatch badge includes the factor when set, plain text when not", () => {
+    const ctxWithFactor = makeFakeContext()
+    drawGraph(ctxWithFactor, { ...baseParams, nodes: [planGraphNode({ id: "a", hasMismatch: true, mismatchFactor: 95 })], edges: [] })
+    expect(ctxWithFactor.calls.some((c) => c.method === "fillText" && c.args[0] === "est. mismatch 95×")).toBe(true)
+
+    const ctxWithoutFactor = makeFakeContext()
+    drawGraph(ctxWithoutFactor, { ...baseParams, nodes: [planGraphNode({ id: "a", hasMismatch: true, mismatchFactor: undefined })], edges: [] })
+    expect(ctxWithoutFactor.calls.some((c) => c.method === "fillText" && c.args[0] === "est. mismatch")).toBe(true)
+  })
+
+  it("draws the spill badge text when set, nothing when not", () => {
+    const ctxWithSpill = makeFakeContext()
+    drawGraph(ctxWithSpill, { ...baseParams, nodes: [planGraphNode({ id: "a", spillBadgeText: "spilled 100 MB" })], edges: [] })
+    expect(ctxWithSpill.calls.some((c) => c.method === "fillText" && c.args[0] === "spilled 100 MB")).toBe(true)
+
+    const ctxNoSpill = makeFakeContext()
+    drawGraph(ctxNoSpill, { ...baseParams, nodes: [planGraphNode({ id: "a", spillBadgeText: undefined })], edges: [] })
+    expect(ctxNoSpill.calls.some((c) => c.method === "fillText" && String(c.args[0]).startsWith("spilled"))).toBe(false)
+  })
+
   it("draws an extra outline stroke when the node is selected", () => {
     const ctxSelected = makeFakeContext()
     drawGraph(ctxSelected, { ...baseParams, nodes: [planGraphNode({ id: "a" })], edges: [], selectedNodeId: "a" })

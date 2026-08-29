@@ -20,6 +20,8 @@ import type { Edge, Node, SmoothStepPathOptions } from "@xyflow/react"
 import dagre from "@dagrejs/dagre"
 import type { PlanNode, Warning } from "../parsers/normalize"
 import { relationIdentity, indexIdentity } from "../parsers/relationIdentity"
+import { computeMismatchFactor } from "../rules/badRowEstimate"
+import { formatBytesCompact } from "../rules/format"
 import type { NodeMatchStatus } from "../comparison/matchNodes"
 import { buildEdgeWidthScale, buildMetricScale, pickMetricValue, type MetricKey } from "./encoding"
 import { worstSeverity } from "./nodeSeverity"
@@ -47,6 +49,24 @@ export interface PlanNodeData extends Record<string, unknown> {
   /** Estimate-vs-actual mismatch — reuses the rule engine's own bad-row-estimate
    * finding rather than recomputing a second, possibly-inconsistent threshold. */
   hasMismatch: boolean
+  /** Spec §3's badge table names "mismatch factor" explicitly (the design
+   * mockup renders it as "est. mismatch 95×") — `undefined` when
+   * `hasMismatch` is false, or true but the ratio has no clean rounded
+   * number (the near-infinite/`actualRows === 0` case, `badRowEstimate.ts`'s
+   * own prose "far" fallback). Reuses that rule's own `computeMismatchFactor`
+   * — one ratio computation, not a second one re-derived here. */
+  mismatchFactor?: number
+  /** Spec §3's badge table: "spill size" — the third of three badge types
+   * named there (loop count, spill size, mismatch factor); this one was
+   * never actually built in any Episode 18 story until a design-mockup
+   * review caught the gap. Pre-formatted display text (not raw bytes) so
+   * the graph layer doesn't need its own byte-scaling opinion — see
+   * `format.ts`'s `formatBytesCompact`. `undefined` only when this node
+   * has no spill at all — a spill with no byte count (an engine that only
+   * reports spill occurred, not how much) still shows a plain "spilled to
+   * disk" badge, same "the condition itself is real, only the number is
+   * sometimes unavailable" pattern `mismatchFactor` above already uses. */
+  spillBadgeText?: string
   loopCount?: number
   comparisonOverlay?: ComparisonOverlay
   /** Story 18.4 — this node's worst warning severity (`undefined` when it
@@ -143,6 +163,15 @@ function edgeId(sourceId: string, targetId: string): string {
   return `${sourceId}->${targetId}`
 }
 
+/** Design-mockup review (post-Episode-18): spec §3's badge table names
+ * "spill size" as its own badge, distinct from the mismatch-factor/loop-
+ * count badges — never built until this pass caught the gap. */
+function spillBadgeTextFor(node: PlanNode): string | undefined {
+  if (!node.spill?.occurred) return undefined
+  const totalBytes = (node.spill.bytesLocal ?? 0) + (node.spill.bytesRemote ?? 0)
+  return totalBytes > 0 ? `spilled ${formatBytesCompact(totalBytes)}` : "spilled to disk"
+}
+
 /** Story 18.4 — target-handle id for the Nth (0-indexed) child feeding into
  * a parent's bottom edge. Exported so `PlanNodeCard.tsx` (which handle to
  * render) and `buildGraphElements.ts` (which handle an edge targets) agree
@@ -196,6 +225,7 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
       placed.add(node.id)
       const value = pickMetricValue(node, metric)
       const { width, height } = metricScale.sizeFor(value)
+      const mismatchFactorResult = computeMismatchFactor(node.estimatedRows, node.actualRows)
       nodes.push({
         id: node.id,
         type: "planNode",
@@ -209,6 +239,14 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
           height,
           color: metricScale.colorFor(value),
           hasMismatch: node.warnings.some((w) => w.ruleId === "bad-row-estimate"),
+          // `computeMismatchFactor` on its own doesn't know about the
+          // "bad" threshold's already-fired-or-not state `hasMismatch`
+          // reads from `node.warnings` — only surface a factor number
+          // when this node's mismatch is actually bad enough to have
+          // fired the rule, never for an unrelated node whose ratio
+          // happens to be computable but unremarkable.
+          mismatchFactor: mismatchFactorResult?.isBad ? mismatchFactorResult.factor : undefined,
+          spillBadgeText: spillBadgeTextFor(node),
           loopCount: node.loops !== undefined && node.loops > 1 ? node.loops : undefined,
           comparisonOverlay: comparisonOverlays?.get(node.id),
           severity: worstSeverity(node),

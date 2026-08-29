@@ -35,7 +35,21 @@ const SEVERITY_RING_CLASS: Partial<Record<PlanNodeData["severity"] & string, str
 const TARGET_HANDLE_GAP_PX = 10
 
 export function PlanNodeCard({ data }: PlanNodeCardProps) {
-  const { planNode, color, hasMismatch, loopCount, comparisonOverlay, severity, iconKey, subtitle, childCount, isDimmed, onOpen } = data
+  const {
+    planNode,
+    color,
+    hasMismatch,
+    mismatchFactor,
+    spillBadgeText,
+    loopCount,
+    comparisonOverlay,
+    severity,
+    iconKey,
+    subtitle,
+    childCount,
+    isDimmed,
+    onOpen,
+  } = data
   const classNames = ["plan-node-card"]
   if (hasMismatch) classNames.push("plan-node-card--mismatch")
   if (comparisonOverlay && comparisonOverlay.status !== "matched") {
@@ -149,7 +163,7 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
         <div className="plan-node-card__badges">
           {hasMismatch && (
             <span className="plan-node-card__badge" data-testid="mismatch-badge">
-              est. mismatch
+              est. mismatch{mismatchFactor !== undefined ? ` ${mismatchFactor}×` : ""}
             </span>
           )}
           {severity && (
@@ -160,6 +174,18 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
           {loopCount !== undefined && (
             <span className="plan-node-card__badge" data-testid="loop-badge">
               ×{loopCount.toLocaleString("en-US")}
+            </span>
+          )}
+          {/* Design-mockup review (post-Episode-18): spec §3's badge table
+              names "spill size" as its own badge — never built until this
+              pass. Plain/neutral like the mismatch and loop badges above,
+              not the severity-tinted class: this node's own severity
+              badge already carries that color, and every content badge
+              turning the same solid red would be redundant visual noise,
+              same reasoning those two existing badges already follow. */}
+          {spillBadgeText && (
+            <span className="plan-node-card__badge" data-testid="spill-badge">
+              {spillBadgeText}
             </span>
           )}
           {comparisonOverlay && comparisonOverlay.status !== "matched" && (

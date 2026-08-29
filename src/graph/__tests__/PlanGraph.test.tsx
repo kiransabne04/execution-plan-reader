@@ -69,6 +69,40 @@ describe("PlanGraph", () => {
     expect(screen.getAllByTestId("mismatch-badge")).toHaveLength(1)
   })
 
+  // Design mockup review (post-Episode-18): spec §3's badge table names
+  // "mismatch factor" explicitly (mockup renders "est. mismatch 95×").
+  it("the mismatch badge includes the actual/estimated ratio when computable", () => {
+    const node = makeNode({
+      id: "a",
+      estimatedRows: 12_400,
+      actualRows: 1_182_904,
+      warnings: [{ ruleId: "bad-row-estimate", severity: "warning", shortText: "x", longText: "y" }],
+    })
+    const root = makeNode({ id: "root", children: [node] })
+
+    render(<PlanGraph root={root} />)
+
+    expect(screen.getByTestId("mismatch-badge")).toHaveTextContent("est. mismatch 95×")
+  })
+
+  // Design mockup review (post-Episode-18): spec §3's badge table names
+  // "spill size" as its own badge.
+  it("shows a spill badge with a compact byte size on a node that spilled to disk", () => {
+    const node = makeNode({ id: "a", spill: { occurred: true, bytesLocal: 104_857_600 } })
+    const root = makeNode({ id: "root", children: [node] })
+
+    render(<PlanGraph root={root} />)
+
+    expect(screen.getByTestId("spill-badge")).toHaveTextContent("spilled 100 MB")
+  })
+
+  it("shows no spill badge on a node that didn't spill", () => {
+    const node = makeNode({ id: "a" })
+    const root = makeNode({ id: "root", children: [node] })
+    render(<PlanGraph root={root} />)
+    expect(screen.queryByTestId("spill-badge")).not.toBeInTheDocument()
+  })
+
   it("shows a loop-count badge only when loops > 1", () => {
     const looped = makeNode({ id: "looped", loops: 950 })
     const single = makeNode({ id: "single", loops: 1 })
