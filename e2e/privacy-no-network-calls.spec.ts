@@ -155,3 +155,28 @@ test("Story 17.1/17.2: zero outbound requests across the full local-persistence 
   await page.waitForTimeout(300)
   expect(requests).toEqual([])
 })
+
+// Episode 14, Story 14.2: comparing two plans runs the exact same
+// analyzePlanText/matchNodes pipeline twice, entirely client-side — this
+// makes that explicit and regression-checkable rather than assumed, same
+// reasoning as the Episode 17 test above.
+test("Story 14.2: zero outbound requests while comparing two plans, including a synced-selection click", async ({ page }) => {
+  await page.goto("/")
+
+  const requests: string[] = []
+  page.on("request", (req) => requests.push(req.url()))
+
+  await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
+  await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+  await expect(page.getByTestId("plan-result")).toBeVisible()
+
+  await page.getByTestId("compare-toggle").click()
+  await page.getByTestId("compare-paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
+  await page.getByTestId("compare-paste-submit").click()
+  await expect(page.getByTestId("plan-comparison-view")).toBeVisible()
+
+  await page.getByTestId("plan-graph").first().getByTestId("plan-node-card").first().click()
+  await page.waitForTimeout(500)
+
+  expect(requests).toEqual([])
+})

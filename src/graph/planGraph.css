@@ -10,6 +10,13 @@
   --pg-badge-text: #ffffff;
   --pg-collapsed-bg: #f2f4f7;
   --pg-collapsed-border: #98a2b3;
+  /* Episode 14, Story 14.2 — three distinct comparison states, each its own
+     hue AND its own badge text (never color alone, same colorblind-safety
+     rule as the mismatch encoding above). Matched/unchanged intentionally
+     has no entry here — it keeps the card's normal, neutral styling. */
+  --pg-comparison-changed: #b54708;
+  --pg-comparison-added: #05603a;
+  --pg-comparison-removed: #6941c6;
   /* Episode 15 — the canvas path's selection outline (no DOM focus ring to
      rely on, so this has to be drawn explicitly; see canvasDraw.ts). */
   --pg-canvas-selection: #1a56db;
@@ -31,6 +38,9 @@
     --pg-collapsed-bg: #262b35;
     --pg-collapsed-border: #4a5160;
     --pg-canvas-selection: #7fa5ff;
+    --pg-comparison-changed: #f79009;
+    --pg-comparison-added: #47cd89;
+    --pg-comparison-removed: #b692f6;
   }
 }
 
@@ -94,6 +104,53 @@
   border-style: dashed;
   border-width: 3px;
   border-color: var(--pg-mismatch-border);
+}
+
+/* Episode 14, Story 14.2 — three visually different comparison states, a
+   solid (not dashed) border so they read distinctly from the mismatch
+   encoding above even on a node that happens to carry both. Declared after
+   .plan-node-card--mismatch so a node with both classes shows the
+   comparison-view treatment — the more contextually relevant one when a
+   comparison view is actually open. */
+.plan-node-card--comparison-changed {
+  border-style: solid;
+  border-width: 3px;
+  border-color: var(--pg-comparison-changed);
+}
+
+.plan-node-card--comparison-added {
+  border-style: solid;
+  border-width: 3px;
+  border-color: var(--pg-comparison-added);
+}
+
+.plan-node-card--comparison-removed {
+  border-style: solid;
+  border-width: 3px;
+  border-color: var(--pg-comparison-removed);
+}
+
+.plan-node-card__comparison-delta {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-node-card__badge--comparison-changed {
+  background: var(--pg-comparison-changed);
+  color: var(--pg-badge-text);
+}
+
+.plan-node-card__badge--comparison-addedInB {
+  background: var(--pg-comparison-added);
+  color: var(--pg-badge-text);
+}
+
+.plan-node-card__badge--comparison-removedFromB {
+  background: var(--pg-comparison-removed);
+  color: var(--pg-badge-text);
 }
 
 .plan-node-card__label {

@@ -11,7 +11,7 @@ import {
 import "@xyflow/react/dist/style.css"
 import { collectNodes, type PlanNode } from "../parsers/normalize"
 import { buildPlanContext, type PlanContext } from "../rules/types"
-import { buildGraphElements, type PlanGraphNode } from "./buildGraphElements"
+import { buildGraphElements, type ComparisonOverlay, type PlanGraphNode } from "./buildGraphElements"
 import { AccessiblePlanList } from "./canvas/AccessiblePlanList"
 import { CanvasPlanGraph } from "./canvas/CanvasPlanGraph"
 import { computeDefaultCollapsedIds, findCollapsedAncestors } from "./collapse"
@@ -61,9 +61,28 @@ export interface PlanGraphProps {
    * without the caller needing to clear-then-set it. */
   focusNodeId?: string
   onFocusHandled?: () => void
+  /** Episode 14, Story 14.2 — keyed by this tree's own PlanNode id, from a
+   * `matchNodes` result. Absent for a plain single-plan render. */
+  comparisonOverlays?: Map<string, ComparisonOverlay>
+  /** Story 14.2's synced selection: fires with the newly selected node id
+   * (or `undefined` on close) when a selection *originates in this pane* —
+   * a click or keyboard activation, never an incoming `focusNodeId` (that
+   * would echo straight back to whoever just set it — see the effect below
+   * for why). A comparison view uses this to drive the OTHER pane's
+   * `focusNodeId` — see PlanComparisonView.tsx. Optional and additive:
+   * omitting it changes nothing about single-plan behavior. */
+  onNodeSelected?: (nodeId: string | undefined) => void
 }
 
-function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, onFocusHandled }: PlanGraphProps) {
+function PlanGraphInner({
+  root,
+  metric = "actualTimeMs",
+  context,
+  focusNodeId,
+  onFocusHandled,
+  comparisonOverlays,
+  onNodeSelected,
+}: PlanGraphProps) {
   const allNodes = useMemo(() => collectNodes(root), [root])
   const resolvedContext = useMemo(() => context ?? buildPlanContext(root), [context, root])
 
@@ -79,6 +98,15 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
   // the PlanNode model itself.
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined)
 
+  // Story 14.2: a node an incoming `focusNodeId` asked us to pan to, held
+  // separately from `focusNodeId` itself (which the parent clears via
+  // `onFocusHandled` moments after this fires — see the effect below) so
+  // the pan can still resolve one commit later, once a just-expanded
+  // ancestor's `nodes` actually contains this id. Only ever set by an
+  // external focus request, never by a plain click, so ordinary in-graph
+  // clicking never yanks the camera — that's not what this is for.
+  const [pendingPanNodeId, setPendingPanNodeId] = useState<string | undefined>(undefined)
+
   // Whatever had focus right before the panel opened (a clicked or
   // keyboard-activated card) — restored on close so focus doesn't silently
   // fall back to the document body, standard modal/panel accessibility
@@ -88,16 +116,19 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
   const openPanel = useCallback((nodeId: string) => {
     triggerElementRef.current = document.activeElement as HTMLElement | null
     setSelectedNodeId(nodeId)
-  }, [])
+    onNodeSelected?.(nodeId)
+  }, [onNodeSelected])
   const closePanel = useCallback(() => {
     setSelectedNodeId(undefined)
     triggerElementRef.current?.focus()
-  }, [])
+    onNodeSelected?.(undefined)
+  }, [onNodeSelected])
 
   // Story 13.1: handle an externally requested focus (a click in the "All
-  // findings" list). Expanding any collapsed ancestor first means the
-  // fitView effect below (which re-runs on `nodes.length` change) brings
-  // the newly-revealed node into view, not just the panel.
+  // findings" list, or — Story 14.2 — the OTHER pane of a comparison view
+  // via onNodeSelected/focusNodeId). Expanding any collapsed ancestor first
+  // means the fitView effect below (which re-runs on `nodes.length` change)
+  // brings the newly-revealed node into view, not just the panel.
   useEffect(() => {
     if (focusNodeId === undefined) return
     setCollapsedIds((prev) => {
@@ -108,6 +139,15 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
       return next
     })
     setSelectedNodeId(focusNodeId)
+    setPendingPanNodeId(focusNodeId)
+    // Deliberately NOT calling onNodeSelected here: this branch handles a
+    // focus that arrived FROM the caller (Story 13.1's findings-list click,
+    // or Story 14.2's other-pane sync below) — echoing it back out again
+    // would round-trip straight back to whoever just set it. In a
+    // PlanComparisonView, both panes do this symmetrically, so an echo here
+    // becomes A -> B -> A -> B forever. onNodeSelected fires only for a
+    // selection that actually originated in THIS pane (openPanel/closePanel
+    // above) — that's the only direction that needs reporting outward.
     onFocusHandled?.()
     // onFocusHandled intentionally excluded from deps: it's a fire-once
     // callback, not reactive state this effect should re-run for.
@@ -132,12 +172,13 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
     setPrevRoot(root)
     setCollapsedIds(computeDefaultCollapsedIds(root, allNodes))
     setSelectedNodeId(undefined)
+    setPendingPanNodeId(undefined)
     setShowAccessibleList(false)
   }
 
   const { nodes, edges } = useMemo(
-    () => buildGraphElements(root, { metric, collapsedIds }),
-    [root, metric, collapsedIds],
+    () => buildGraphElements(root, { metric, collapsedIds, comparisonOverlays }),
+    [root, metric, collapsedIds, comparisonOverlays],
   )
 
   const useCanvas = allNodes.length > CANVAS_NODE_COUNT_THRESHOLD
@@ -150,7 +191,7 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
     })
   }, [])
 
-  const { fitView } = useReactFlow()
+  const { fitView, setCenter } = useReactFlow()
   useEffect(() => {
     if (useCanvas) return // the DOM/SVG <ReactFlow> tree below isn't rendered in this mode — nothing to fit
     // Large plans must never render pre-zoomed to an unreadable scale —
@@ -164,6 +205,32 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
     )
     return () => cancelAnimationFrame(frame)
   }, [nodes.length, fitView, useCanvas])
+
+  // Story 14.2's "clicking a node in one plan ... scrolls to its matched
+  // counterpart in the other": pan the OTHER pane's viewport to the newly-
+  // focused node, not just open its panel. Keyed on `pendingPanNodeId`
+  // rather than `focusNodeId` directly: when the target sat behind a
+  // collapsed ancestor, the ancestor-expanding `setCollapsedIds` above only
+  // takes effect on the NEXT render, so `nodes` here may not contain the
+  // target yet on the render where `focusNodeId` was still set — by the
+  // following render (`nodes` now including it), the parent has already
+  // cleared `focusNodeId` via `onFocusHandled`. `pendingPanNodeId` survives
+  // that clearing, so the pan still resolves once the node is actually
+  // there. Canvas mode has no equivalent yet — same known gap as fitView
+  // above; the accessible list's own scroll-into-view is the reachable
+  // path there.
+  useEffect(() => {
+    if (useCanvas || pendingPanNodeId === undefined) return
+    const target = nodes.find((n) => n.id === pendingPanNodeId)
+    if (!target) return // still behind a collapsed ancestor — wait for the next `nodes` update
+    const width = target.width ?? 160
+    const height = target.height ?? 56
+    const frame = requestAnimationFrame(() =>
+      setCenter(target.position.x + width / 2, target.position.y + height / 2, { zoom: 1, duration: 300 }),
+    )
+    setPendingPanNodeId(undefined) // consumed
+    return () => cancelAnimationFrame(frame)
+  }, [pendingPanNodeId, nodes, useCanvas, setCenter])
 
   const handleNodeClick = useCallback<NodeMouseHandler<PlanGraphNode>>((_event, node) => {
     if (node.type === "collapsedGroup") {
@@ -207,6 +274,7 @@ function PlanGraphInner({ root, metric = "actualTimeMs", context, focusNodeId, o
             selectedNodeId={selectedNodeId}
             onSelectNode={openPanel}
             onExpandCollapsedGroup={expandCollapsedGroup}
+            comparisonOverlays={comparisonOverlays}
           />
         ) : (
           <CanvasPlanGraph

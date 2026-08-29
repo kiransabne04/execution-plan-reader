@@ -10,3 +10,4 @@ export { buildMetricScale, buildEdgeWidthScale, pickMetricValue, type MetricKey 
 export { computeDefaultCollapsedIds, COLLAPSE_NODE_COUNT_THRESHOLD, COLLAPSE_SUBTREE_PERCENT_THRESHOLD } from "./collapse"
 export { getGlossaryEntry, getGlossaryFallback, coveredOperatorTypes, type OperatorGlossaryEntry } from "./glossary"
 export { FindingsList, type FindingsListProps } from "./findings/FindingsList"
+export { PlanComparisonView, type PlanComparisonViewProps } from "./comparison/PlanComparisonView"
