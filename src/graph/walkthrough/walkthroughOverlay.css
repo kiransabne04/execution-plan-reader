@@ -1,0 +1,144 @@
+/* Episode 18, Story 18.9. z-index 25: above DetailPanel/its shell scrim
+   (20/19, planReaderPage.css/detailPanel.css) — the walkthrough sits over
+   the whole shell including an already-open panel — but below the search
+   palette (30, searchPalette.css), which can still be opened for a quick
+   lookup without first exiting the walkthrough. */
+.walkthrough-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  /* Spec §5 `1g`: "graph dimmed behind it (not hidden)" — the graph
+     underneath stays fully mounted and visible, just darkened through
+     this translucent backdrop. */
+  background: rgba(10, 10, 16, 0.72);
+}
+
+.walkthrough-overlay__card {
+  width: min(560px, 100%);
+  max-height: min(80vh, 640px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  padding: 20px 24px;
+}
+
+.walkthrough-overlay__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.walkthrough-overlay__step-counter {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.walkthrough-overlay__mode-toggle {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.walkthrough-overlay__mode-toggle button {
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.walkthrough-overlay__mode-toggle button[aria-pressed="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+}
+
+.walkthrough-overlay__close {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.walkthrough-overlay__heading {
+  margin: 0;
+  font-size: 20px;
+  outline: none; /* focus is signaled by the page's own global :focus-visible rule when reached via keyboard */
+}
+
+.walkthrough-overlay__minimal-note {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent-on-tint);
+  border-left: 3px solid var(--color-accent);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  margin: 0;
+}
+
+.walkthrough-overlay__explanation {
+  margin: 0;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.walkthrough-overlay__contribution {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.walkthrough-overlay__findings {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--color-warning-text);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.walkthrough-overlay__footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.walkthrough-overlay__footer button {
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text);
+  border-radius: 6px;
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.walkthrough-overlay__footer button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.walkthrough-overlay__footer button[data-testid="walkthrough-next"],
+.walkthrough-overlay__footer button[data-testid="walkthrough-finish"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+}

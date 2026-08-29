@@ -200,6 +200,40 @@ describe("PlanReaderPage", () => {
     })
   })
 
+  describe("Episode 18, Story 18.9 — guided walkthrough", () => {
+    it("'Walk me through it' opens the walkthrough", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      expect(screen.queryByTestId("walkthrough-overlay")).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId("walkthrough-open"))
+
+      expect(screen.getByTestId("walkthrough-overlay")).toBeInTheDocument()
+    })
+
+    it("exiting reuses the focusNodeId mechanism — the last-viewed node's detail panel opens in the shell", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      fireEvent.click(screen.getByTestId("walkthrough-open"))
+
+      fireEvent.keyDown(screen.getByTestId("walkthrough-overlay"), { key: "Escape" })
+
+      expect(screen.queryByTestId("walkthrough-overlay")).not.toBeInTheDocument()
+      expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+    })
+
+    it("the app-bar Beginner/Expert toggle and the walkthrough's own toggle read/write the same lifted state", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      fireEvent.click(screen.getByTestId("walkthrough-open"))
+      expect(screen.getByTestId("walkthrough-mode-beginner")).toHaveAttribute("aria-pressed", "true")
+
+      fireEvent.click(screen.getByTestId("shell-mode-expert"))
+
+      expect(screen.getByTestId("walkthrough-mode-expert")).toHaveAttribute("aria-pressed", "true")
+    })
+  })
+
   // Episode 16, Story 16.2 audit finding: a pathologically deep (not
   // wide) plan — a long single-child chain — can exceed the JS call
   // stack in the parser's recursive descent (buildNode in
@@ -592,8 +626,9 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       expect(walkthroughIndex).toBeLessThan(compareIndex)
       expect(compareIndex).toBeLessThan(exportIndex)
 
-      // Story 18.3/18.9/18.11's own jobs — present now, disabled until then.
-      expect(within(appBar).getByRole("button", { name: /walk me through it/i })).toBeDisabled()
+      // Story 18.9 shipped "Walk me through it" (see that story's own
+      // describe block below for its behavior); Export is still 18.11's job.
+      expect(within(appBar).getByRole("button", { name: /walk me through it/i })).toBeEnabled()
       expect(within(appBar).getByRole("button", { name: /^export$/i })).toBeDisabled()
     })
 

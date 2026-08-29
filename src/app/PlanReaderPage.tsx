@@ -8,7 +8,7 @@ import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { decodeShareLink } from "./shareLink"
 import { HERO_HEADLINE, HERO_SUBHEADLINE, SUPPORTED_ENGINES } from "./positioningCopy"
-import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel, SearchPalette } from "../graph"
+import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel, SearchPalette, WalkthroughOverlay } from "../graph"
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
 import type { PlanContext } from "../rules/types"
 import {
@@ -94,6 +94,9 @@ export function PlanReaderPage() {
   // "no active search," matching searchNodes.ts's `isActive` semantics.
   const [isSearchPaletteOpen, setIsSearchPaletteOpen] = useState(false)
   const [matchedNodeIds, setMatchedNodeIds] = useState<Set<string> | undefined>(undefined)
+
+  // Episode 18, Story 18.9 — guided walkthrough.
+  const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false)
 
   // Episode 18, Story 18.2 — the app shell's right rail: PlanGraph reports
   // the currently-open node's panel contents here instead of rendering
@@ -212,6 +215,7 @@ export function PlanReaderPage() {
         setError(null)
         setRestoreCandidate(null) // a fresh analyze supersedes any pending restore offer
         setMatchedNodeIds(undefined) // a stale search over the previous plan's tree, see the statement-tab click handler's comment
+        setIsWalkthroughOpen(false) // same reasoning — a walkthrough's step list is built from a specific tree too
 
         if (!dontSave) {
           debouncedSaveSession(text)
@@ -379,9 +383,9 @@ export function PlanReaderPage() {
             <span className="plan-shell__spacer" />
             {/* Story 18.3: page-level Beginner/Expert, replacing the
                 Story 18.2 placeholder — shared with the detail panel
-                (passed down below) and, per spec §2, Story 18.9's
-                walkthrough once that exists. "Walk me through it" stays a
-                disabled placeholder — that's 18.9's own job. */}
+                (passed down below) and, per spec §2, with Story 18.9's
+                walkthrough below (same lifted state, not a third
+                toggle). */}
             <div className="plan-shell__mode-toggle" role="group" aria-label="Detail level">
               <button
                 type="button"
@@ -402,7 +406,12 @@ export function PlanReaderPage() {
                 Expert
               </button>
             </div>
-            <button type="button" className="plan-shell__app-bar-button" disabled title="Guided walkthrough — Story 18.9">
+            <button
+              type="button"
+              className="plan-shell__app-bar-button"
+              data-testid="walkthrough-open"
+              onClick={() => setIsWalkthroughOpen(true)}
+            >
               Walk me through it
             </button>
             {!compareMode && (
@@ -459,6 +468,7 @@ export function PlanReaderPage() {
                     // statement — carrying a stale set into a different
                     // statement's tree would dim/undim the wrong nodes.
                     setMatchedNodeIds(undefined)
+                    setIsWalkthroughOpen(false)
                   }}
                 >
                   {stmt.label}
@@ -618,6 +628,22 @@ export function PlanReaderPage() {
           onSelectNode={setFocusNodeId}
           onClose={() => setIsSearchPaletteOpen(false)}
           onMatchedIdsChange={setMatchedNodeIds}
+        />
+      )}
+
+      {/* Episode 18, Story 18.9 — full-screen, sits above the shell
+          (including an already-open detail panel) so the graph reads as
+          dimmed-but-visible behind it, per spec §5 `1g`. */}
+      {isWalkthroughOpen && activeStatement && (
+        <WalkthroughOverlay
+          root={activeStatement.root}
+          context={activeStatement.context}
+          expertMode={expertMode}
+          onExpertModeChange={setExpertMode}
+          onExit={(lastViewedNodeId) => {
+            setIsWalkthroughOpen(false)
+            setFocusNodeId(lastViewedNodeId)
+          }}
         />
       )}
 
