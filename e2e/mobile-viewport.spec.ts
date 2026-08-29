@@ -29,6 +29,9 @@ test("the graph renders visibly and without horizontal page overflow at a mobile
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
 
+  // Episode 18, Story 18.12: Findings leads on true mobile (spec §5 `1k`)
+  // — the result screen opens on the Findings tab, not the graph.
+  await page.getByTestId("shell-tab-graph").click()
   await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
@@ -39,6 +42,9 @@ test("a node's detail panel is still usable (visible, closable) at a mobile view
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
+  // Episode 18, Story 18.12: Findings leads on true mobile — switch to the
+  // Graph tab to reach a node card, same as a real user would.
+  await page.getByTestId("shell-tab-graph").click()
   await page.getByTestId("plan-node-card").first().click()
 
   await expect(page.getByTestId("detail-panel")).toBeVisible()

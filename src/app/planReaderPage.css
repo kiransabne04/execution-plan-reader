@@ -647,6 +647,33 @@
   }
 }
 
+/* Episode 18, Story 18.12, spec §2b's breakpoint table: "620 | Mobile
+   layout (`1k`). Detail becomes a bottom sheet." (See PlanReaderPage.tsx's
+   own MOBILE_SHELL_BREAKPOINT_PX comment for the spec-internal
+   inconsistency this resolves.) Touch targets ≥44px per spec §5 `1k` —
+   every interactive control this story's own testing approach names
+   (tab controls, app-bar buttons) gets bumped here, at the mobile
+   breakpoint specifically, rather than inflating every desktop control
+   unconditionally. The bottom-sheet treatment itself lives in
+   detailPanel.css (a global `.detail-panel` concern, not shell-scoped —
+   PlanComparisonView's panes and PlanGraph's own default-rendered panel
+   both need it too, not just this shell's `--in-shell` variant). */
+@container (max-width: 619px) {
+  .plan-shell__tab,
+  .plan-shell__mode-toggle-button,
+  .plan-shell__app-bar-button,
+  .plan-reader-page__statement-tab {
+    min-height: 44px;
+  }
+
+  .plan-shell__mode-toggle {
+    /* The segmented control's own 2px padding otherwise eats into its
+       children's reachable 44px — widen the wrapper to compensate rather
+       than shrinking the buttons back down. */
+    padding: 3px;
+  }
+}
+
 /* Story 11.2 — client-side-only shareable link. */
 .share-link {
   display: flex;

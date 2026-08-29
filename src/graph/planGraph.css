@@ -61,6 +61,18 @@
   padding: 6px 12px;
 }
 
+/* Episode 18, Story 18.12 — this component nests inside `.plan-shell`
+   (its `container-type: inline-size` context, planReaderPage.css) via
+   `.plan-shell__graph`, so this container query targets that SAME
+   ancestor/breakpoint even though the rule itself lives in this
+   stylesheet — container queries don't care which file declares them,
+   only that a qualifying container ancestor exists in the DOM. */
+@container (max-width: 619px) {
+  .plan-graph__accessible-list-toggle {
+    min-height: 44px;
+  }
+}
+
 .plan-graph--canvas > .canvas-plan-graph,
 .plan-graph--canvas > .accessible-plan-list {
   flex: 1 1 auto;

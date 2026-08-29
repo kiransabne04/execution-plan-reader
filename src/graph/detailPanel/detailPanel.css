@@ -42,9 +42,62 @@
   }
 }
 
-@media (max-width: 480px) {
+/* Episode 18, Story 18.12, spec §5 `1k`: "The sheet replaces the fixed
+   side panel below 480px (partly handled in detailPanel.css)" — this WAS
+   that partial handling (full-viewport WIDTH only, still sliding in from
+   the right like a side panel). Replaced with the real bottom-sheet
+   treatment spec §2b's breakpoint table actually calls for at 620px (see
+   PlanReaderPage.tsx's MOBILE_SHELL_BREAKPOINT_PX comment for the
+   620-vs-480 spec-internal discrepancy this resolves). A plain `@media`
+   query, not `@container`: unlike the shell-scoped `--in-shell` rule
+   below, this class is used by every caller (PlanGraph's own default
+   render, each PlanComparisonView pane, and the shell) — a real, global
+   small-screen fact about the DEVICE, not one particular container's
+   width. */
+@media (max-width: 619px) {
   .detail-panel {
-    width: 100vw;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 80vh;
+    border-left: none;
+    border-top: 1px solid var(--dp-border);
+    border-radius: 12px 12px 0 0;
+    /* Overrides the base rule's slide-from-the-right animation — a sheet
+       rises from the bottom instead. */
+    animation: detail-panel-sheet-enter 200ms ease-out;
+  }
+
+  /* Story 18.12's own touch-target requirement (spec §5 `1k`: "All touch
+     targets ≥44px") — the close button was previously sized purely by its
+     18px glyph with no explicit tap-target padding. */
+  .detail-panel__close {
+    min-width: 44px;
+    min-height: 44px;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@keyframes detail-panel-sheet-enter {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 619px) and (prefers-reduced-motion: reduce) {
+  .detail-panel {
+    animation: none;
   }
 }
 

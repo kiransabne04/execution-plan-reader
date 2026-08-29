@@ -16,6 +16,16 @@
   padding: 6px 12px;
 }
 
+/* Episode 18, Story 18.12 — this component nests inside `.plan-shell`
+   (its `container-type: inline-size` context) via `.plan-shell__rail`,
+   same reasoning as the accessible-list toggle's own comment
+   (planGraph.css). */
+@container (max-width: 619px) {
+  .findings-list__toggle {
+    min-height: 44px;
+  }
+}
+
 .findings-list__body {
   margin-top: 12px;
 }

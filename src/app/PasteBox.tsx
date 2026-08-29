@@ -157,16 +157,28 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
         onDragLeave={() => setIsDraggingOver(false)}
         placeholder={PASTE_BOX_PLACEHOLDER}
         rows={12}
-        aria-label="Paste your execution plan, or drag a file onto this box"
+        // Episode 18, Story 18.12, spec §5 `1k`: "drag-and-drop is not
+        // offered as an interaction on touch" — a single, viewport-neutral
+        // wording (not a mobile-vs-desktop branch) that stays literally
+        // true everywhere: dragging IS still a real, working interaction
+        // here on desktop (the handlers above are unconditional — touch
+        // simply never fires HTML5 drag events at all, so there's no
+        // functional behavior to gate), it's just not the PRIMARY
+        // advertised path on a phone the way "Browse a file…" below is.
+        aria-label="Paste your execution plan"
       />
 
       <div className="paste-box__file-row">
         {/* A styled label wrapping a visually-hidden file input — clicking
             anywhere on the label opens the native file picker, standard
-            accessible pattern (no ref-driven synthetic click needed). Drag-
-            and-drop is meaningless on touch (Story 18.12 hides this whole
-            row below the mobile breakpoint); this button is the reachable
-            path there regardless. */}
+            accessible pattern (no ref-driven synthetic click needed).
+            Episode 18, Story 18.12: paste stays the PRIMARY input on
+            mobile (this row is never hidden there), with this button as
+            the secondary, always-reachable path — drag-and-drop needs no
+            explicit mobile handling of its own since touch devices simply
+            never fire HTML5 drag events in the first place; there's no
+            broken/dead interaction to gate off, only a desktop-only one
+            that was never reachable on touch to begin with. */}
         <label className="paste-box__file-button" data-testid="file-picker-label">
           Browse a file…
           <input

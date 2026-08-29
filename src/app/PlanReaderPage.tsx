@@ -135,12 +135,32 @@ export function PlanReaderPage() {
   // "wide" branch and e2e tests exercise the narrow one, matching this
   // story's own testing approach.
   const NARROW_SHELL_BREAKPOINT_PX = 860
+  // Episode 18, Story 18.12 — spec §2b's breakpoint table names 620px as
+  // the "mobile layout" step ("Detail becomes a bottom sheet"). Note this
+  // conflicts with §5 `1k`'s own prose ("Below 900px..."/"below 480px
+  // specifically") — a genuine spec-internal inconsistency, not resolved
+  // by picking whichever number sounded closest. Resolved in favor of the
+  // structured §2b table: it's the single source of truth for every OTHER
+  // structural breakpoint (1180, 860) this app already implements against,
+  // including this exact `isNarrowShell` state one breakpoint up, and this
+  // file's own Story 18.2 comment already reserved "the true-mobile
+  // (620px, Story 18.12) rule" — i.e. this was already the intended target
+  // before this story even started. See BACKLOG-STATUS.md's Story 18.12
+  // row for the full account.
+  const MOBILE_SHELL_BREAKPOINT_PX = 620
   const shellRef = useRef<HTMLElement>(null)
   const [isNarrowShell, setIsNarrowShell] = useState(false)
-  // Which tab shows at narrow widths. Defaults to "graph" — this
-  // breakpoint is tablet-territory, which can still usefully show a
-  // graph; "Findings lead, not the graph" is specifically the true-mobile
-  // (620px, Story 18.12) rule, not this one.
+  const [isMobileShell, setIsMobileShell] = useState(false)
+  // Which tab shows at narrow widths. Defaults to "graph" at the 860px
+  // (tablet) breakpoint, which can still usefully show a graph — "Findings
+  // lead, not the graph" (spec §5 `1k`) is specifically the true-mobile
+  // rule, applied by the dedicated layout effect below (keyed on `analyzed`
+  // itself, not a resize) every time a genuinely NEW plan is analyzed —
+  // see that effect's own comment for why a resize-driven approach doesn't
+  // work here (a same-size re-analysis fires no new ResizeObserver
+  // callback at all) and why re-deriving it only on a fresh `analyzed`
+  // (not on every statement-tab switch, or on window resize/rotation)
+  // still respects a user's own manual tab choice in both of those cases.
   const [activeShellTab, setActiveShellTab] = useState<"findings" | "graph">("graph")
 
   // Episode 14, Story 14.2 — comparison view. Deliberately independent of
@@ -224,6 +244,9 @@ export function PlanReaderPage() {
         setRestoreCandidate(null) // a fresh analyze supersedes any pending restore offer
         setMatchedNodeIds(undefined) // a stale search over the previous plan's tree, see the statement-tab click handler's comment
         setIsWalkthroughOpen(false) // same reasoning — a walkthrough's step list is built from a specific tree too
+        // Story 18.12: the mobile-default-tab layout effect below (keyed
+        // on `analyzed`) re-derives `activeShellTab` for THIS fresh
+        // "result screen" — nothing to do here directly; see that effect.
 
         if (!dontSave) {
           debouncedSaveSession(text)
@@ -303,11 +326,37 @@ export function PlanReaderPage() {
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0]
       if (!entry) return
-      setIsNarrowShell(entry.contentRect.width < NARROW_SHELL_BREAKPOINT_PX)
+      const width = entry.contentRect.width
+      setIsNarrowShell(width < NARROW_SHELL_BREAKPOINT_PX)
+      setIsMobileShell(width < MOBILE_SHELL_BREAKPOINT_PX)
     })
     observer.observe(el)
     return () => observer.disconnect()
   }, [shellMounted])
+
+  // Episode 18, Story 18.12 — the mobile default-tab rule, deliberately
+  // NOT folded into the ResizeObserver effect above: ResizeObserver only
+  // calls back when the observed box's size actually CHANGES, so
+  // re-analyzing a different plan at the SAME container width (the most
+  // common case — the browser window didn't move) would never re-fire it,
+  // silently keeping whatever tab was active from the PREVIOUS plan. A
+  // fresh `analyzed` is a fresh "result screen" (spec §5 `1k`'s own
+  // "input screen -> result screen" framing) and re-derives the default
+  // every time — but ONLY then, not on every statement-tab switch (a
+  // different `analyzed.statements[i]`, same `analyzed` object) and not on
+  // a later resize/rotation, both of which must leave a user's own manual
+  // tab choice alone (this story's own edge cases). `useLayoutEffect`
+  // (not `useEffect`) so the real `getBoundingClientRect` measurement
+  // happens synchronously right after the shell's first mount for THIS
+  // plan, before paint — no flash of the wrong default tab.
+  useLayoutEffect(() => {
+    if (!analyzed) return
+    const el = shellRef.current
+    if (!el) return
+    const width = el.getBoundingClientRect().width
+    setActiveShellTab(width < MOBILE_SHELL_BREAKPOINT_PX ? "findings" : "graph")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyzed])
 
   const handleDetailPanelChange = useCallback(
     (panel: { node: PlanNode; context: PlanContext; onClose: () => void } | undefined) => setDetailPanel(panel),
@@ -396,7 +445,18 @@ export function PlanReaderPage() {
         // viewport, so the shell behaves the same embedded or full-page
         // (spec §2). `ref`/`data-testid="plan-result"` kept on the same
         // element existing tests already target.
-        <section ref={shellRef} className="plan-reader-page__result plan-shell" data-testid="plan-result">
+        <section
+          ref={shellRef}
+          className="plan-reader-page__result plan-shell"
+          data-testid="plan-result"
+          // Episode 18, Story 18.12 — a deterministic hook for tests (and
+          // any future mobile-specific behavior) rather than every
+          // consumer re-deriving "is this the true-mobile breakpoint" from
+          // a raw pixel width of its own. The bottom-sheet/touch-target
+          // CSS itself is still driven by the real `@container`/`@media`
+          // breakpoints (unaffected by this attribute), not this flag.
+          data-mobile-shell={isMobileShell || undefined}
+        >
           <header className="plan-shell__app-bar">
             <span className="plan-shell__brand">PlanReader</span>
             {/* spec §2's app-bar order has a "filename" slot here (a
