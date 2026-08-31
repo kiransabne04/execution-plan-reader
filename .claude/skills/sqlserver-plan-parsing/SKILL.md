@@ -19,6 +19,7 @@ Full requirements: `docs/technical-spec.md` §1.2, `docs/episodes.md` Episode 2.
 - `RunTimeInformation` / `RunTimeCountersPerThread` may be absent (estimated-plan-only capture) — treat as optional, same pattern as Postgres's missing-`ANALYZE` case. Never throw on its absence.
 - Parallelism operators (`Parallelism`, `Gather Streams`) carry per-thread stat blocks. Preserve per-thread data rather than only a summed figure, and label any aggregated display explicitly (e.g. "across N threads") — mirrors the parallel-worker labeling requirement on the Postgres side.
 - Missing-index recommendation blocks are frequently present in real exports and are useful, actionable information — surface them as a distinct, clearly labeled section of the parsed output rather than dropping them because they're outside the core `RelOp` tree.
+- `RunTimeCountersPerThread`'s `ActualReadAheads` is a distinct statistic from `ActualPhysicalReads` — SQL Server's own deliberate sequential-prefetch mechanism, not a buffer-pool miss. Sum it across threads into `io.readAheads` (same `sumThreadAttr` pattern as `logicalReads`/`physicalReads`), never fold it into `bufferReads` itself — the rule engine (`bufferCacheInefficiency.ts`) needs the two counts separately to exclude read-ahead pages before judging cache-hit ratio (docs/10-node-stats-field-catalog.md §5).
 
 ## Operator mapping
 
@@ -31,3 +32,4 @@ Maintain a documented `PhysicalOp -> normalized operatorType` table (see `plan-n
 - [ ] Unit test confirms both namespace declaration styles parse identically.
 - [ ] Unit test confirms multi-statement input is detected and handled per the product decision (selectable/all-shown), not silently truncated.
 - [ ] Malformed/truncated XML produces a specific, structural error message — not a generic crash, and never includes the raw offending XML content in a logged error (see `privacy-architecture` skill).
+- [ ] `ActualReadAheads` promotes to `io.readAheads`, kept separate from `io.bufferReads` (`ActualPhysicalReads`) — see `fixtures/sqlserver/read-ahead-heavy-scan.xml`.

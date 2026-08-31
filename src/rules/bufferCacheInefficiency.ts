@@ -4,11 +4,16 @@
 // docs/10-node-stats-field-catalog.md §5 before editing.
 //
 // Postgres and SQL Server share ONE code path here: both already populate
-// the same normalized `io.cacheHitRatio`/`io.bufferReads` shape (Postgres
+// the same normalized `io.bufferHits`/`io.bufferReads` shape (Postgres
 // from Shared/Local Hit+Read Blocks — exact, when the plan was captured
 // with BUFFERS; SQL Server from per-thread logical/physical reads — an
 // approximation, stated as such per the field catalog, not presented with
-// Postgres-level confidence).
+// Postgres-level confidence). SQL Server's `io.readAheads`
+// (`ActualReadAheads`) is excluded from the read count before judging the
+// ratio — read-ahead is a deliberate sequential-prefetch mechanism, not
+// evidence of buffer-pool pressure; a scan whose physical reads are mostly
+// read-ahead is behaving efficiently, not poorly. `io.readAheads` is
+// undefined for Postgres, so this exclusion is a no-op there.
 //
 // Snowflake has no per-node cache-hit field at all — cache-hit is a
 // QUERY-level percentage there, not a per-operator one (field catalog
@@ -19,7 +24,7 @@
 // ratio describes, just measured a different way because that's what
 // Snowflake actually exposes.
 
-import type { PlanNode, Warning } from "../parsers/normalize"
+import { computeCacheHitRatio, type PlanNode, type Warning } from "../parsers/normalize"
 import { formatNumber } from "./format"
 import type { Rule } from "./types"
 
@@ -40,13 +45,37 @@ export const SNOWFLAKE_DISK_IO_PERCENTAGE_THRESHOLD = 20
 
 function checkHitRatio(node: PlanNode): Warning[] {
   const io = node.io
-  if (!io || io.cacheHitRatio === undefined || io.bufferReads === undefined) return []
-  if (io.bufferReads < MIN_BUFFER_READS_THRESHOLD) return []
-  if (io.cacheHitRatio >= CACHE_HIT_RATIO_THRESHOLD) return []
+  if (!io || io.bufferReads === undefined) return []
 
-  const hitPercent = Math.round(io.cacheHitRatio * 100)
-  const readsText = formatNumber(io.bufferReads)
+  // SQL Server-specific (`readAheads` is undefined for Postgres — see
+  // IoInfo's own doc comment — so this is a no-op there, `?? 0` leaves
+  // `nonReadAheadReads` equal to `bufferReads` unchanged). Read-ahead is a
+  // deliberate sequential-prefetch mechanism, not evidence of buffer-pool
+  // pressure — a scan whose physical reads are mostly explained by
+  // read-ahead must NOT count those pages against the cache-efficiency
+  // signal. Excluded before both the volume floor and the ratio check,
+  // and the ratio itself is recomputed against the excluded count rather
+  // than reusing `io.cacheHitRatio` (which still includes read-ahead
+  // pages as "reads") — otherwise a read-ahead-heavy scan could pass the
+  // volume floor on its non-read-ahead reads alone but still get judged
+  // against the UNADJUSTED ratio.
+  const nonReadAheadReads = Math.max(0, io.bufferReads - (io.readAheads ?? 0))
+  if (nonReadAheadReads < MIN_BUFFER_READS_THRESHOLD) return []
+
+  const adjustedRatio = computeCacheHitRatio(io.bufferHits, nonReadAheadReads)
+  if (adjustedRatio === undefined || adjustedRatio >= CACHE_HIT_RATIO_THRESHOLD) return []
+
+  const hitPercent = Math.round(adjustedRatio * 100)
+  const readsText = formatNumber(nonReadAheadReads)
   const thresholdPercent = Math.round(CACHE_HIT_RATIO_THRESHOLD * 100)
+  // Disclosed whenever read-ahead was actually excluded from the count
+  // above — the reader should see the adjustment was made, not just the
+  // post-adjustment number, per this codebase's honesty-over-silent-math
+  // convention (e.g. computeContributionPercent.ts's own precedent).
+  const readAheadNote =
+    node.engine === "sqlserver" && (io.readAheads ?? 0) > 0
+      ? ` (${formatNumber(io.readAheads ?? 0)} additional read-ahead reads — SQL Server's own sequential prefetch — are excluded from this count, since those aren't a sign of cache pressure.)`
+      : ""
 
   const longText =
     node.engine === "postgres"
@@ -55,10 +84,10 @@ function checkHitRatio(node: PlanNode): Warning[] {
         `operation usually no longer fits comfortably in shared_buffers. A larger shared_buffers setting, a ` +
         `covering index that reads less data, or reducing the volume this operator scans are the usual fixes.`
       : `This ${node.rawOperatorLabel} performed ${readsText} physical reads — only ${hitPercent}% of its reads were ` +
-        `served from SQL Server's buffer pool. This is an approximation from logical-vs-physical read counts, not an ` +
-        `exact hit/miss split the way Postgres reports it, but a ratio this low usually means the buffer pool is ` +
-        `under memory pressure for this working set. A larger buffer pool (more server memory), a covering index, ` +
-        `or reducing the data volume this operator touches are the usual fixes.`
+        `served from SQL Server's buffer pool.${readAheadNote} This is an approximation from logical-vs-physical read ` +
+        `counts, not an exact hit/miss split the way Postgres reports it, but a ratio this low usually means the ` +
+        `buffer pool is under memory pressure for this working set. A larger buffer pool (more server memory), a ` +
+        `covering index, or reducing the data volume this operator touches are the usual fixes.`
 
   return [
     {

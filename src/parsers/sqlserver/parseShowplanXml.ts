@@ -289,8 +289,8 @@ function buildNode(relOp: Element, counter: { next: number }, role: PlanNodeRole
       ? Math.max(0, runtime.logicalReads - runtime.physicalReads)
       : undefined
   const io =
-    bufferHits !== undefined || bufferReads !== undefined
-      ? { bufferHits, bufferReads, cacheHitRatio: computeCacheHitRatio(bufferHits, bufferReads) }
+    bufferHits !== undefined || bufferReads !== undefined || runtime.readAheads !== undefined
+      ? { bufferHits, bufferReads, cacheHitRatio: computeCacheHitRatio(bufferHits, bufferReads), readAheads: runtime.readAheads }
       : undefined
 
   const spill: PlanNode["spill"] = spillEl
@@ -403,6 +403,10 @@ interface RuntimeSummary {
    * Shared Hit/Read Blocks separation). */
   logicalReads?: number
   physicalReads?: number
+  /** `ActualReadAheads` — SQL Server's deliberate sequential-prefetch
+   * mechanism, counted separately from an ordinary physical read (see
+   * `IoInfo.readAheads`'s own doc comment in normalize.ts). */
+  readAheads?: number
 }
 
 /** Sums a numeric attribute across all per-thread elements, returning
@@ -437,6 +441,7 @@ function readRunTimeInformation(relOp: Element): RuntimeSummary {
     loops: sumThreadAttr(perThread, "ActualExecutions"),
     logicalReads: sumThreadAttr(perThread, "ActualLogicalReads"),
     physicalReads: sumThreadAttr(perThread, "ActualPhysicalReads"),
+    readAheads: sumThreadAttr(perThread, "ActualReadAheads"),
     threadCount: perThread.length,
   }
 }

@@ -142,3 +142,72 @@ describe("bufferCacheInefficiency — numeric edge cases", () => {
     expect(bufferCacheInefficiency(node, makeContext(node))).toEqual([])
   })
 })
+
+// Read-ahead is SQL Server's own deliberate sequential-prefetch mechanism
+// (`ActualReadAheads`, RunTimeCountersPerThread) — pages pulled in ahead
+// of a scan needing them, not evidence of buffer-pool pressure the way an
+// ordinary physical read is. THIS is the single most important negative
+// test case in this rule: a scan can show a huge raw physicalReads count
+// that's almost entirely read-ahead, and must NOT be flagged.
+describe("bufferCacheInefficiency — SQL Server read-ahead exclusion", () => {
+  it("does NOT fire when physicalReads is high but almost entirely explained by read-ahead (the critical negative case)", () => {
+    const node = makeNode({
+      engine: "sqlserver",
+      rawOperatorLabel: "Clustered Index Scan",
+      // 500,000 physical reads looks catastrophic on its own — but
+      // 499,500 of them are read-ahead (a large sequential scan
+      // prefetching pages it's about to need), leaving only 500 genuine
+      // non-read-ahead reads — below the volume floor, so this must not
+      // fire even though bufferHits is 0.
+      io: { bufferHits: 0, bufferReads: 500_000, readAheads: 499_500 },
+    })
+    expect(bufferCacheInefficiency(node, makeContext(node))).toEqual([])
+  })
+
+  it("DOES fire when physical reads remain high even after read-ahead is excluded", () => {
+    const node = makeNode({
+      engine: "sqlserver",
+      io: { bufferHits: 100, bufferReads: 500_000, readAheads: 490_000 }, // 10,000 genuine reads left, still bad
+    })
+    const [warning] = bufferCacheInefficiency(node, makeContext(node))
+    expect(warning).toBeDefined()
+    // The disclosed count is the ADJUSTED (post-exclusion) figure, not the
+    // raw 500,000 — the reader must never see a number that still silently
+    // includes read-ahead pages after the rule claims to have excluded them.
+    expect(warning.shortText).toContain("10,000")
+    expect(warning.shortText).not.toContain("500,000")
+  })
+
+  it("discloses the read-ahead exclusion in longText, not just the adjusted number", () => {
+    const node = makeNode({
+      engine: "sqlserver",
+      io: { bufferHits: 100, bufferReads: 500_000, readAheads: 490_000 },
+    })
+    const [warning] = bufferCacheInefficiency(node, makeContext(node))
+    expect(warning.longText).toContain("read-ahead")
+    expect(warning.longText).toContain("490,000")
+  })
+
+  it("has no effect on Postgres (readAheads is a SQL Server-only field, never populated there)", () => {
+    const withoutReadAheads = makeNode({ engine: "postgres", io: { bufferHits: 100, bufferReads: 2_000 } })
+    const withUndefinedReadAheads = makeNode({ engine: "postgres", io: { bufferHits: 100, bufferReads: 2_000, readAheads: undefined } })
+    expect(bufferCacheInefficiency(withoutReadAheads, makeContext(withoutReadAheads))).toEqual(
+      bufferCacheInefficiency(withUndefinedReadAheads, makeContext(withUndefinedReadAheads)),
+    )
+  })
+
+  it("does not disclose a read-ahead note when readAheads is absent or zero", () => {
+    const absent = makeNode({ engine: "sqlserver", io: { bufferHits: 100, bufferReads: 2_000 } })
+    const zero = makeNode({ engine: "sqlserver", io: { bufferHits: 100, bufferReads: 2_000, readAheads: 0 } })
+    for (const node of [absent, zero]) {
+      const [warning] = bufferCacheInefficiency(node, makeContext(node))
+      expect(warning.longText).not.toContain("read-ahead")
+    }
+  })
+
+  it("treats readAheads greater than bufferReads (malformed/inconsistent input) as zero genuine reads, not negative", () => {
+    const node = makeNode({ engine: "sqlserver", io: { bufferHits: 0, bufferReads: 100, readAheads: 500 } })
+    expect(() => bufferCacheInefficiency(node, makeContext(node))).not.toThrow()
+    expect(bufferCacheInefficiency(node, makeContext(node))).toEqual([]) // 0 genuine reads, below the volume floor
+  })
+})

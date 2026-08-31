@@ -117,6 +117,19 @@ describe("parseSqlServerShowplanXml", () => {
     expect(seek.io?.cacheHitRatio).toBeCloseTo(10 / 12)
   })
 
+  it("promotes ActualReadAheads to io.readAheads, separate from bufferReads", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("read-ahead-heavy-scan.xml"))
+    const root = result.statements[0].root
+    expect(root.io?.bufferReads).toBe(500_000) // ActualPhysicalReads, unchanged — read-ahead is a SEPARATE field
+    expect(root.io?.readAheads).toBe(499_500)
+  })
+
+  it("leaves io.readAheads undefined (not 0) when RunTimeInformation has no ActualReadAheads attribute at all", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
+    const seek = result.statements[0].root.children[0]
+    expect(seek.io?.readAheads).toBeUndefined()
+  })
+
   it("derives rowsRemovedByFilter from ActualRowsRead vs ActualRows", () => {
     const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
     const keyLookup = result.statements[0].root.children[1]
