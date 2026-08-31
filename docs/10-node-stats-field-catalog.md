@@ -44,6 +44,7 @@ interface PlanNode {
     ioReadTimeMs?: number
     ioWriteTimeMs?: number
     bytesScanned?: number       // Snowflake-specific, no direct Postgres/SQL Server equivalent
+    readAheads?: number         // SQL Server-specific (ActualReadAheads) — deliberate prefetch, not a buffer-pool miss; see §5
   }
 
   spill?: {
@@ -127,6 +128,10 @@ These are two different questions and the field catalog keeps them separate:
 | Derived cache hit ratio | `bufferHits / (bufferHits + bufferReads)`, computable directly from Postgres's split fields | Approximate at best, from logical vs. physical read counts — label as approximate in the UI, don't present it with Postgres-level confidence | Use the query-level cache percentage directly where available; note it's query-level, not per-node, if displayed on an individual node |
 
 **Handling note for Postgres specifically**: buffer/cache stats require the plan to have been captured with `BUFFERS` (and I/O timing additionally requires `track_io_timing`). A plan captured without these flags simply won't have this data — the detail panel must say "buffer stats not captured — re-run with `EXPLAIN (ANALYZE, BUFFERS)`" rather than showing zeros, which would misrepresent an absent measurement as an actual zero-I/O result.
+
+**SQL Server read-ahead** (`io.readAheads`, from `RunTimeCountersPerThread`'s `ActualReadAheads`): a real, separate statistic from `ActualPhysicalReads` — read-ahead is SQL Server's own deliberate sequential-prefetch mechanism (pulling in pages a scan is expected to need next), not evidence of buffer-pool pressure the way an ordinary (non-prefetched) physical read is. `buffer-cache-inefficiency` (`src/rules/bufferCacheInefficiency.ts`) excludes read-ahead pages from the read count before judging SQL Server's cache-hit ratio, and discloses the exclusion in its `longText` rather than silently adjusting the number. Postgres has no equivalent concept exposed in `EXPLAIN` output; `readAheads` stays `undefined` there.
+
+**Genuine Snowflake gap, not yet closed**: the "percentage scanned from cache" statistic is real, but it comes from `QUERY_HISTORY`/the Query Profile summary — a different data source than `GET_QUERY_OPERATOR_STATS()`, which is the only input this app's Snowflake parser accepts (see `snowflake-plan-parsing` skill). It is **not** obtainable from the current single-paste input without asking the user for a second, different export — a real scope decision (a new input format, a second paste, correlating the two), not a small parser oversight. Until/unless that's decided, `bufferCacheInefficiency.ts`'s Snowflake path uses the per-node `timeBreakdown` local/remote-disk-I/O share instead (§7) — a genuine, already-available proxy for the same underlying phenomenon, not a query-level cache percentage. Do not add a `cacheHitPercentageQueryLevel`-shaped field until the input-format question above is actually decided; a field that can never be populated from real input would violate this catalog's own "absence is meaningful, never fabricated" rule.
 
 ## 6. Disk spill
 

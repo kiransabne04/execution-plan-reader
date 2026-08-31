@@ -1,5 +1,6 @@
 import { collectNodes, type PlanNode, type Warning } from "../parsers/normalize"
 import { badRowEstimate } from "./badRowEstimate"
+import { bufferCacheInefficiency } from "./bufferCacheInefficiency"
 import { diskSpill } from "./diskSpill"
 import { estimateOnlyNote } from "./estimateOnlyNote"
 import { explodingJoin } from "./explodingJoin"
@@ -13,6 +14,7 @@ import type { PlanContext, Rule } from "./types"
 export * from "./types"
 export { seqScanOnLargeTable } from "./seqScanOnLargeTable"
 export { badRowEstimate } from "./badRowEstimate"
+export { bufferCacheInefficiency } from "./bufferCacheInefficiency"
 export { diskSpill } from "./diskSpill"
 export { highLoopCount } from "./highLoopCount"
 export { explodingJoin } from "./explodingJoin"
@@ -32,6 +34,7 @@ export const ALL_RULES: Rule[] = [
   highLoopCount,
   missingIndexOpportunity,
   nonSargablePredicate,
+  bufferCacheInefficiency,
   parameterSensitivityNote,
   estimateOnlyNote,
 ]

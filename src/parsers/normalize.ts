@@ -58,6 +58,15 @@ export interface IoInfo {
   ioWriteTimeMs?: number
   /** Snowflake-specific — no direct Postgres/SQL Server equivalent. */
   bytesScanned?: number
+  /** SQL Server-specific (`RunTimeCountersPerThread`'s `ActualReadAheads`)
+   * — no Postgres/Snowflake equivalent. Read-ahead is SQL Server's
+   * deliberate sequential-prefetch mechanism: pages it pulls in expecting a
+   * scan to need them next, not evidence of buffer-pool pressure the way
+   * an ordinary (non-prefetched) physical read is. A scan whose physical
+   * reads are mostly explained by read-ahead is behaving efficiently, not
+   * poorly — see `bufferCacheInefficiency.ts`, which excludes read-ahead
+   * pages from `bufferReads` before judging the cache-hit ratio. */
+  readAheads?: number
 }
 
 export interface SpillInfo {

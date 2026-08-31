@@ -14,6 +14,7 @@ export type FindingCategory =
   | "Join issues"
   | "Estimate issues"
   | "Spill issues"
+  | "I/O issues"
   | "Loop issues"
   | "General notes"
 
@@ -28,6 +29,7 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "exploding-join": "Join issues",
   "bad-row-estimate": "Estimate issues",
   "disk-spill": "Spill issues",
+  "buffer-cache-inefficiency": "I/O issues",
   "high-loop-count": "Loop issues",
   "parameter-sensitivity-honesty-note": "General notes",
   "estimate-only-plan": "General notes",
@@ -51,6 +53,7 @@ export const FINDING_CATEGORY_ORDER: FindingCategory[] = [
   "Join issues",
   "Estimate issues",
   "Spill issues",
+  "I/O issues",
   "Loop issues",
   "General notes",
 ]

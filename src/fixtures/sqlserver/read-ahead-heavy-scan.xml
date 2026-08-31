@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Regression fixture: a large sequential Table Scan whose physical reads
+     are almost entirely explained by SQL Server's own read-ahead prefetch
+     (ActualReadAheads), not genuine buffer-pool misses. Parser test:
+     ActualReadAheads is summed into io.readAheads. Rule test
+     (bufferCacheInefficiency.test.ts) is unit-level via makeNode — this
+     fixture only needs to prove the PARSER extracts the raw number
+     correctly. -->
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Orders" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="500000" EstimatedTotalSubtreeCost="120">
+              <RunTimeInformation>
+                <RunTimeCountersPerThread Thread="0" ActualRows="500000" ActualExecutions="1" ActualElapsedms="850" ActualLogicalReads="500000" ActualPhysicalReads="500000" ActualReadAheads="499500" />
+              </RunTimeInformation>
+              <TableScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+              </TableScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>
