@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Story 20.1: SQL Server attributes a statement's leading T-SQL comment
+     lines to the FOLLOWING statement's own StatementText, not a statement
+     of their own. Regression fixture for analyzePlan.ts's label-stripping. -->
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="-- [Tom 4/6/2013][TFS 5010] Put sublines that are not SPS in first&#10;SELECT * FROM Orders" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="100" EstimatedTotalSubtreeCost="0.5">
+              <TableScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+              </TableScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+        <StmtSimple StatementText="-- comment one&#10;-- comment two&#10;SELECT * FROM Customers" StatementId="2" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="800" EstimatedTotalSubtreeCost="0.3">
+              <IndexScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Customers]" Index="[PK_Customers]" />
+              </IndexScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+        <StmtSimple StatementText="-- only a comment, nothing else" StatementId="3" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Compute Scalar" LogicalOp="Compute Scalar" EstimateRows="1" EstimatedTotalSubtreeCost="0">
+              <ComputeScalar><DefinedValues/></ComputeScalar>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

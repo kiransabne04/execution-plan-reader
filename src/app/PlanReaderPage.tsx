@@ -7,7 +7,7 @@ import { ShareLinkButton } from "./ShareLinkButton"
 import { RestoreSessionBanner } from "./RestoreSessionBanner"
 import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
-import { formatStatementDuration, statementSeverity } from "./statementTabSummary"
+import { formatStatementDuration, statementSeverity, buildStatementTabRows, findDefaultStatementIndex } from "./statementTabSummary"
 import { decodeShareLink } from "./shareLink"
 // Episode 19: the hero landing page this copy served is retired — the
 // three-column shell is now the app's only page, from first load, per the
@@ -92,7 +92,21 @@ export function PlanReaderPage() {
   const [analyzed, setAnalyzed] = useState<AnalyzedPlan | null>(initial?.analyzed ?? null)
   const [error, setError] = useState<string | null>(initial?.error ?? null)
   const [rawText, setRawText] = useState(initial?.rawText ?? "")
-  const [activeStatementIndex, setActiveStatementIndex] = useState(0)
+  // Story 20.1: defaults to the first NON-TRIVIAL statement (a real query,
+  // or one with a finding) rather than always 0 — a large stored-procedure
+  // plan's own statement 0 is frequently a trivial `DECLARE`, and landing
+  // there by sheer accident of ordering is exactly the "buried under
+  // control-flow noise" problem this story fixes. Applies to a share-link-
+  // recovered plan on first paint too (`initial?.analyzed`), not just a
+  // fresh paste — see `handleAnalyze` below for the other case.
+  const [activeStatementIndex, setActiveStatementIndex] = useState(() =>
+    initial?.analyzed ? findDefaultStatementIndex(initial.analyzed.statements.map((s) => s.root)) : 0,
+  )
+  // Story 20.1: which trivial-statement runs (keyed by the run's start
+  // index) the user has manually expanded in the statement tab strip —
+  // local UI state, reset whenever a genuinely new plan is analyzed, same
+  // as `activeStatementIndex` right above.
+  const [expandedStatementGroups, setExpandedStatementGroups] = useState<Set<number>>(new Set())
   // Story 13.1: which node the "All findings" list most recently asked the
   // graph to navigate to and open. Lives here (not inside PlanGraph or
   // FindingsList) since it's the thing connecting those two otherwise-
@@ -255,7 +269,8 @@ export function PlanReaderPage() {
       try {
         const result = analyzePlanText(text)
         setAnalyzed(result)
-        setActiveStatementIndex(0)
+        setActiveStatementIndex(findDefaultStatementIndex(result.statements.map((s) => s.root)))
+        setExpandedStatementGroups(new Set())
         setError(null)
         setRestoreCandidate(null) // a fresh analyze supersedes any pending restore offer
         setMatchedNodeIds(undefined) // a stale search over the previous plan's tree, see the statement-tab click handler's comment
@@ -431,6 +446,7 @@ export function PlanReaderPage() {
     setRawText("")
     setError(null)
     setActiveStatementIndex(0)
+    setExpandedStatementGroups(new Set())
     setDetailPanel(undefined)
     setFocusNodeId(undefined)
     setMatchedNodeIds(undefined)
@@ -580,7 +596,26 @@ export function PlanReaderPage() {
 
           {analyzed && analyzed.statements.length > 1 && (
             <div className="plan-reader-page__statement-tabs" role="tablist" aria-label="Statements in this batch">
-              {analyzed.statements.map((stmt, index) => {
+              {buildStatementTabRows(
+                analyzed.statements.map((stmt) => stmt.root),
+                activeStatementIndex,
+                expandedStatementGroups,
+              ).map((row) => {
+                if (row.kind === "group") {
+                  return (
+                    <button
+                      key={`group-${row.start}`}
+                      type="button"
+                      className="plan-reader-page__statement-tab plan-reader-page__statement-tab--group"
+                      data-testid="statement-tab-group"
+                      onClick={() => setExpandedStatementGroups((prev) => new Set(prev).add(row.start))}
+                    >
+                      {row.length} control-flow statement{row.length === 1 ? "" : "s"} — expand
+                    </button>
+                  )
+                }
+                const index = row.index
+                const stmt = analyzed.statements[index]
                 const duration = formatStatementDuration(stmt.root)
                 const severity = statementSeverity(stmt.root)
                 return (

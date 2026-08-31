@@ -190,7 +190,12 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
   }, [onNodeSelected])
   const closePanel = useCallback(() => {
     setSelectedNodeId(undefined)
-    triggerElementRef.current?.focus()
+    // Story 20.2: `{ preventScroll: true }` — the trigger element is
+    // whatever was already focused/visible right before the panel opened;
+    // restoring focus to it on close shouldn't independently scroll the
+    // page to wherever it happens to sit (e.g. a statement tab far above
+    // the graph in a large multi-statement batch).
+    triggerElementRef.current?.focus({ preventScroll: true })
     onNodeSelected?.(undefined)
   }, [onNodeSelected])
 

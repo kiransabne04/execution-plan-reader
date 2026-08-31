@@ -121,6 +121,22 @@ describe("PlanReaderPage", () => {
     expect(tabs[0]).toHaveAttribute("aria-selected", "false")
   })
 
+  // Story 20.1
+  it("collapses a run of trivial control-flow statements into one expandable group, and expands it on click", () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("sqlserver", "many-trivial-statements.xml"))
+
+    // 5 statements total: 2 real (index 0, 4) + a run of 3 trivial ones
+    // (index 1-3) collapsed into a single group row.
+    expect(screen.getAllByRole("tab")).toHaveLength(2)
+    const group = screen.getByTestId("statement-tab-group")
+    expect(group).toHaveTextContent("3 control-flow statements")
+
+    fireEvent.click(group)
+    expect(screen.getAllByRole("tab")).toHaveLength(5)
+    expect(screen.queryByTestId("statement-tab-group")).not.toBeInTheDocument()
+  })
+
   it("does not show statement tabs for a single-statement plan", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))

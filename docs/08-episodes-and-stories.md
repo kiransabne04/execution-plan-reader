@@ -1046,9 +1046,60 @@ As a returning user (and a first-time visitor), I want the app's structure to be
 | Mobile breakpoints (Story 18.12's Findings-leads-by-default rule) applied to a shell that's now visible BEFORE any plan exists too | The mobile tab system currently only mattered post-analysis | Confirm the empty-centre placeholder and Plan Input behave sensibly under the existing `isNarrowShell`/mobile tab logic — Plan Input is reachable at every breakpoint, not hidden behind a tab that defaults to a now-empty graph |
 | Compare mode, entered before vs. after a plan exists | Compare only makes sense once a primary plan is loaded | Confirm the "Compare with another plan" app-bar action stays absent (not just disabled) until `analyzed` is truthy — same treatment as every other analyzed-only app-bar control this story already specifies |
 | `RecentPlansList`/`RestoreSessionBanner` now living in a narrow rail instead of full page width | Both were originally styled for full-width placement | Confirm both remain legible/usable at rail width — same `flex-wrap`/narrow-container treatment `PasteBox.tsx`'s own CSS already uses, extended to these two if their current styling assumes more horizontal room |
-## Episode 21 — Buffer/cache and disk-I/O efficiency rule
+## Episode 20 — Multi-statement batch usability (large stored-procedure plans)
 
-**Note**: Episode 20 (multi-statement batch usability) exists on branch `feat/20.1-20.2-batch-usability-and-scroll-fix`, cut from `main` before this episode's own branch and not yet merged — its stories aren't duplicated here; they'll appear in this doc once that branch merges.
+Source: manual testing with a real SQL Server showplan XML for a large stored procedure (hundreds of statements — every `DECLARE`/`IF EXISTS`/control-flow line gets its own `<StmtSimple>` from SQL Server itself, not just the "real" queries). Two real bugs and one real usability gap found:
+
+1. `plan-reader-page__statement-tabs` (`PlanReaderPage.tsx`) renders every statement as an equal-weight tab with no grouping/cap — hundreds of trivial control-flow statements bury the handful with real query plans and findings under a multi-row button grid before the graph is even visible.
+2. Statement tab labels are the raw `StatementText` XML attribute truncated to 60 chars — SQL Server attributes leading `--` comment lines to the following statement, so labels frequently read as a stale code comment (`-- [Tom 4/6/2013][TFS 5010] Put sublines...`) instead of the statement's actual SQL.
+3. `PlanNodeCard.tsx`'s click handler calls `event.currentTarget.focus()` with no `{ preventScroll: true }` — the browser's default focus-triggered `scrollIntoView` walks up the ancestor chain including the outer page, so clicking a graph node can silently scroll the whole page back toward the top of the shell. Same missing option on `PlanGraph.tsx`'s panel-close focus-restore and `DetailPanel.tsx`'s open-focus call.
+
+### Story 20.1 — Group trivial statements in the batch tab strip; fix comment-glued labels
+
+As a user pasting a large stored-procedure plan, I want the statement tabs to lead with the statements that actually have a real query plan or a finding, with the mass of trivial control-flow statements collapsed out of the way, so I can find what matters without scrolling past hundreds of `cost 0` buttons first.
+
+**Acceptance criteria**
+- A statement is "trivial" iff `statementSeverity(root)` is `undefined` AND `formatStatementDuration(root)` is `undefined` or reports `"cost 0"` — reuses the existing two pure helpers in `statementTabSummary.ts` rather than a third, independently-drifting definition of "nothing interesting here."
+- Consecutive trivial statements collapse into a single `"N control-flow statements — expand"` entry in tab order (adjacency-preserving, same reasoning `AccessiblePlanList`'s collapsed-group rows already use for collapsed graph subtrees) — a non-trivial statement between two trivial runs still gets its own full tab, never swallowed into a group.
+- Clicking a collapsed-group entry expands it in place (same tab strip, same position) — expansion state is local UI state, not persisted, and resets when a new plan is analyzed (mirrors `collapsedIds`' reset-on-new-plan behavior in `PlanGraph.tsx`).
+- The currently ACTIVE statement's own tab is never hidden inside a collapsed group — if `activeStatementIndex` points at a statement inside a would-be-collapsed run (e.g. restored from a share link or `Recent plans`), that run renders already-expanded.
+- `truncateLabel`'s input has any leading `--`-prefixed comment lines stripped first (each line trimmed and checked, stopping at the first non-comment, non-blank line); if stripping leaves nothing, fall back to `Statement N` exactly as the existing empty-`statementText` case already does — not a blank tab.
+- A batch with ≤1 statement (today's single-`SELECT` case) is completely unaffected — no grouping UI renders (matches the existing `analyzed.statements.length > 1` gate).
+
+**Testing approach**
+- Unit tests in `statementTabSummary.test.ts` for the new `isTrivialStatement`/grouping function (adjacency grouping, active-statement-forces-expand, all-trivial, no-trivial edge shapes) and `analyzePlan.test.ts` for comment-stripping (single comment line, multiple stacked comment lines, comment-only statement text, no leading comment).
+- Component test in `PlanReaderPage.test.tsx`: a synthetic multi-statement batch with a mix of trivial/non-trivial statements renders a collapsed-group entry, expands on click, and always shows the active statement's real tab.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Every statement in the batch is trivial | A degenerate but real input (e.g. a proc that's pure control-flow with one tiny query) | The whole tab strip is one collapsed-group entry; expanding it reveals all of them — never an empty tab strip |
+| A trivial run is a single statement | Collapsing a "group of 1" into an expand-click adds friction for no clutter savings | Only collapse runs of 2+ consecutive trivial statements; a lone trivial statement between two non-trivial ones keeps its own plain tab |
+| `activeStatementIndex` restored (share link / Recent plans) to an index inside a long trivial run | The active tab must stay visible without a forced click-to-expand | Compute the grouping AFTER checking which run (if any) contains `activeStatementIndex`, and pre-expand that one run only — other trivial runs stay collapsed |
+
+### Story 20.2 — Fix unwanted page-scroll on node click / panel close (missing `preventScroll`)
+
+As a user clicking through a large plan's nodes, I want the page to stay exactly where I left it, so that clicking a node doesn't yank my scroll position away from the tab I was just looking at.
+
+**Acceptance criteria**
+- `PlanNodeCard.tsx`'s `handleClick` calls `event.currentTarget.focus({ preventScroll: true })`, not the bare `.focus()`.
+- `PlanGraph.tsx`'s `closePanel` restores focus via `triggerElementRef.current?.focus({ preventScroll: true })`.
+- `DetailPanel.tsx`'s open-focus effect uses `closeButtonRef.current?.focus({ preventScroll: true })`.
+- `WalkthroughOverlay.tsx` and `SearchPalette.tsx`'s own focus calls are deliberately left unchanged — those modals' whole point is bringing the user's attention (and viewport) to newly-opened content, so browser auto-scroll-into-view there is correct, wanted behavior, not this bug's pattern.
+- **Correction after re-checking the code** (initial manual-testing report suspected a missing scrim below the shell's 1180px overlay breakpoint): `.plan-shell__detail-scrim` (`planReaderPage.css`, wired in `PlanReaderPage.tsx` with `onClick={detailPanel.onClose}`) already exists and is already correct — Episode 18 Story 18.2 built it. What actually reads as "no scrim" on the dark theme is `rgba(0,0,0,0.5)` over an already near-black background being low-contrast, not a missing element. No code change from this bullet; left here so a future session doesn't re-"fix" something that already works.
+
+**Testing approach**
+- Component test: clicking a `PlanNodeCard` asserts `focus` was called with `{ preventScroll: true }` (spy on `HTMLElement.prototype.focus`), not just that focus moved.
+- e2e: in a real browser, scroll the page partway down a long statement-tab strip, click a graph node, and assert `window.scrollY` is unchanged (the concrete regression this story fixes) — this needs a real browser (`e2e/`), not jsdom, since jsdom's `focus()` never scrolls at all and so can't reproduce the bug it's guarding against.
+- e2e (narrow viewport): resize below 1180px, open a node's detail panel, assert a scrim is present and clicking it closes the panel.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A browser/environment where `focus({ preventScroll: true })` isn't supported (very old browsers) | Should degrade to today's behavior, never throw | The option is silently ignored by unsupporting browsers per the DOM spec — no feature-detection needed, but confirm no TypeScript lib-target issue makes this a compile error |
+| Keyboard activation (Enter/Space) of a node card, vs. mouse click | The keyboard path (`handleKeyDown` in `PlanNodeCard.tsx`) doesn't call `.focus()` itself — the element already has focus by the time Enter/Space fires | Confirm the keyboard path was never affected by this bug and stays that way — this story's fix is scoped to the two explicit `.focus()` call sites, not a speculative third one |
+
+## Episode 21 — Buffer/cache and disk-I/O efficiency rule
 
 Source: user request ("include shared buffers based rule engine for postgres, and same equivalent for SQL Server and Snowflake"). The normalized `PlanNode.io`/`PlanNode.timeBreakdown` fields already carry this data for all three engines (Episode 6's field-catalog retrofit) — nothing in `ALL_RULES` (`src/rules/index.ts`) consumed it until this episode.
 

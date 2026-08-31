@@ -39,6 +39,16 @@ describe("analyzePlanText", () => {
     expect(result.statements[1].label).toContain("SELECT * FROM Customers")
   })
 
+  it("strips leading comment lines from a statement's label (Story 20.1) — SQL Server glues them onto the following statement's own StatementText", () => {
+    const result = analyzePlanText(loadFixture("sqlserver", "comment-glued-statement-labels.xml"))
+    expect(result.statements[0].label).toBe("SELECT * FROM Orders")
+    expect(result.statements[1].label).toBe("SELECT * FROM Customers") // multiple stacked comment lines
+    expect(result.statements[2].label).toBe("Statement 3") // comment-only text falls back, never a blank tab
+    // The unstripped raw text is still preserved for query correlation —
+    // only the LABEL is cleaned up, not the underlying data.
+    expect(result.statements[0].context.statementText).toContain("[Tom 4/6/2013]")
+  })
+
   it("runs the rule engine end-to-end for SQL Server, surfacing missing-index findings", () => {
     const result = analyzePlanText(loadFixture("sqlserver", "missing-index-recommendation.xml"))
     const warnings = result.statements[0].root.warnings

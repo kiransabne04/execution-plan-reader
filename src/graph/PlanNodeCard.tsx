@@ -100,8 +100,14 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
   // it shouldn't be left ambient, since the detail panel restores focus to
   // "whatever was focused when it opened" and that needs to reliably be
   // this card, not whatever was focused before the click.
+  // Story 20.2: `{ preventScroll: true }` — a bare `.focus()`'s default
+  // scrollIntoView walks up every scrollable ancestor including the outer
+  // page, so clicking a card already fully visible inside the graph pane
+  // could still yank the whole shell's scroll position. The card is
+  // already on-screen (it was just clicked); focus should land without
+  // moving anything.
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
-    event.currentTarget.focus()
+    event.currentTarget.focus({ preventScroll: true })
   }
 
   return (

@@ -42,6 +42,21 @@ function toMissingIndexSignals(recs: MissingIndexRecommendation[]): MissingIndex
   }))
 }
 
+// Story 20.1 — SQL Server's showplan XML attributes a statement's leading
+// `--` comment lines (developer commentary, TFS/ticket references) to the
+// FOLLOWING statement's own `StatementText`, not the comment's own
+// (nonexistent) statement. Left alone, a tab label ends up being a stale
+// code comment instead of the actual SQL. Strips only LEADING comment
+// lines — a comment appearing after real SQL has started is left as-is,
+// since at that point it's legitimately part of what the label is
+// summarizing (e.g. an inline trailing comment on the same statement).
+function stripLeadingComments(text: string): string {
+  const lines = text.split("\n")
+  let i = 0
+  while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("--"))) i++
+  return lines.slice(i).join("\n")
+}
+
 function truncateLabel(text: string, max = 60): string {
   const oneLine = text.replace(/\s+/g, " ").trim()
   return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine
@@ -72,12 +87,14 @@ export function analyzePlanText(raw: string): AnalyzedPlan {
     const { statements } = parseSqlServerShowplanXml(raw)
     return {
       engine: "sqlserver",
-      statements: statements.map((stmt, i) =>
-        analyzeRoot(stmt.root, stmt.statementText ? truncateLabel(stmt.statementText) : `Statement ${i + 1}`, {
+      statements: statements.map((stmt, i) => {
+        const withoutLeadingComments = stmt.statementText ? stripLeadingComments(stmt.statementText) : ""
+        const label = withoutLeadingComments.trim() ? truncateLabel(withoutLeadingComments) : `Statement ${i + 1}`
+        return analyzeRoot(stmt.root, label, {
           statementText: stmt.statementText,
           missingIndexes: toMissingIndexSignals(stmt.missingIndexes),
-        }),
-      ),
+        })
+      }),
     }
   }
 
