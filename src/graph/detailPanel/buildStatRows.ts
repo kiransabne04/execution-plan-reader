@@ -43,6 +43,7 @@ export function buildStatRows(node: PlanNode): StatRow[] {
   if (node.loops !== undefined) {
     rows.push({ label: "Loops", value: formatNumber(node.loops) })
   }
+  rows.push(...rowsLoopTotal(node))
   rows.push(...rowsPredicateAndIndex(node))
   rows.push(...rowsJoin(node))
   rows.push(...rowsIo(node))
@@ -107,6 +108,36 @@ function rowsTime(node: PlanNode): StatRow[] {
     ]
   }
   return [{ label: "Time", value: formatMs(node.actualTimeMs) }]
+}
+
+/** Design review — a high loop count can hide a large real total behind a
+ * small-looking per-loop number (the field catalog §7/§8 convention:
+ * Postgres's `actualRows`/`actualTimeMs` are already PER-LOOP-ITERATION
+ * AVERAGES, not totals — official Postgres docs: "actual rows" is per-
+ * execution, rounded, and the true total is only approximately
+ * `rows × loops`, off by up to half the loop count when it doesn't divide
+ * evenly). Surfaced explicitly here rather than leaving the reader to do
+ * that multiplication themselves — high-loop nested-loop-join blowups are
+ * a real, common performance pattern (see `rules/highLoopCount.ts`, which
+ * already computes this same total but only for its own warning
+ * threshold; this row shows it unconditionally whenever loops > 1).
+ *
+ * Postgres only, deliberately: SQL Server's `actualRows`/`actualTimeMs`
+ * are already real totals in this app's normalized model (thread-summed
+ * in `parseShowplanXml.ts`, per SQL Server's own opposite convention —
+ * see that file's comment), so multiplying by `loops` there would double-
+ * count. Snowflake has no loop/re-execution concept at the operator level
+ * at all (field catalog §7). */
+function rowsLoopTotal(node: PlanNode): StatRow[] {
+  if (node.engine !== "postgres" || node.loops === undefined || node.loops <= 1) return []
+  const rows: StatRow[] = []
+  if (node.actualRows !== undefined) {
+    rows.push({ label: "Total rows (≈, all loops)", value: formatNumber(Math.round(node.actualRows * node.loops)) })
+  }
+  if (node.actualTimeMs !== undefined) {
+    rows.push({ label: "Total time (≈, all loops)", value: formatMs(node.actualTimeMs * node.loops) })
+  }
+  return rows
 }
 
 function rowsPredicateAndIndex(node: PlanNode): StatRow[] {

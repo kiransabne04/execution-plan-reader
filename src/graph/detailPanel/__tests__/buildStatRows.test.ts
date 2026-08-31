@@ -184,6 +184,35 @@ describe("buildStatRows", () => {
     expect(buildStatRows(node).find((r) => r.label === "Rows removed by filter")?.value).toBe("950")
   })
 
+  describe("loop total (design review — Postgres's actualRows/actualTimeMs are per-loop averages)", () => {
+    it("shows an approximate rows×loops and time×loops total for a high-loop Postgres node", () => {
+      const node = makeNode({ engine: "postgres", loops: 1000, actualRows: 2, actualTimeMs: 1.5 })
+      const rows = buildStatRows(node)
+      expect(rows.find((r) => r.label === "Total rows (≈, all loops)")?.value).toBe("2,000")
+      expect(rows.find((r) => r.label === "Total time (≈, all loops)")?.value).toBe("1,500 ms")
+    })
+
+    it("omits the loop total for a Postgres node with loops <= 1 (nothing to multiply)", () => {
+      const node = makeNode({ engine: "postgres", loops: 1, actualRows: 10, actualTimeMs: 5 })
+      const rows = buildStatRows(node)
+      expect(rows.some((r) => r.label.startsWith("Total rows"))).toBe(false)
+      expect(rows.some((r) => r.label.startsWith("Total time"))).toBe(false)
+    })
+
+    it("never shows a loop total for SQL Server — actualRows/actualTimeMs are already real totals there, not per-loop averages", () => {
+      const node = makeNode({ engine: "sqlserver", loops: 1000, actualRows: 2000, actualTimeMs: 1500 })
+      const rows = buildStatRows(node)
+      expect(rows.some((r) => r.label.startsWith("Total rows"))).toBe(false)
+      expect(rows.some((r) => r.label.startsWith("Total time"))).toBe(false)
+    })
+
+    it("never shows a loop total for Snowflake — no loop/re-execution concept at the operator level", () => {
+      const node = makeNode({ engine: "snowflake", loops: 1000, actualRows: 2000 })
+      const rows = buildStatRows(node)
+      expect(rows.some((r) => r.label.startsWith("Total rows"))).toBe(false)
+    })
+  })
+
   it("never produces a row whose value contains NaN or undefined text", () => {
     const node = makeNode({
       estimatedRows: Number.NaN,
