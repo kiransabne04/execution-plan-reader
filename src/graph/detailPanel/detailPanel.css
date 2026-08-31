@@ -149,29 +149,36 @@
 
 .detail-panel__header {
   padding-right: 28px;
-  margin-bottom: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--dp-border);
 }
 
 .detail-panel__display-name {
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
   font-weight: 700;
   margin: 0;
 }
 
 .detail-panel__raw-label {
   color: var(--dp-text-muted);
+  font-family: var(--font-mono);
   font-size: 12px;
+  margin: 2px 0 0;
 }
 
 .detail-panel__engine-badge {
   display: inline-block;
   background: var(--dp-badge-bg);
   color: var(--dp-badge-text);
+  border: 1px solid var(--dp-badge-border);
   border-radius: 999px;
-  padding: 1px 8px;
-  font-size: 11px;
+  padding: 2px 10px;
+  font-size: 12px;
   font-weight: 600;
-  margin-left: 6px;
 }
 
 .detail-panel__mode-toggle {
@@ -218,16 +225,63 @@
   padding: 10px 12px;
 }
 
+/* Design review (reference mock) — this section's own heading is accent-
+   colored with a leading icon, unlike every other section's plain muted
+   uppercase label (see OperatorEducation.tsx's `EducationHeading`). */
+.detail-panel__education-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dp-education-heading);
+}
+
+.detail-panel__education-heading svg {
+  flex: none;
+  font-size: 14px;
+}
+
 .detail-panel__warning {
-  background: var(--dp-warning-bg);
-  border-left: 3px solid var(--dp-warning-border);
   border-radius: 4px;
   padding: 8px 10px;
   margin-bottom: 8px;
 }
 
+/* Design review — a real per-severity treatment (critical/warning/info),
+   replacing a flat "always red regardless of actual severity" rule that
+   predated `WarningsSection` reading `warning.severity` at all — same
+   three-way split `findingsList.css`'s own severity cards already use. */
 .detail-panel__warning--critical {
-  border-left-color: var(--dp-warning-critical);
+  background: var(--dp-finding-critical-bg);
+  border-left: 3px solid var(--dp-finding-critical-border);
+}
+
+.detail-panel__warning--warning {
+  background: var(--dp-finding-warning-bg);
+  border-left: 3px solid var(--dp-finding-warning-border);
+}
+
+.detail-panel__warning--info {
+  background: var(--dp-finding-info-bg);
+  border-left: 3px solid var(--dp-finding-info-border);
+}
+
+/* Design review (reference mock) — "Critical · Bad row estimate", bold
+   and severity-colored, ahead of the finding's prose body. */
+.detail-panel__warning-heading {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.detail-panel__warning-heading--critical {
+  color: var(--dp-finding-critical-text);
+}
+
+.detail-panel__warning-heading--warning {
+  color: var(--dp-finding-warning-text);
+}
+
+.detail-panel__warning-heading--info {
+  color: var(--dp-finding-info-text);
 }
 
 /* Story 18.7 — Expert mode's rule id, a small mono tag before the finding
@@ -299,6 +353,34 @@
 
 .detail-panel__stat-mismatch {
   color: var(--dp-warning-critical);
+  font-weight: 600;
+}
+
+/* Design review (reference mock) — a real progress bar, replacing a plain
+   "X% of the plan's total cost/time." sentence. */
+.detail-panel__contribution-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-panel__contribution-bar-track {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--dp-gap-bg);
+  overflow: hidden;
+}
+
+.detail-panel__contribution-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+
+.detail-panel__contribution-value {
+  flex: none;
+  font-size: 14px;
   font-weight: 600;
 }
 

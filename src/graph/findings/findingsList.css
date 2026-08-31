@@ -1,33 +1,42 @@
 /* Episode 18, Story 18.1 — --fl-* tokens are now aliases declared once in
    src/styles/tokens.css. Dark-only: no `prefers-color-scheme` branch. */
+
+/* Design review — reworked to match the reference mock: always visible
+   (no "See all N findings" toggle), a "FINDINGS · N" header with a sort
+   label, pill-style filter dropdowns, and each finding as its own
+   full-card severity treatment (colored border + tinted background)
+   rather than a small inline badge. */
 .findings-list {
   margin-top: 12px;
   border-top: 1px solid var(--fl-border);
   padding-top: 12px;
 }
 
-.findings-list__toggle {
-  background: transparent;
-  border: 1px solid var(--fl-border);
-  border-radius: 6px;
-  color: var(--fl-text);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 6px 12px;
+.findings-list__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
-/* Episode 18, Story 18.12 — this component nests inside `.plan-shell`
-   (its `container-type: inline-size` context) via `.plan-shell__rail`,
-   same reasoning as the accessible-list toggle's own comment
-   (planGraph.css). */
-@container (max-width: 619px) {
-  .findings-list__toggle {
-    min-height: 44px;
-  }
+.findings-list__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fl-text-muted);
 }
 
-.findings-list__body {
-  margin-top: 12px;
+.findings-list__count {
+  font-weight: 400;
+}
+
+.findings-list__sort-label {
+  flex: none;
+  font-size: 12px;
+  color: var(--fl-text-muted);
 }
 
 .findings-list__empty,
@@ -37,32 +46,33 @@
   margin: 8px 0 0;
 }
 
-/* Episode 18, Story 18.2 — spec §2: "grid-template-columns: repeat(auto-
-   fit, minmax(96px,1fr)) so they stack in one step" — a narrow left rail
-   goes straight from side-by-side to stacked, never an awkward
-   in-between wrap. */
 .findings-list__filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
-  gap: 16px;
+  display: flex;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
-.findings-list__filter-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--fl-text-muted);
-}
-
+/* A custom chevron replaces the native select arrow (`appearance: none`)
+   so the pill reads the same in every browser — a plain light-gray
+   down-caret, inlined as a data URI rather than an icon-font glyph since
+   it's inside a `<select>`, not a place a React icon component can render. */
 .findings-list__filter-select {
+  flex: 1 1 0;
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
   border: 1px solid var(--fl-border);
-  border-radius: 6px;
-  background: var(--fl-bg);
+  border-radius: 8px;
+  background-color: var(--fl-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238a8a99' stroke-width='1.5'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
   color: var(--fl-text);
-  padding: 4px 8px;
-  font-size: 13px;
+  padding: 10px 34px 10px 14px;
+  font-size: 13.5px;
+  cursor: pointer;
 }
 
 .findings-list__items {
@@ -71,63 +81,111 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .findings-list__item {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   width: 100%;
+  box-sizing: border-box;
   text-align: left;
   background: var(--fl-item-bg);
   border: 1px solid var(--fl-border);
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: 10px;
+  padding: 14px 16px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--fl-text);
 }
 
+/* Episode 18, Story 18.12 — this component nests inside `.plan-shell`
+   (its `container-type: inline-size` context) via `.plan-shell__rail`,
+   same reasoning as the accessible-list toggle's own comment
+   (planGraph.css): a 44px touch target on the controls a finger actually
+   taps, now that those are the filter selects and the cards themselves
+   rather than a single collapse toggle. */
+@container (max-width: 619px) {
+  .findings-list__filter-select,
+  .findings-list__item {
+    min-height: 44px;
+  }
+}
+
+/* `filter: brightness` rather than swapping `background` on hover/focus —
+   a flat background swap would blow away whichever severity tint below is
+   already sitting there (regression caught visually: a hovered warning
+   card briefly went plain gray, losing its amber tint entirely). */
 .findings-list__item:hover,
 .findings-list__item:focus-visible {
-  background: var(--fl-item-hover-bg);
+  filter: brightness(1.15);
 }
 
-.findings-list__severity-badge {
-  flex: none;
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid transparent;
+/* Design review (per reference PNG): critical/warning are light pastel
+   alert cards — a deliberate departure from the app's otherwise dark-only
+   theme, matching that PNG's literal colors rather than color-mixing the
+   severity accent into the dark surface the way the rest of the app does.
+   INFO stays a normal dark card (that PNG's own INFO card is opaque dark
+   navy, same as everywhere else). Text color is overridden per-card below
+   since these sit on a light background now, not the dark one every other
+   `--fl-text`/`--fl-text-muted` use assumes. */
+.findings-list__item--critical {
+  background: #fbe4e2;
+  border-color: #f3aca6;
+  color: #3a1210;
 }
 
-.findings-list__severity-badge--critical {
-  background: var(--fl-critical-bg);
-  border-color: var(--fl-critical-border);
-  color: var(--fl-critical-text);
+.findings-list__item--warning {
+  background: #fdf1d9;
+  border-color: #f0c987;
+  color: #3a2a05;
 }
 
-.findings-list__severity-badge--warning {
-  background: var(--fl-warning-bg);
-  border-color: var(--fl-warning-border);
-  color: var(--fl-warning-text);
-}
-
-.findings-list__severity-badge--info {
+.findings-list__item--info {
   background: var(--fl-info-bg);
   border-color: var(--fl-info-border);
+}
+
+.findings-list__item--critical .findings-list__category,
+.findings-list__item--warning .findings-list__category {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.findings-list__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.findings-list__severity-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Darker/more saturated than --fl-critical-text/--fl-warning-text (tuned
+   for a dark background) — these sit on the light card backgrounds above,
+   which need more contrast than the light-on-dark accent color gives. */
+.findings-list__severity-label--critical {
+  color: #dc2626;
+}
+
+.findings-list__severity-label--warning {
+  color: #b45309;
+}
+
+.findings-list__severity-label--info {
   color: var(--fl-info-text);
 }
 
 .findings-list__category {
-  flex: none;
   color: var(--fl-text-muted);
-  font-size: 11px;
-  white-space: nowrap;
+  font-size: 12px;
 }
 
 .findings-list__text {
-  flex: 1 1 auto;
+  line-height: 1.4;
 }

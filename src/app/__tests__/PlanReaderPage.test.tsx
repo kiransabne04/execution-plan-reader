@@ -66,9 +66,10 @@ describe("PlanReaderPage", () => {
     expect(screen.getByText(/scalingbackend/i)).toBeInTheDocument()
   })
 
-  it("shows the privacy statement (and the browser-extension caveat) at the paste box before anything is analyzed", () => {
+  it("shows the privacy statement (and the browser-extension caveat, behind its disclosure) at the paste box before anything is analyzed", () => {
     render(<PlanReaderPage />)
     expect(screen.getByTestId("privacy-statement")).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId("privacy-details-toggle"))
     expect(screen.getByTestId("privacy-caveat")).toHaveTextContent(/browser extensions/i)
     // Episode 19: `plan-result` (the shell itself) is always present now —
     // what matters here is that no plan-specific content has rendered yet.
@@ -189,13 +190,12 @@ describe("PlanReaderPage", () => {
   })
 
   // Story 13.1 — the "All findings" list, wired end-to-end into the real page.
-  it("expanding the findings list and clicking an entry opens that node's detail panel in the graph", () => {
+  it("clicking a findings-list entry opens that node's detail panel in the graph", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
 
     expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
     const items = screen.getAllByTestId("finding-item")
     expect(items.length).toBeGreaterThan(0)
 
@@ -517,6 +517,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
   it("checking 'don't save' prevents both session persistence and the recent plans list from being written to", async () => {
     const { unmount } = render(<PlanReaderPage />)
+    fireEvent.click(screen.getByTestId("privacy-details-toggle"))
     fireEvent.click(screen.getByTestId("dont-save-checkbox"))
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
     await waitFor(() => expect(screen.getByTestId("plan-result")).toBeInTheDocument())
@@ -584,6 +585,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
   it("'Clear saved data' wipes both the session and the recent plans list, and the button disappears once nothing is left", async () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    fireEvent.click(screen.getByTestId("privacy-details-toggle"))
     await waitFor(() => expect(screen.getByTestId("clear-saved-data-button")).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId("clear-saved-data-button"))
@@ -763,16 +765,26 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
   })
 
   describe("Episode 18, Story 18.3 — Beginner/Expert lifted to page-level state", () => {
+    // Design review (reference mock): the panel's own former Beginner/
+    // Expert toggle is gone in the shell (`variant="shell"`) — the app
+    // bar's is the only control now, so these assert against the panel's
+    // actual rendered CONTENT switching density, not a second toggle's
+    // own `aria-pressed` state (see DetailPanel.tsx's own comment on
+    // `variant !== "shell"` for why. Non-shell callers, e.g.
+    // PlanComparisonView, keep their own toggle unchanged — covered by
+    // DetailPanel.test.tsx directly, not here.
     it("clicking Expert in the app bar switches the currently-open panel to Expert", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
       fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
       const rightRail = screen.getByTestId("plan-shell-right-rail")
-      expect(within(rightRail).getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "false")
+      // Beginner (the default) shows the "In general" education section;
+      // Expert collapses it away entirely — see OperatorEducation.tsx.
+      expect(within(rightRail).queryByTestId("operator-education-general")).toBeInTheDocument()
 
       fireEvent.click(screen.getByTestId("shell-mode-expert"))
 
-      expect(within(rightRail).getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true")
+      expect(within(rightRail).queryByTestId("operator-education-general")).not.toBeInTheDocument()
     })
 
     it("the mode persists when a different node is opened — not reset per node", () => {
@@ -787,21 +799,8 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       fireEvent.click(cards[1])
       const rightRail = screen.getByTestId("plan-shell-right-rail")
-      expect(within(rightRail).getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true")
+      expect(within(rightRail).queryByTestId("operator-education-general")).not.toBeInTheDocument()
       expect(screen.getByTestId("shell-mode-expert")).toHaveAttribute("aria-pressed", "true")
-    })
-
-    it("the app-bar toggle and the open panel's own toggle stay in sync — either one changes both, since they share one state", () => {
-      render(<PlanReaderPage />)
-      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
-
-      const rightRail = screen.getByTestId("plan-shell-right-rail")
-      // Change it from the PANEL's own in-panel button this time, not the app bar.
-      fireEvent.click(within(rightRail).getByRole("button", { name: "Expert" }))
-
-      expect(screen.getByTestId("shell-mode-expert")).toHaveAttribute("aria-pressed", "true")
-      expect(screen.getByTestId("shell-mode-beginner")).toHaveAttribute("aria-pressed", "false")
     })
   })
 

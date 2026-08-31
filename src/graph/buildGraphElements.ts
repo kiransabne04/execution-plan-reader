@@ -23,6 +23,7 @@ import { relationIdentity, indexIdentity } from "../parsers/relationIdentity"
 import { computeMismatchFactor } from "../rules/badRowEstimate"
 import { formatBytesCompact } from "../rules/format"
 import type { NodeMatchStatus } from "../comparison/matchNodes"
+import type { PlanContext } from "../rules/types"
 import { buildEdgeWidthScale, buildMetricScale, pickMetricValue, type MetricKey } from "./encoding"
 import { worstSeverity } from "./nodeSeverity"
 import { operatorIconKey, type OperatorIconKey } from "./operatorIcons"
@@ -85,6 +86,18 @@ export interface PlanNodeData extends Record<string, unknown> {
    * `attributes` reading Episode 14's node-matching algorithm already
    * solved (src/parsers/relationIdentity.ts) — not re-derived a third way. */
   subtitle?: string
+  /** Design review (docs/12-ui-redesign-spec.md §2/reference mock) — this
+   * node's OWN (exclusive/self) time as a share of the plan's total,
+   * shown top-right of the card header ("45%") on the handful of nodes
+   * actually worth calling out at a glance. Deliberately a DIFFERENT
+   * computation from the detail panel's `computeContributionPercent`
+   * (cumulative, includes children) — see `exclusiveContributionPercent`'s
+   * own doc comment in this file for why a cumulative figure doesn't work
+   * for this particular badge. Threshold-gated in PlanNodeCard.tsx
+   * (`CONTRIBUTION_BADGE_THRESHOLD`), not shown for every node
+   * unconditionally. `undefined` when `context` wasn't supplied (e.g. a
+   * standalone/test render) or the figure isn't computable. */
+  contributionPercent?: number
   /** Story 18.4 — how many target handles (incoming, from this node's own
    * children) this card needs to render along its bottom edge, and at
    * which offsets — see `computeHandleOffsetPercent`. 0 for a leaf. */
@@ -144,6 +157,10 @@ export interface BuildGraphElementsOptions {
    * (the default, no active search) dims nothing; an empty `Set` (a query
    * that matched zero nodes) dims everything. */
   matchedNodeIds?: Set<string>
+  /** Design review — feeds `PlanNodeData.contributionPercent` (see its own
+   * doc comment). Optional/additive: omitting it just means no card shows
+   * a contribution figure, same as before this pass existed. */
+  context?: PlanContext
 }
 
 export interface BuildGraphElementsResult {
@@ -163,6 +180,44 @@ function edgeId(sourceId: string, targetId: string): string {
   return `${sourceId}->${targetId}`
 }
 
+/** Design review (reference mock) — this node's OWN (exclusive/self) time:
+ * `actualTimeMs` minus whatever its children's `actualTimeMs` already
+ * accounts for, floored at 0. Deliberately NOT the same figure the detail
+ * panel's `computeContributionPercent` reports (that one is cumulative —
+ * a node's time INCLUDING its children's, the standard Postgres EXPLAIN
+ * ANALYZE convention, right for "how expensive was everything under this
+ * point"). The on-card badge needs the opposite question answered — "is
+ * THIS operator itself the expensive part, or just sitting above one" —
+ * because cumulative time trivially satisfies almost any threshold for
+ * every ancestor of a genuinely hot node (a parent's cumulative time is
+ * always >= its child's), which turned an early version of this badge
+ * into a cascading top-to-bottom wall of percentages instead of the
+ * mock's sparse "here's what's actually expensive" callout. This is the
+ * "exclusive-time" mental model docs/04-technical-spec-v1.md §"Node
+ * color" already names (the Depesz-style highlighting convention),
+ * applied a second place. `undefined` when this node's own time isn't
+ * known at all — an honest gap, not a fabricated 0. */
+function exclusiveTimeMs(node: PlanNode): number | undefined {
+  if (node.actualTimeMs === undefined) return undefined
+  const childrenTotal = node.children.reduce((sum, child) => sum + (child.actualTimeMs ?? 0), 0)
+  return Math.max(0, node.actualTimeMs - childrenTotal)
+}
+
+/** Design review (reference mock) — see `exclusiveTimeMs`'s own doc
+ * comment for why this is a second, deliberately different computation
+ * from the detail panel's `computeContributionPercent` rather than a
+ * reuse of it. Only defined against actual time (never falls back to
+ * estimated cost the way the panel's version does) — "self time" isn't a
+ * concept estimated cost decomposes into as cleanly, and this badge
+ * already only shows up when there's real ANALYZE data worth calling out. */
+function exclusiveContributionPercent(node: PlanNode, context: PlanContext): number | undefined {
+  const total = context.totalActualTimeMs
+  if (total === undefined || !Number.isFinite(total) || total <= 0) return undefined
+  const exclusive = exclusiveTimeMs(node)
+  if (exclusive === undefined) return undefined
+  return (exclusive / total) * 100
+}
+
 /** Design-mockup review (post-Episode-18): spec §3's badge table names
  * "spill size" as its own badge, distinct from the mismatch-factor/loop-
  * count badges — never built until this pass caught the gap. */
@@ -170,6 +225,47 @@ function spillBadgeTextFor(node: PlanNode): string | undefined {
   if (!node.spill?.occurred) return undefined
   const totalBytes = (node.spill.bytesLocal ?? 0) + (node.spill.bytesRemote ?? 0)
   return totalBytes > 0 ? `spilled ${formatBytesCompact(totalBytes)}` : "spilled to disk"
+}
+
+/** Design review (reference mock) — the first relation/index identity
+ * found by walking DOWN a subtree, for a join's two input sides. A join's
+ * immediate children are rarely a scan themselves (a `Hash` node with no
+ * identity of its own commonly sits between a Hash Join and the table it
+ * actually reads), so `relationIdentity(child) ?? indexIdentity(child)`
+ * alone would come up empty for that whole side; this keeps descending
+ * until it finds SOME identity, or gives up (returns `undefined`) once
+ * the subtree is exhausted. Depth-first, first match wins — good enough
+ * for the common single-relation-per-side case this label is for, not a
+ * general "summarize this whole subtree" tool. */
+function representativeIdentity(node: PlanNode): string | undefined {
+  const own = relationIdentity(node) ?? indexIdentity(node)
+  if (own !== undefined) return own
+  for (const child of node.children) {
+    const found = representativeIdentity(child)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+/** Design review (reference mock) — a join card's subtitle is "left ⋈
+ * right · JoinType" (e.g. "orders ⋈ customers · Inner") rather than the
+ * plain relation/index name every other operator gets, since a join has
+ * no relation/index of its own to name. Falls back to the ordinary
+ * relation/index subtitle when this isn't recognizably a two-input join
+ * (operatorIconKey's own "join" category, per spec §3's icon table) or
+ * either side's identity can't be resolved at all — an honest gap, not a
+ * fabricated label, same principle `subtitle` already followed. */
+function buildSubtitle(node: PlanNode): string | undefined {
+  if (operatorIconKey(node.operatorType) === "join" && node.children.length >= 2) {
+    const left = representativeIdentity(node.children[0])
+    const right = representativeIdentity(node.children[1])
+    if (left !== undefined && right !== undefined) {
+      const joinType = node.join?.logicalType
+      const joinLabel = joinType ? joinType.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : undefined
+      return joinLabel ? `${left} ⋈ ${right} · ${joinLabel}` : `${left} ⋈ ${right}`
+    }
+  }
+  return relationIdentity(node) ?? indexIdentity(node)
 }
 
 /** Story 18.4 — target-handle id for the Nth (0-indexed) child feeding into
@@ -208,6 +304,7 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
   const collapsedIds = options.collapsedIds ?? new Set<string>()
   const comparisonOverlays = options.comparisonOverlays
   const matchedNodeIds = options.matchedNodeIds
+  const context = options.context
 
   const metricScale = buildMetricScale(root, metric)
   const edgeScale = buildEdgeWidthScale(root)
@@ -251,7 +348,8 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
           comparisonOverlay: comparisonOverlays?.get(node.id),
           severity: worstSeverity(node),
           iconKey: operatorIconKey(node.operatorType),
-          subtitle: relationIdentity(node) ?? indexIdentity(node),
+          subtitle: buildSubtitle(node),
+          contributionPercent: context ? exclusiveContributionPercent(node, context) : undefined,
           childCount: collapsed ? 1 : node.children.length,
           isDimmed: matchedNodeIds !== undefined && !matchedNodeIds.has(node.id),
         },

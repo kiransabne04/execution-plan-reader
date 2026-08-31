@@ -9,12 +9,26 @@
   border-top: 1px solid var(--color-border);
 }
 
+.content-stack__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .content-stack__heading {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.content-stack__from {
+  flex: none;
+  font-size: 11px;
   color: var(--color-text-muted);
 }
 
@@ -24,35 +38,48 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
+/* Design review (reference mock) — a bordered card per item (icon, title,
+   kind/duration below it), replacing a single-line "kind · title ·
+   minutes" text row. */
 .content-stack__link {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
   color: var(--color-text);
   text-decoration: none;
-  font-size: 12.5px;
 }
 
-.content-stack__link:hover {
-  text-decoration: underline;
+.content-stack__link:hover,
+.content-stack__link:focus-visible {
+  border-color: var(--color-border-strong);
 }
 
-.content-stack__kind {
+.content-stack__icon {
   flex: none;
-  color: var(--color-text-secondary);
-  font-size: 11px;
-  text-transform: uppercase;
+  font-size: 18px;
+  margin-top: 1px;
+  color: var(--color-accent);
+}
+
+.content-stack__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .content-stack__title {
-  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.content-stack__minutes {
-  flex: none;
+.content-stack__meta {
+  font-size: 11.5px;
   color: var(--color-text-muted);
-  font-size: 11px;
 }

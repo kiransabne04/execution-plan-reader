@@ -6,15 +6,19 @@
      — see .plan-shell__body below) has room. Hero/paste-box content simply
      gets more breathing room at wide viewports; nothing about Story 8.1's
      above-the-fold requirement depends on a specific max-width. */
+  /* Cap removed (design review): the shell should fill the available
+     window on wide monitors instead of sitting boxed in the center with
+     large idle gutters either side. Internal panels (detail panel, graph
+     canvas) are already flexible-width, so nothing further up the tree
+     needed a corresponding change. */
   /* Explicit width:100% rather than relying on #root's flex-stretch
      default (index.css's `#root { display:flex; flex-direction:column }`)
      — that alone left this element narrower than its own max-width for
      reasons not worth chasing further; an explicit width setting is
      unambiguous regardless of the parent's flex algorithm quirks. */
   width: 100%;
-  max-width: 1320px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 0;
   box-sizing: border-box;
   color: var(--pr-text);
   background: var(--pr-bg);
@@ -34,8 +38,14 @@
    itself is untouched; see PlanReaderPage.tsx's own Episode 19 comment. */
 
 .plan-reader-page__footer {
+  /* Sticky rather than static: pins to the bottom of the viewport so it
+     stays visible instead of scrolling out of sight below a tall shell. */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   margin-top: 40px;
-  padding-top: 16px;
+  padding: 12px 16px;
+  background: var(--pr-bg);
   border-top: 1px solid var(--pr-border);
   color: var(--pr-text-muted);
   font-size: 13px;
@@ -169,15 +179,43 @@
 
 .paste-box__privacy {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--pr-text-muted);
+}
+
+/* Design review: the mock's rail has nothing below the privacy line — the
+   caveat text and the persistence controls both live behind this small
+   disclosure instead of sitting open by default (see PasteBox.tsx's own
+   comment for why they're kept at all). */
+.paste-box__privacy-more-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--pr-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.paste-box__privacy-more-toggle svg {
+  font-size: 12px;
+}
+
+.paste-box__privacy-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .paste-box__privacy-caveat {
   margin: 0;
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--pr-text-muted);
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .paste-box__persistence-controls {
@@ -185,8 +223,9 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--pr-text-muted);
+  opacity: 0.85;
 }
 
 .paste-box__dont-save {
@@ -201,23 +240,50 @@
   border: none;
   color: var(--pr-accent);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   padding: 0;
   text-decoration: underline;
+}
+
+.paste-box__input-wrap {
+  position: relative;
+}
+
+.paste-box__dropzone-icon {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  font-size: 17px;
+  color: var(--pr-text-muted);
+  pointer-events: none;
 }
 
 .paste-box__textarea {
   width: 100%;
   box-sizing: border-box;
+  min-height: 96px;
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   font-size: 13px;
   padding: 12px;
-  border: 1px dashed var(--pr-border);
-  border-radius: 8px;
+  border: 1px dashed white;
+  border-radius: 10px;
   background: var(--pr-bg);
   color: var(--pr-text);
   resize: vertical;
   transition: border-color 0.1s ease;
+}
+
+/* The empty/dropzone state reads as a short instruction, not pasted code
+   — a regular sans face (matching the mock) rather than the monospace
+   used once there's real plan text in the box, plus room so the icon
+   overlay above doesn't collide with the first line of text. */
+.paste-box__textarea:placeholder-shown {
+  padding-left: 38px;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
 }
 
 /* Story 18.5 — the textarea IS the dropzone; this is the only visual cue
@@ -228,22 +294,82 @@
   border-style: solid;
 }
 
+/* Design review — the collapsed state: the textarea itself is hidden (a
+   pure visibility change, not an unmount — see PasteBox.tsx's own comment
+   on why that matters for its test id/value) and `.paste-box__collapsed-
+   summary` below stands in for it visually. */
+.paste-box__textarea--collapsed {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.paste-box__collapsed-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  max-height: 220px;
+  overflow: hidden;
+  padding: 12px 14px;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  background: var(--pr-bg);
+  color: var(--pr-text-muted);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.paste-box__collapsed-summary:hover,
+.paste-box__collapsed-summary:focus-visible {
+  border-color: var(--pr-accent);
+  color: var(--pr-text);
+}
+
+.paste-box__collapsed-summary-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.paste-box__collapsed-summary-header svg {
+  flex: none;
+  font-size: 16px;
+}
+
+/* Read-only peek at the pasted content, cut off by the parent's own
+   max-height (not line-clamped) so it reads as "there's more below" —
+   same treatment as the reference mock. */
+.paste-box__collapsed-summary-preview {
+  margin: 0;
+  color: var(--pr-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
 .paste-box__file-row {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  font-size: 12px;
 }
 
 .paste-box__file-button {
   position: relative;
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--pr-border);
-  background: transparent;
-  color: var(--pr-text);
+  color: var(--pr-accent);
   font-size: 12px;
   cursor: pointer;
+  text-decoration: underline;
 }
 
 /* Visually hidden but still focusable/operable — the label click-through
@@ -258,32 +384,21 @@
   width: 100%;
 }
 
-.paste-box__samples {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--pr-text-muted);
-}
 
-.paste-box__sample-button {
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--pr-border);
+/* Design review: promoted to a full-width, prominent primary action
+   directly under the input (was a small flex-start button at the very
+   bottom of the form, after the file/sample row) — an outline treatment
+   (accent border + text, transparent fill) matching the reference mock,
+   not the earlier solid-fill button. */
+.paste-box__submit {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--pr-accent);
   background: transparent;
   color: var(--pr-accent);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.paste-box__submit {
-  align-self: flex-start;
-  padding: 8px 18px;
-  border-radius: 6px;
-  border: none;
-  background: var(--pr-accent);
-  color: white;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -566,6 +681,15 @@
   overflow-y: auto;
 }
 
+/* Design review: left rail only — tightest usable line-height (1 is the
+   practical floor; 0 clips ascenders/descenders on multi-line text)
+   rather than the page's default 145%. Scoped to `--left` specifically —
+   the right rail (detail panel) keeps normal spacing. */
+.plan-shell__rail--left,
+.plan-shell__rail--left * {
+  line-height: 1;
+}
+
 .plan-shell__canvas {
   min-width: 0;
   min-height: 0;
@@ -640,21 +764,111 @@
   max-width: 68ch;
 }
 
+/* Design review — matches the reference mock's two-tone verdict sentence:
+   the lead-in clause (up to the colon) in a bold severity color, the rest
+   of the sentence in the paragraph's own normal (muted) color. */
+.plan-shell__summary-opener {
+  font-weight: 600;
+}
+
+.plan-shell__summary-opener--critical {
+  color: var(--color-critical);
+}
+
+.plan-shell__summary-opener--warning {
+  color: var(--color-warning-text);
+}
+
+.plan-shell__summary-opener--info {
+  color: var(--pr-accent);
+}
+
 .plan-shell__metrics-strip {
   flex: none;
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 16px;
   font-size: 12px;
   color: var(--pr-text-muted);
 }
 
+/* Design review — the colour legend spec §2/§3 calls for: a swatch of the
+   exact same cool -> warm hue ramp `encoding.ts`'s `colorFor()` computes
+   node fill from (blue 210° down to red 0°), so this is documentation of
+   the real encoding, not a decorative, independently-chosen gradient. */
+.plan-shell__colour-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-shell__colour-legend-swatch {
+  display: inline-block;
+  width: 56px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, hsl(210, 70%, 55%), hsl(105, 70%, 55%), hsl(0, 70%, 55%));
+}
+
 .plan-shell__graph {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   border: 1px solid var(--pr-border);
   border-radius: 8px;
   overflow: hidden;
+}
+
+/* Design review (reference mock) — docked top-left over the canvas. Above
+   React Flow's own panes/background (z-index 5 or lower); the actual
+   search UI is still the existing modal palette (searchPalette.css) —
+   this is only the trigger. */
+.plan-shell__search-trigger {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(320px, calc(100% - 24px));
+  padding: 8px 10px;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  background: var(--pr-bg);
+  color: var(--pr-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.plan-shell__search-trigger:hover,
+.plan-shell__search-trigger:focus-visible {
+  border-color: var(--pr-accent);
+  color: var(--pr-text);
+}
+
+.plan-shell__search-trigger svg {
+  flex: none;
+  font-size: 15px;
+}
+
+.plan-shell__search-trigger span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-shell__search-trigger kbd {
+  flex: none;
+  border: 1px solid var(--pr-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: inherit;
 }
 
 .plan-shell__tabs {

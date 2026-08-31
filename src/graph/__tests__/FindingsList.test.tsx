@@ -20,15 +20,7 @@ function warning(overrides: Partial<Warning>): Warning {
 }
 
 describe("FindingsList", () => {
-  it("starts collapsed behind a toggle showing the total count", () => {
-    const root = withWarnings(makeNode({}), [warning({ ruleId: "disk-spill", severity: "critical" })])
-    render(<FindingsList root={root} onSelectNode={vi.fn()} />)
-
-    expect(screen.getByTestId("findings-list-toggle")).toHaveTextContent("See all 1 finding")
-    expect(screen.queryByTestId("finding-item")).not.toBeInTheDocument()
-  })
-
-  it("expands to show every finding when the toggle is clicked, with no cap", () => {
+  it("shows the header count and every finding directly — no collapse-behind-a-toggle (design review)", () => {
     const nodes = [
       withWarnings(makeNode({ id: "n0" }), [warning({ ruleId: "missing-index-opportunity-0", severity: "info" })]),
       withWarnings(makeNode({ id: "n1" }), [warning({ ruleId: "missing-index-opportunity-1", severity: "info" })]),
@@ -39,16 +31,17 @@ describe("FindingsList", () => {
     const root = makeNode({ id: "root", children: nodes })
     render(<FindingsList root={root} onSelectNode={vi.fn()} />)
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
+    expect(screen.getByTestId("findings-list")).toHaveTextContent("Findings")
+    expect(screen.getByTestId("findings-list")).toHaveTextContent("5")
     expect(screen.getAllByTestId("finding-item")).toHaveLength(5)
   })
 
-  it("shows the 'looks fine' message when expanded with zero findings, reusing Story 5.2's copy", () => {
+  it("shows the 'looks fine' message when there are zero findings, reusing Story 5.2's copy", () => {
     const root = makeNode({})
     render(<FindingsList root={root} onSelectNode={vi.fn()} />)
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
     expect(screen.getByTestId("findings-list-empty")).toHaveTextContent(/straightforward/i)
+    expect(screen.queryByTestId("finding-item")).not.toBeInTheDocument()
   })
 
   it("clicking a finding entry calls onSelectNode with the originating node's id", () => {
@@ -57,7 +50,6 @@ describe("FindingsList", () => {
     const onSelectNode = vi.fn()
     render(<FindingsList root={root} onSelectNode={onSelectNode} />)
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
     fireEvent.click(screen.getByTestId("finding-item"))
     expect(onSelectNode).toHaveBeenCalledWith("flagged")
   })
@@ -70,7 +62,6 @@ describe("FindingsList", () => {
     const root = makeNode({ id: "root", children: nodes })
     render(<FindingsList root={root} onSelectNode={vi.fn()} />)
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
     expect(screen.getAllByTestId("finding-item")).toHaveLength(2)
 
     fireEvent.change(screen.getByTestId("findings-severity-filter"), { target: { value: "critical" } })
@@ -87,7 +78,6 @@ describe("FindingsList", () => {
     const root = makeNode({ id: "root", children: nodes })
     render(<FindingsList root={root} onSelectNode={vi.fn()} />)
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
     fireEvent.change(screen.getByTestId("findings-category-filter"), { target: { value: "Spill issues" } })
     const items = screen.getAllByTestId("finding-item")
     expect(items).toHaveLength(1)
@@ -98,16 +88,14 @@ describe("FindingsList", () => {
     const root = withWarnings(makeNode({}), [warning({ ruleId: "disk-spill", severity: "critical" })])
     render(<FindingsList root={root} onSelectNode={vi.fn()} />)
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
     fireEvent.change(screen.getByTestId("findings-severity-filter"), { target: { value: "info" } })
     expect(screen.getByTestId("findings-list-no-match")).toBeInTheDocument()
   })
 
-  it("preserves expanded/filter state when the same plan re-renders (e.g. after navigating to a node and back)", () => {
+  it("preserves filter state when the same plan re-renders (e.g. after navigating to a node and back)", () => {
     const root = withWarnings(makeNode({}), [warning({ ruleId: "disk-spill", severity: "critical" })])
     const { rerender } = render(<FindingsList root={root} onSelectNode={vi.fn()} />)
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
     fireEvent.change(screen.getByTestId("findings-severity-filter"), { target: { value: "critical" } })
 
     // Same root object identity — simulates a re-render caused by something
@@ -118,19 +106,18 @@ describe("FindingsList", () => {
     expect(screen.getAllByTestId("finding-item")).toHaveLength(1)
   })
 
-  it("resets expanded/filter state when a genuinely new plan (different root identity) is passed in", () => {
+  it("resets filter state when a genuinely new plan (different root identity) is passed in", () => {
     const firstRoot = withWarnings(makeNode({ id: "first" }), [warning({ ruleId: "disk-spill", severity: "critical" })])
     const { rerender } = render(<FindingsList root={firstRoot} onSelectNode={vi.fn()} />)
 
-    fireEvent.click(screen.getByTestId("findings-list-toggle"))
     fireEvent.change(screen.getByTestId("findings-severity-filter"), { target: { value: "critical" } })
 
     const secondRoot = withWarnings(makeNode({ id: "second" }), [warning({ ruleId: "bad-row-estimate", severity: "warning" })])
     rerender(<FindingsList root={secondRoot} onSelectNode={vi.fn()} />)
 
-    // Collapsed again, filter reset — a fresh plan shouldn't inherit the
-    // previous plan's UI state.
-    expect(screen.queryByTestId("finding-item")).not.toBeInTheDocument()
-    expect(screen.getByTestId("findings-list-toggle")).toHaveTextContent("See all 1 finding")
+    // Filter reset and the new plan's own single finding shows — a fresh
+    // plan shouldn't inherit the previous plan's filter state.
+    expect(screen.getByTestId("findings-severity-filter")).toHaveValue("all")
+    expect(screen.getAllByTestId("finding-item")).toHaveLength(1)
   })
 })

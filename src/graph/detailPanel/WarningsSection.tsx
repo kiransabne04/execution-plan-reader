@@ -1,7 +1,18 @@
 import { memo } from "react"
 import type { Engine, Warning } from "../../parsers/normalize"
+import { SEVERITY_LABEL } from "../nodeSeverity"
+import { ruleFamily } from "../../rules/summarize"
 import { FunnelCallout } from "./FunnelCallout"
 import { getFunnelCallout } from "./funnelCallouts"
+
+/** Design review (reference mock) — "bad-row-estimate" -> "Bad row
+ * estimate": the rule FAMILY (not `findingCategory.ts`'s broader grouping,
+ * e.g. "Estimate issues" — the mock's own wording names the specific rule,
+ * not its category) with dashes turned to spaces and sentence-cased. */
+function formatRuleFamilyLabel(ruleId: string): string {
+  const words = ruleFamily(ruleId).split("-")
+  return words.map((word, i) => (i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word)).join(" ")
+}
 
 export interface WarningsSectionProps {
   warnings: Warning[]
@@ -25,17 +36,25 @@ function WarningsSectionInner({ warnings, expertMode, engine }: WarningsSectionP
 
   return (
     <section className="detail-panel__section" data-testid="warnings-section">
-      <h3 className="detail-panel__section-heading">Why this might matter here</h3>
+      {/* Design review (reference mock) — "Finding on this node" (mock's
+          own literal wording, singular regardless of count — same
+          "don't over-engineer a heading" spirit the rest of this panel's
+          fixed section headings already follow). */}
+      <h3 className="detail-panel__section-heading">Finding on this node</h3>
       {warnings.map((warning) => (
         <div
           key={warning.ruleId}
-          className={
-            warning.severity === "critical"
-              ? "detail-panel__warning detail-panel__warning--critical"
-              : "detail-panel__warning"
-          }
+          className={`detail-panel__warning detail-panel__warning--${warning.severity}`}
           data-testid="warning-item"
         >
+          {/* Design review (reference mock) — "Critical · Bad row
+              estimate": severity plus the specific rule family, bold and
+              severity-colored, ahead of the prose body below it. Reuses
+              the shared SEVERITY_LABEL (nodeSeverity.ts) rather than a
+              fourth independent copy of the same three strings. */}
+          <p className={`detail-panel__warning-heading detail-panel__warning-heading--${warning.severity}`}>
+            {SEVERITY_LABEL[warning.severity]} · {formatRuleFamilyLabel(warning.ruleId)}
+          </p>
           {/* Story 18.7, spec §5 `1f`'s Expert bullet: "rule id shown" —
               the raw ruleId a power user might reference against docs or a
               future LLM-narrative-mode debug view, not shown in Beginner

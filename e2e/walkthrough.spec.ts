@@ -6,16 +6,19 @@
 // this file is the real walk-start-to-finish verification on top of it).
 
 import { test, expect } from "@playwright/test"
+import { loadFixture } from "./testUtils.js"
+
+const ANALYZE_BUTTON = /analyze plan/i
 
 test.describe("guided walkthrough (spec §5 `1g`)", () => {
   test("walks a real multi-warning plan start to finish, with the graph visible-but-dimmed behind the overlay throughout", async ({
     page,
   }) => {
     await page.goto("/")
-    // Story 18.5's Postgres sample — a real fixture chosen because it
-    // fires a real rule (bad-row-estimate), giving this walkthrough more
-    // than just the root step.
-    await page.getByTestId("sample-plan-postgres").click()
+    // A real fixture chosen because it fires a real rule (bad-row-estimate),
+    // giving this walkthrough more than just the root step.
+    await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "bitmap-and-or-zero-rows.json"))
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
     await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
 
     await page.getByTestId("walkthrough-open").click()
@@ -56,7 +59,8 @@ test.describe("guided walkthrough (spec §5 `1g`)", () => {
 
   test("Escape exits the walkthrough and opens the last-viewed node's detail panel", async ({ page }) => {
     await page.goto("/")
-    await page.getByTestId("sample-plan-postgres").click()
+    await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "bitmap-and-or-zero-rows.json"))
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
     await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
 
     await page.getByTestId("walkthrough-open").click()
@@ -70,7 +74,8 @@ test.describe("guided walkthrough (spec §5 `1g`)", () => {
 
   test("Beginner/Expert toggle inside the walkthrough is the same lifted state as the app bar's", async ({ page }) => {
     await page.goto("/")
-    await page.getByTestId("sample-plan-postgres").click()
+    await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "bitmap-and-or-zero-rows.json"))
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
     await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
 
     await page.getByTestId("walkthrough-open").click()

@@ -1,5 +1,21 @@
 import { memo } from "react"
+import { GraduationCap } from "@phosphor-icons/react"
 import { getGlossaryEntry, getGlossaryFallback } from "../glossary"
+
+/** Design review (reference mock) — this section's own heading, distinct
+ * from every other section's plain muted-gray one: an accent color plus a
+ * leading icon, and "operator" spelled out ("What this operator does",
+ * not "What this does") matching the mock's literal wording. Its own
+ * small component (not just a className swap on the shared heading)
+ * since it needs the icon slot the shared one doesn't. */
+function EducationHeading({ children }: { children: string }) {
+  return (
+    <h3 className="detail-panel__section-heading detail-panel__education-heading">
+      <GraduationCap weight="fill" aria-hidden="true" />
+      {children}
+    </h3>
+  )
+}
 
 export interface OperatorEducationProps {
   operatorType: string
@@ -8,7 +24,7 @@ export interface OperatorEducationProps {
 }
 
 /**
- * Panel sections 2 ("What this does") and 5 ("In general") — both sourced
+ * Panel sections 2 ("What this operator does") and 5 ("In general") — both sourced
  * from the same glossary entry, but kept visually distinct per Story 6.2's
  * explicit acceptance criteria: one is general education, the other
  * (rendered separately by WarningsSection) is a specific finding, and the
@@ -36,7 +52,7 @@ function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: 
     const fallback = getGlossaryFallback(rawOperatorLabel)
     return (
       <section className="detail-panel__section" data-testid="operator-education-fallback">
-        <h3 className="detail-panel__section-heading">What this does</h3>
+        <EducationHeading>What this operator does</EducationHeading>
         <div className="detail-panel__education">{fallback.message}</div>
       </section>
     )
@@ -45,7 +61,7 @@ function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: 
   if (expertMode) {
     return (
       <section className="detail-panel__section" data-testid="operator-education-what">
-        <h3 className="detail-panel__section-heading">What this does</h3>
+        <EducationHeading>What this operator does</EducationHeading>
         <div className="detail-panel__education">
           <p>{entry.shortDefinition}</p>
         </div>
@@ -56,7 +72,7 @@ function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: 
   return (
     <>
       <section className="detail-panel__section" data-testid="operator-education-what">
-        <h3 className="detail-panel__section-heading">What this does</h3>
+        <EducationHeading>What this operator does</EducationHeading>
         <div className="detail-panel__education">
           <p>{entry.longDefinition}</p>
         </div>

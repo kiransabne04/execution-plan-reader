@@ -114,27 +114,43 @@ export function DetailPanel({
           {node.rawOperatorLabel}
           <span className="detail-panel__engine-badge">{ENGINE_LABEL[node.engine]}</span>
         </p>
-        <p className="detail-panel__raw-label">{node.operatorType}</p>
+        {/* Design review (reference mock) — the raw operator type PLUS this
+            node's own id ("hash_join · node n3"), not the operator type
+            alone; `node.id` disambiguates which of several same-type
+            operators a click opened, useful once a plan has more than one
+            Seq Scan or Hash Join. */}
+        <p className="detail-panel__raw-label">
+          {node.operatorType} · node {node.id}
+        </p>
       </header>
 
-      <div className="detail-panel__mode-toggle" role="group" aria-label="Detail level">
-        <button
-          type="button"
-          className="detail-panel__mode-button"
-          aria-pressed={!expertMode}
-          onClick={() => setExpertMode(false)}
-        >
-          Beginner
-        </button>
-        <button
-          type="button"
-          className="detail-panel__mode-button"
-          aria-pressed={expertMode}
-          onClick={() => setExpertMode(true)}
-        >
-          Expert
-        </button>
-      </div>
+      {/* Design review (reference mock) — the mock's right rail has no
+          Beginner/Expert toggle of its own, only the app bar's; that
+          toggle is what `variant === "shell"` means here (see this prop's
+          own doc comment) — every OTHER caller (PlanGraph's own default
+          overlay render, each PlanComparisonView pane) has no app-bar
+          equivalent to defer to, so they keep this control exactly as
+          before. */}
+      {variant !== "shell" && (
+        <div className="detail-panel__mode-toggle" role="group" aria-label="Detail level">
+          <button
+            type="button"
+            className="detail-panel__mode-button"
+            aria-pressed={!expertMode}
+            onClick={() => setExpertMode(false)}
+          >
+            Beginner
+          </button>
+          <button
+            type="button"
+            className="detail-panel__mode-button"
+            aria-pressed={expertMode}
+            onClick={() => setExpertMode(true)}
+          >
+            Expert
+          </button>
+        </div>
+      )}
 
       <OperatorEducation operatorType={node.operatorType} rawOperatorLabel={node.rawOperatorLabel} expertMode={expertMode} />
       <StatsTable node={node} expertMode={expertMode} />
@@ -143,7 +159,22 @@ export function DetailPanel({
       <section className="detail-panel__section" data-testid="contribution-summary">
         <h3 className="detail-panel__section-heading">Contribution to the plan</h3>
         {contributionPercent !== undefined ? (
-          <p>{contributionPercent.toFixed(1)}% of the plan's total cost/time.</p>
+          <div className="detail-panel__contribution-bar" data-testid="contribution-bar">
+            <div
+              className="detail-panel__contribution-bar-track"
+              role="progressbar"
+              aria-valuenow={Math.round(contributionPercent)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Contribution to the plan's total cost/time"
+            >
+              <div
+                className="detail-panel__contribution-bar-fill"
+                style={{ width: `${Math.min(100, Math.max(0, contributionPercent))}%` }}
+              />
+            </div>
+            <span className="detail-panel__contribution-value">{contributionPercent.toFixed(1)}%</span>
+          </div>
         ) : (
           <p className="detail-panel__stat-gap">Not available for this plan.</p>
         )}

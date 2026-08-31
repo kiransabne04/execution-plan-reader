@@ -110,9 +110,27 @@
   --dp-warning-bg: color-mix(in srgb, var(--color-critical) 14%, var(--color-surface));
   --dp-warning-border: var(--color-critical);
   --dp-warning-critical: var(--color-critical);
+  /* Design review — per-severity finding-card treatment (WarningsSection's
+     "Finding on this node" card), distinct from `--dp-warning-*` above
+     (which is critical-red regardless of the actual severity — a
+     pre-existing gap this leaves alone rather than repurposes, since
+     `--dp-warning-critical` also drives the unrelated "this stat is the
+     bad one" red text in StatsTable, which should stay red regardless of
+     the finding's own severity). */
+  --dp-finding-critical-bg: color-mix(in srgb, var(--color-critical) 14%, var(--color-surface));
+  --dp-finding-critical-border: var(--color-critical);
+  --dp-finding-critical-text: var(--color-critical);
+  --dp-finding-warning-bg: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
+  --dp-finding-warning-border: var(--color-warning);
+  --dp-finding-warning-text: var(--color-warning-text);
+  --dp-finding-info-bg: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
+  --dp-finding-info-border: var(--color-accent);
+  --dp-finding-info-text: var(--color-accent-hover);
   --dp-education-bg: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
-  --dp-badge-bg: var(--color-text);
-  --dp-badge-text: var(--color-bg-rail);
+  --dp-education-heading: var(--color-accent-hover);
+  --dp-badge-bg: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+  --dp-badge-border: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  --dp-badge-text: var(--color-accent-on-tint);
   --dp-callout-bg: color-mix(in srgb, var(--color-funnel) 14%, var(--color-surface));
   --dp-callout-border: var(--color-funnel);
   --dp-callout-text: var(--color-funnel-text);

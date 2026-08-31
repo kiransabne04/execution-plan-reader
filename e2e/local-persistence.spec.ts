@@ -69,6 +69,9 @@ test("an analyzed plan appears in the recent plans list and can be reopened", as
 })
 
 test("checking 'don't save' keeps this plan out of both the session and the recent plans list", async ({ page }) => {
+  // Tucked behind the "Privacy & storage settings" disclosure (design
+  // review) — open it before reaching for the checkbox inside.
+  await page.getByTestId("privacy-details-toggle").click()
   await page.getByTestId("dont-save-checkbox").check()
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
@@ -87,6 +90,7 @@ test("'Clear saved data' removes both the saved session and the recent plans lis
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await page.waitForTimeout(700)
 
+  await page.getByTestId("privacy-details-toggle").click()
   await expect(page.getByTestId("clear-saved-data-button")).toBeVisible()
   await page.getByTestId("clear-saved-data-button").click()
   await expect(page.getByTestId("clear-saved-data-button")).toHaveCount(0)

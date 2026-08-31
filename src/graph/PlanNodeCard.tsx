@@ -34,6 +34,14 @@ const SEVERITY_RING_CLASS: Partial<Record<PlanNodeData["severity"] & string, str
 // (this node, receiving edges from its children on its bottom edge).
 const TARGET_HANDLE_GAP_PX = 10
 
+// Design review (reference mock) — the top-right "N%" figure only appears
+// on the handful of nodes actually worth calling out at a glance; every
+// node showing it unconditionally would be noise (and doesn't match any
+// example in the mock, where most cards carry no percentage at all). This
+// is a judgment call, not a value read off any spec — 20% draws the line
+// at "a clearly dominant contributor" without pretending false precision.
+const CONTRIBUTION_BADGE_THRESHOLD = 20
+
 export function PlanNodeCard({ data }: PlanNodeCardProps) {
   const {
     planNode,
@@ -46,6 +54,7 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
     severity,
     iconKey,
     subtitle,
+    contributionPercent,
     childCount,
     isDimmed,
     onOpen,
@@ -55,9 +64,15 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
   if (comparisonOverlay && comparisonOverlay.status !== "matched") {
     classNames.push(COMPARISON_MODIFIER_CLASS[comparisonOverlay.status])
   }
-  // Never color alone (spec §3): the ring is always paired with the
-  // severity badge in the badges row below, same rule the mismatch
-  // dashed-border+badge pairing already follows.
+  // Design review (reference mock): the earlier "never colour alone" rule
+  // paired every severity ring with a plain-word "critical"/"warning"
+  // badge; every example in the mock instead relies on the ring/glow ALONE
+  // whenever no more specific badge (mismatch factor, spill size, loop
+  // count) already names the finding — that generic word badge never
+  // appears anywhere in it. Severity is never conveyed by colour alone at
+  // the APP level regardless (the always-visible Findings list states
+  // every warning in text, and the detail panel repeats it in prose on
+  // click) — this only drops a redundant repetition on the card itself.
   const severityRingClass = severity ? SEVERITY_RING_CLASS[severity] : undefined
   if (severityRingClass) classNames.push(severityRingClass)
   const className = classNames.join(" ")
@@ -142,8 +157,15 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
           />
         ))}
         <div className="plan-node-card__label">
-          {Icon && <Icon className="plan-node-card__icon" weight="regular" aria-hidden="true" />}
-          <span>{planNode.rawOperatorLabel}</span>
+          <span className="plan-node-card__label-main">
+            {Icon && <Icon className="plan-node-card__icon" weight="regular" aria-hidden="true" />}
+            <span>{planNode.rawOperatorLabel}</span>
+          </span>
+          {contributionPercent !== undefined && contributionPercent >= CONTRIBUTION_BADGE_THRESHOLD && (
+            <span className="plan-node-card__contribution" data-testid="contribution-badge">
+              {Math.round(contributionPercent)}%
+            </span>
+          )}
         </div>
         {subtitle && (
           <div className="plan-node-card__subtitle" title={subtitle}>
@@ -164,11 +186,6 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
           {hasMismatch && (
             <span className="plan-node-card__badge" data-testid="mismatch-badge">
               est. mismatch{mismatchFactor !== undefined ? ` ${mismatchFactor}×` : ""}
-            </span>
-          )}
-          {severity && (
-            <span className={`plan-node-card__badge plan-node-card__badge--severity-${severity}`} data-testid="severity-badge">
-              {severity}
             </span>
           )}
           {loopCount !== undefined && (

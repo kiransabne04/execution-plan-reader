@@ -1,14 +1,15 @@
-// Episode 18, Story 18.5 — file drop, file picker, and sample-plan loaders.
-// jsdom does implement File/FileReader/DataTransfer well enough to exercise
-// these paths directly (unlike, say, CSS container queries) — no need to
-// defer this story's own testing approach items to e2e-only, though the
-// e2e suite (e2e/plan-input.spec.ts) still covers the real-browser
-// file-chooser API and the zero-network-calls guarantee specifically.
+// Episode 18, Story 18.5 — file drop and file picker. (The "Try a sample"
+// buttons this file used to also cover were removed in a later design
+// review.) jsdom does implement File/FileReader/DataTransfer well enough to
+// exercise these paths directly (unlike, say, CSS container queries) — no
+// need to defer this story's own testing approach items to e2e-only,
+// though the e2e suite (e2e/plan-input.spec.ts) still covers the
+// real-browser file-chooser API and the zero-network-calls guarantee
+// specifically.
 
 import { describe, expect, it, vi } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { PasteBox } from "../PasteBox"
-import { SAMPLE_PLANS } from "../samplePlans"
 
 function renderPasteBox(onAnalyze = vi.fn()) {
   render(
@@ -24,20 +25,6 @@ function renderPasteBox(onAnalyze = vi.fn()) {
 }
 
 describe("PasteBox — Story 18.5", () => {
-  it("renders one sample-plan button per engine, and clicking one analyzes that real fixture's text directly", () => {
-    const { onAnalyze } = renderPasteBox()
-    expect(SAMPLE_PLANS).toHaveLength(3)
-    for (const sample of SAMPLE_PLANS) {
-      expect(screen.getByTestId(`sample-plan-${sample.engine}`)).toBeInTheDocument()
-    }
-
-    fireEvent.click(screen.getByTestId("sample-plan-postgres"))
-    expect(onAnalyze).toHaveBeenCalledWith(SAMPLE_PLANS[0].text)
-    // The textarea also reflects it — same treatment a recovered share
-    // link already gets, not a silent behind-the-scenes analyze.
-    expect(screen.getByTestId("paste-textarea")).toHaveValue(SAMPLE_PLANS[0].text)
-  })
-
   it("picking a file via the file input reads it with FileReader and analyzes its text — no fetch/XHR involved", async () => {
     const { onAnalyze } = renderPasteBox()
     const file = new File(["Seq Scan on users  (cost=0.00..1.00 rows=1 width=8)"], "plan.txt", { type: "text/plain" })
@@ -84,10 +71,17 @@ describe("PasteBox — Story 18.5", () => {
     await waitFor(() => expect(onAnalyze).toHaveBeenCalledTimes(1))
   })
 
-  it("hero-adjacent controls stay present: privacy statement, don't-save checkbox, and Analyze button are all still there", () => {
+  it("hero-adjacent controls stay present: privacy statement and Analyze button are all still there", () => {
     renderPasteBox()
     expect(screen.getByTestId("privacy-statement")).toBeInTheDocument()
-    expect(screen.getByTestId("dont-save-checkbox")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /analyze plan/i })).toBeInTheDocument()
+  })
+
+  it("the don't-save checkbox is tucked behind the privacy & storage settings disclosure, closed by default", () => {
+    renderPasteBox()
+    expect(screen.queryByTestId("dont-save-checkbox")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("privacy-details-toggle"))
+    expect(screen.getByTestId("dont-save-checkbox")).toBeInTheDocument()
   })
 })

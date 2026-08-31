@@ -166,16 +166,6 @@
     0 0 12px 2px color-mix(in srgb, var(--color-critical) 50%, transparent);
 }
 
-.plan-node-card__badge--severity-critical {
-  background: var(--color-critical);
-  color: var(--pg-badge-text);
-}
-
-.plan-node-card__badge--severity-warning {
-  background: var(--color-warning);
-  color: var(--pg-badge-text);
-}
-
 .plan-node-card__comparison-delta {
   font-size: 11px;
   font-weight: 600;
@@ -202,15 +192,37 @@
 .plan-node-card__label {
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: space-between;
+  gap: 6px;
   font-weight: 600;
+}
+
+/* The icon+title group — everything `.plan-node-card__label` itself used
+   to be before the contribution figure (below) needed a place to sit at
+   the row's far end. */
+.plan-node-card__label-main {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
 }
 
-.plan-node-card__label span {
+.plan-node-card__label-main span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Design review — the top-right "N%" figure (see PlanNodeCard.tsx's own
+   `CONTRIBUTION_BADGE_THRESHOLD` comment). Plain muted text, not a pill
+   badge — it's a measurement, not a finding, so it doesn't compete
+   visually with the badges row below. */
+.plan-node-card__contribution {
+  flex: none;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--pg-card-text-muted);
 }
 
 /* Story 18.4, spec §3's operator-icon table. Sized against the label's own
@@ -310,4 +322,32 @@
   box-sizing: border-box;
   text-align: center;
   padding: 4px;
+}
+
+/* Design review (reference mock) — plain, borderless icon buttons stacked
+   top-right, replacing React Flow's own boxed/bordered default control
+   panel (bottom-left). Only the layout chrome is overridden here; the
+   buttons underneath are still React Flow's real zoom-in/zoom-out/fit-view
+   controls, not a re-implementation. */
+.plan-graph-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: none;
+  background: transparent;
+  border: none;
+}
+
+.plan-graph-controls button.react-flow__controls-button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  fill: var(--pg-card-text-muted);
+}
+
+.plan-graph-controls button.react-flow__controls-button:hover {
+  background: color-mix(in srgb, var(--pg-card-text) 10%, transparent);
+  fill: var(--pg-card-text);
 }

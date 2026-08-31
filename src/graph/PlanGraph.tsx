@@ -108,6 +108,15 @@ export interface PlanGraphProps {
    * docs/12-ui-redesign-spec.md §5 `1h`. `undefined` (no search active)
    * means every node renders at full opacity, same as before this story. */
   matchedNodeIds?: Set<string>
+  /** Design review (docs/12-ui-redesign-spec.md §2's metrics strip:
+   * "total, node count, collapsed count, colour legend...") — collapse
+   * state lives here (keyed by PlanNode id, see the comment on
+   * `collapsedIds` below), but the shell's metrics strip that DISPLAYS the
+   * collapsed count renders outside this component entirely. Same
+   * "report internal state outward for display elsewhere" pattern as
+   * `onNodeSelected`/`onDetailPanelChange` above, not a second source of
+   * truth — the shell never sets collapse state itself. */
+  onCollapsedCountChange?: (count: number) => void
 }
 
 /** Story 18.11 — the imperative surface a caller (the app bar's Export
@@ -134,6 +143,7 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
     externalDetailPanel = false,
     onDetailPanelChange,
     matchedNodeIds,
+    onCollapsedCountChange,
   }: PlanGraphProps,
   ref: ForwardedRef<PlanGraphHandle>,
 ) {
@@ -147,6 +157,12 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
   // switching the (future) legend toggle never silently re-collapses
   // something the user just expanded.
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => computeDefaultCollapsedIds(root, allNodes))
+
+  // Reports the count outward whenever it changes — see this prop's own
+  // doc comment on PlanGraphProps for why the shell needs this at all.
+  useEffect(() => {
+    onCollapsedCountChange?.(collapsedIds.size)
+  }, [collapsedIds, onCollapsedCountChange])
 
   // Which node's detail panel is open, if any — local UI state, never on
   // the PlanNode model itself.
@@ -231,8 +247,8 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
   }
 
   const { nodes, edges } = useMemo(
-    () => buildGraphElements(root, { metric, collapsedIds, comparisonOverlays, matchedNodeIds }),
-    [root, metric, collapsedIds, comparisonOverlays, matchedNodeIds],
+    () => buildGraphElements(root, { metric, collapsedIds, comparisonOverlays, matchedNodeIds, context: resolvedContext }),
+    [root, metric, collapsedIds, comparisonOverlays, matchedNodeIds, resolvedContext],
   )
 
   const useCanvas = allNodes.length > CANVAS_NODE_COUNT_THRESHOLD
@@ -294,8 +310,20 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
     // the fixed-size viewport would otherwise zoom out far past PlanNodeCard's
     // 12px label legibility. Once capped, a large plan overflows the viewport
     // instead — React Flow's own pan/scroll already handles that for free.
+    // Design review — extra fixed top padding (bigger than the persistent
+    // search-trigger bar's own ~44px height, PlanReaderPage.tsx's
+    // `.plan-shell__search-trigger`) so a bottom-up-laid-out plan's ROOT
+    // node — dagre puts it at the very top, and fitView otherwise centers
+    // the whole graph with no regard for that fixed overlay — never lands
+    // directly behind it. Caught visually: a root node can end up
+    // partially hidden under the search bar with the default uniform 20%
+    // padding, which doesn't reserve space for anything screen-fixed.
     const frame = requestAnimationFrame(() =>
-      fitView({ padding: 0.2, duration: 200, minZoom: MIN_LEGIBLE_ZOOM }),
+      fitView({
+        padding: { top: "56px", left: "20%", right: "20%", bottom: "20%" },
+        duration: 200,
+        minZoom: MIN_LEGIBLE_ZOOM,
+      }),
     )
     return () => cancelAnimationFrame(frame)
   }, [nodes.length, fitView, useCanvas])
@@ -419,7 +447,11 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
         maxZoom={2}
       >
         <Background />
-        <Controls />
+        {/* Design review (reference mock) — top-right, matching the mock's
+            zoom controls, not React Flow's own bottom-left default; the
+            mock shows only zoom in/out/fit-view, not the fourth
+            "toggle interactivity" lock button React Flow adds by default. */}
+        <Controls className="plan-graph-controls" position="top-right" showInteractive={false} />
       </ReactFlow>
       {!externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
     </div>

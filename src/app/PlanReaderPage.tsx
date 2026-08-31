@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { DownloadSimple, TreeStructure } from "@phosphor-icons/react"
+import { DownloadSimple, MagnifyingGlass, TreeStructure } from "@phosphor-icons/react"
 import { PasteBox } from "./PasteBox"
 import { Notice } from "./Notice"
 import { ComparePasteBox } from "./ComparePasteBox"
@@ -19,6 +19,8 @@ import { decodeShareLink } from "./shareLink"
 import { PlanGraph, FindingsList, PlanComparisonView, DetailPanel, SearchPalette, WalkthroughOverlay, SEVERITY_LABEL, type PlanGraphHandle } from "../graph"
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
 import type { PlanContext } from "../rules/types"
+import { formatNumber } from "../rules/format"
+import { OPENERS } from "../rules/summarize"
 import {
   saveSession,
   loadSession,
@@ -122,6 +124,13 @@ export function PlanReaderPage() {
   // triggering card still works correctly even though the panel now
   // mounts elsewhere in the tree.
   const [detailPanel, setDetailPanel] = useState<{ node: PlanNode; context: PlanContext; onClose: () => void } | undefined>(undefined)
+
+  // Design review (docs/12-ui-redesign-spec.md §2's metrics strip:
+  // "total, node count, collapsed count, colour legend...") — collapsed
+  // count for display only, reported outward by PlanGraph itself; see
+  // that prop's own doc comment for why this isn't a second copy of the
+  // real collapse state.
+  const [collapsedCount, setCollapsedCount] = useState(0)
 
   // Episode 18, Story 18.3 — Beginner/Expert lifted to page state (the
   // app-bar segmented control), replacing DetailPanel.tsx's own former
@@ -321,6 +330,31 @@ export function PlanReaderPage() {
   }, [refreshRecentPlans])
 
   const activeStatement = analyzed?.statements[activeStatementIndex]
+
+  // Design review — the metrics strip's colour/width legend needs to name
+  // whatever `buildGraphElements.ts`'s `pickMetricValue` actually fell
+  // back to for THIS plan (its own priority order:
+  // actualTimeMs ?? estimatedCost ?? actualRows ?? estimatedRows) — see
+  // that JSX's own comment for why a hardcoded "actual time" was wrong for
+  // every Snowflake plan (no actual-time or cost concept at all) and any
+  // estimate-only Postgres/SQL Server plan.
+  //
+  // Checked across EVERY node, not just the root: SQL Server's outermost
+  // RelOp commonly carries no `RunTimeInformation` of its own even when
+  // every node under it does (a join/aggregate summary op with no
+  // separate profiling block of its own is a normal, common shape, not
+  // an edge case — confirmed against this project's own `hash-join.xml`
+  // fixture) — checking only `root.actualTimeMs` said "estimated cost"
+  // for a plan whose child nodes were plainly showing real millisecond
+  // timings on screen. Postgres's own cumulative-from-root convention
+  // means its root always carries the figure when any node has one, so
+  // this is strictly more correct there too, never less.
+  const activeStatementNodes = activeStatement ? collectNodes(activeStatement.root) : []
+  const metricLabel = activeStatementNodes.some((n) => n.actualTimeMs !== undefined)
+    ? "actual time"
+    : activeStatementNodes.some((n) => n.estimatedCost !== undefined)
+      ? "estimated cost"
+      : "rows"
 
   // Episode 19: `.plan-shell` now mounts unconditionally on first paint
   // (it's the app's only page), so this observes once and never needs to
@@ -744,24 +778,89 @@ export function PlanReaderPage() {
 
               {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "graph") && (
                 <main className="plan-shell__canvas" data-testid="plan-shell-canvas">
+                  {/* Design review — the lead-in clause up to the colon
+                      (`OPENERS[severity]`, summarize.ts) gets a severity
+                      color (bold red for critical, matching the reference
+                      mock); the rest of the sentence stays the normal
+                      muted body color. `summary.text` itself is untouched
+                      — this only affects how it's split for styling. */}
                   <p className="plan-shell__summary" data-testid="plan-summary">
-                    {activeStatement.summary.text}
+                    {activeStatement.summary.severity !== "none" ? (
+                      <>
+                        <span
+                          className={`plan-shell__summary-opener plan-shell__summary-opener--${activeStatement.summary.severity}`}
+                        >
+                          {OPENERS[activeStatement.summary.severity]}
+                        </span>
+                        {activeStatement.summary.text.slice(OPENERS[activeStatement.summary.severity].length)}
+                      </>
+                    ) : (
+                      activeStatement.summary.text
+                    )}
                   </p>
 
-                  {/* Spec §2's metrics strip also calls for a collapsed-
-                      node count and a colour-legend — both read PlanGraph's
-                      own internal collapse state / its metric-scale
-                      encoding, which belong with Story 18.4's node-encoding
-                      work (a legend is meaningless without the encoding it
-                      explains), not this story's shell-structure scope.
-                      Node count and the plain-language caption are real,
-                      shell-appropriate metrics and are included now. */}
+                  {/* Design review — completes spec §2's metrics strip:
+                      "total, node count, collapsed count, colour legend,
+                      Width = rows · Arrows = execution order". Node count
+                      and the plain-language caption already shipped with
+                      the shell itself; total time, collapsed count, and
+                      the colour legend were deferred to Story 18.4's node-
+                      encoding work (a legend is meaningless without the
+                      encoding it explains) — that work (buildMetricScale's
+                      colorFor/sizeFor, wired into buildGraphElements.ts)
+                      shipped, but this strip was never circled back to.
+                      `collapsedCount` is reported outward by PlanGraph
+                      itself (see its own `onCollapsedCountChange` prop's
+                      doc comment) — this component never touches collapse
+                      state directly. */}
+                  {/* Design review — `metricLabel` names whatever
+                      `buildGraphElements.ts`'s `pickMetricValue` actually
+                      fell back to for THIS plan (it drives both node
+                      colour and width together — one metric, two
+                      encodings, never two different ones despite the
+                      separate-sounding legend text): "actual time" when
+                      ANALYZE/runtime stats are present, else "estimated
+                      cost" (an estimate-only Postgres/SQL Server plan),
+                      else plain "rows" — Snowflake's own honest floor,
+                      since it exposes neither actual time nor an abstract
+                      cost unit at all (buildStatRows.ts's own `rowsCost`
+                      comment). A hardcoded "actual time" here previously
+                      named a metric that's literally always undefined for
+                      every Snowflake plan — the size/colour encoding was
+                      quietly running on rows the whole time with a label
+                      claiming otherwise. */}
                   <div className="plan-shell__metrics-strip" data-testid="plan-shell-metrics">
-                    <span>{collectNodes(activeStatement.root).length.toLocaleString("en-US")} nodes</span>
-                    <span>Width = rows · Arrows = execution order</span>
+                    {activeStatement.root.actualTimeMs !== undefined && (
+                      <span>Total {formatNumber(Math.round(activeStatement.root.actualTimeMs))} ms</span>
+                    )}
+                    <span>{activeStatementNodes.length.toLocaleString("en-US")} nodes</span>
+                    {collapsedCount > 0 && <span>{collapsedCount} collapsed</span>}
+                    <span className="plan-shell__colour-legend">
+                      Colour
+                      <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
+                      {metricLabel}
+                    </span>
+                    <span>Width = {metricLabel} · Arrows = execution order</span>
                   </div>
 
                   <div className="plan-shell__graph">
+                    {/* Design review (reference mock) — a persistent, always-
+                        visible entry point into the search palette (the
+                        modal itself, and its `/`/⌘K shortcuts, are
+                        unchanged — Story 18.8's own tests still cover
+                        those); this is just a second, discoverable way to
+                        open the same thing for anyone who'd never guess a
+                        keyboard shortcut exists. */}
+                    <button
+                      type="button"
+                      className="plan-shell__search-trigger"
+                      data-testid="graph-search-trigger"
+                      onClick={() => setIsSearchPaletteOpen(true)}
+                    >
+                      <MagnifyingGlass aria-hidden="true" />
+                      <span>Find operator, table, or index…</span>
+                      <kbd>/</kbd>
+                    </button>
                     <PlanGraph
                       ref={planGraphRef}
                       root={activeStatement.root}
@@ -771,6 +870,7 @@ export function PlanReaderPage() {
                       externalDetailPanel
                       onDetailPanelChange={handleDetailPanelChange}
                       matchedNodeIds={matchedNodeIds}
+                      onCollapsedCountChange={setCollapsedCount}
                     />
                   </div>
                 </main>

@@ -153,6 +153,7 @@ test("Story 17.1/17.2: zero outbound requests across the full local-persistence 
 
   await page.getByTestId("recent-plans-toggle").click()
   await expect(page.getByTestId("recent-plan-item").first()).toBeVisible()
+  await page.getByTestId("privacy-details-toggle").click()
   await page.getByTestId("clear-saved-data-button").click()
 
   await page.waitForTimeout(300)
@@ -185,11 +186,11 @@ test("Story 14.2: zero outbound requests while comparing two plans, including a 
 })
 
 // Episode 18, Story 18.5: two new input paths into the same client-side
-// pipeline (a picked file, read via FileReader; a bundled sample plan) —
-// each needs its own explicit check, same reasoning as every other new
-// code path in this list, not an assumption that the paste-path guarding
-// above covers them too.
-test("Story 18.5: zero outbound requests when picking a file or loading a sample plan", async ({ page }) => {
+// pipeline (a picked file, read via FileReader; a second real fixture
+// pasted in) — each needs its own explicit check, same reasoning as every
+// other new code path in this list, not an assumption that the paste-path
+// guarding above covers them too.
+test("Story 18.5: zero outbound requests when picking a file or pasting a second plan", async ({ page }) => {
   await page.goto("/")
   await expect(page.getByTestId("paste-textarea")).toBeVisible()
 
@@ -203,7 +204,12 @@ test("Story 18.5: zero outbound requests when picking a file or loading a sample
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await page.waitForTimeout(300)
 
-  await page.getByTestId("sample-plan-snowflake").click()
+  // The paste box collapses to a "pasted · N lines" summary once analyzed
+  // (design review) — expand it back to a real textarea before pasting a
+  // second plan in.
+  await page.getByTestId("paste-box-expand").click()
+  await page.getByTestId("paste-textarea").fill(loadFixture("snowflake", "spill-to-remote-disk.json"))
+  await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("Snowflake")
   await page.waitForTimeout(300)
 

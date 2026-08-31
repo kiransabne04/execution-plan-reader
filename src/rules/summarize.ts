@@ -31,7 +31,12 @@ const DOWNSTREAM_EFFECT_FAMILIES = new Set(["exploding-join", "bad-row-estimate"
 // second, driftable "looks fine" string.
 export const NO_ISSUES_TEXT = "This plan looks straightforward — no major issues detected."
 
-const OPENERS: Record<Exclude<SummarySeverity, "none">, string> = {
+// Exported (design review) so the shell can style this lead-in clause by
+// severity — e.g. bold red for critical — separately from the rest of the
+// sentence, without the rendering layer re-deriving or duplicating this
+// exact wording itself (`summary.text` stays the single source of truth;
+// this just tells a consumer where the opener ends within it).
+export const OPENERS: Record<Exclude<SummarySeverity, "none">, string> = {
   critical: "This plan has a serious issue worth fixing first: ",
   warning: "This plan works, but has room to improve: ",
   info: "This plan looks mostly fine, with a minor note: ",
