@@ -1046,3 +1046,34 @@ As a returning user (and a first-time visitor), I want the app's structure to be
 | Mobile breakpoints (Story 18.12's Findings-leads-by-default rule) applied to a shell that's now visible BEFORE any plan exists too | The mobile tab system currently only mattered post-analysis | Confirm the empty-centre placeholder and Plan Input behave sensibly under the existing `isNarrowShell`/mobile tab logic — Plan Input is reachable at every breakpoint, not hidden behind a tab that defaults to a now-empty graph |
 | Compare mode, entered before vs. after a plan exists | Compare only makes sense once a primary plan is loaded | Confirm the "Compare with another plan" app-bar action stays absent (not just disabled) until `analyzed` is truthy — same treatment as every other analyzed-only app-bar control this story already specifies |
 | `RecentPlansList`/`RestoreSessionBanner` now living in a narrow rail instead of full page width | Both were originally styled for full-width placement | Confirm both remain legible/usable at rail width — same `flex-wrap`/narrow-container treatment `PasteBox.tsx`'s own CSS already uses, extended to these two if their current styling assumes more horizontal room |
+## Episode 21 — Buffer/cache and disk-I/O efficiency rule
+
+**Note**: Episode 20 (multi-statement batch usability) exists on branch `feat/20.1-20.2-batch-usability-and-scroll-fix`, cut from `main` before this episode's own branch and not yet merged — its stories aren't duplicated here; they'll appear in this doc once that branch merges.
+
+Source: user request ("include shared buffers based rule engine for postgres, and same equivalent for SQL Server and Snowflake"). The normalized `PlanNode.io`/`PlanNode.timeBreakdown` fields already carry this data for all three engines (Episode 6's field-catalog retrofit) — nothing in `ALL_RULES` (`src/rules/index.ts`) consumed it until this episode.
+
+### Story 21.1 — `buffer-cache-inefficiency` rule: low buffer/cache-hit ratio (Postgres/SQL Server), high disk-I/O time share (Snowflake)
+
+As a user with a Postgres, SQL Server, or Snowflake plan, I want the tool to flag an operator that's reading heavily from disk instead of cache/buffer memory, so I know a memory/index change (not just a query rewrite) might be the real fix.
+
+**Acceptance criteria**
+- Postgres and SQL Server share one code path: fires when `node.io.cacheHitRatio` is below `CACHE_HIT_RATIO_THRESHOLD` (0.9) AND `node.io.bufferReads` is at or above `MIN_BUFFER_READS_THRESHOLD` (1,000) — the volume floor exists so a handful of cold-cache reads on a small table never fires.
+- Postgres wording states the ratio as exact (`Shared`/`Local Hit`/`Read Blocks`, present only when the plan was captured with `BUFFERS`); SQL Server wording explicitly calls the ratio an approximation (logical-vs-physical reads, per field catalog §5) — never presented with Postgres-level confidence.
+- Silently doesn't fire (never a fabricated "0% cache hit") when `io` is absent entirely — the honest state for a Postgres plan captured without `BUFFERS`, per the field catalog's existing handling note.
+- Snowflake has no per-node cache-hit field (query-level only, per field catalog §5) — its own signal is `node.timeBreakdown`'s `localDiskIoPercentage` + `remoteDiskIoPercentage` combined, fired when their sum is at or above `SNOWFLAKE_DISK_IO_PERCENTAGE_THRESHOLD` (20). Wording distinguishes remote-storage share (more severe — even the warehouse's own local SSD cache missed) from local-disk share.
+- Registered in `ALL_RULES`, categorized under a new `"I/O issues"` `FindingCategory` (`findingCategory.ts`), so the findings-list category filter surfaces it without falling into the generic "General notes" bucket.
+- Single severity (`warning`) — matches the MVP rules' own convention of reserving `critical` for the unambiguous disk-spill case.
+
+**Testing approach**
+- Unit tests only (`bufferCacheInefficiency.test.ts`), `makeNode`/`makeContext`-based — same pattern `diskSpill.test.ts` already established: the rule is engine-agnostic over already-normalized fields, and each parser's OWN existing tests (`extendedFields.test.ts`, `parseShowplanXml.test.ts`, `parseOperatorStats.test.ts`) already prove `io`/`timeBreakdown` are derived correctly from each engine's raw signal — no new fixture files needed.
+- Both directions per engine: fires below threshold, doesn't fire at/above it, doesn't fire below the read-volume floor even at a 0% ratio, doesn't fire when the relevant field is absent.
+- Numeric edge cases: NaN percentage, read counts summing past 100% (malformed/rounding-drift input) — never throws, never renders `NaN`/`undefined` into warning text.
+- Full suite (905 tests) run to confirm no snapshot-test fixture accidentally already crosses these thresholds.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Postgres plan captured without `BUFFERS` | `io` is absent, not zero — a naive check could read `undefined` as `0%` and always fire | Explicit `io === undefined` early-return; never fabricates a ratio from missing data |
+| A tiny table with genuinely 0% cache hits (a handful of cold reads) | Technically a "bad ratio" but not worth flagging | `MIN_BUFFER_READS_THRESHOLD` floor on `bufferReads` before the ratio is even considered |
+| Snowflake node with only `remoteDiskIoPercentage` OR only `localDiskIoPercentage` set (not both) | The `??`-defaulted sum must not read as a comparison between a real number and a fabricated zero | Both default to `0` via `??` before summing — a genuinely absent `timeBreakdown` object as a whole still short-circuits via the `!tb` guard, never reaching the sum with two fabricated zeros |
+| SQL Server's approximation caveat getting silently dropped if this rule's wording is ever edited later | Field catalog §5 is explicit that logical-vs-physical reads is "approximate at best" — presenting it with Postgres-level confidence would overclaim | Locked in by `bufferCacheInefficiency.test.ts`'s explicit assertion that SQL Server's `longText` contains "approximation" and never contains Postgres's `shared_buffers` wording |

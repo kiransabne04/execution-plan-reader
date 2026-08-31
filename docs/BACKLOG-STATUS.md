@@ -106,6 +106,13 @@ Verified in a real browser, not just jsdom (which has no real `<canvas>` 2d cont
 
 Verified in a real browser, not just fake-indexeddb: `e2e/local-persistence.spec.ts` (save/reload/restore, dismiss-then-still-available, recent-plans add/reopen, don't-save opt-out, clear-saved-data) and a dedicated privacy check extending Episode 7's guarding per the story's own explicit requirement — `e2e/privacy-no-network-calls.spec.ts`'s new "Story 17.1/17.2" test drives the full save → reload → restore → browse-recent-plans round trip with network interception active, asserting zero outbound requests.
 
+## Episode 21 — Buffer/cache and disk-I/O efficiency rule
+| Story | Status | Notes |
+|---|---|---|
+| 21.1 — `buffer-cache-inefficiency` rule (Postgres/SQL Server hit ratio, Snowflake disk-I/O time share) | done | New — user-requested. `src/rules/bufferCacheInefficiency.ts`, registered in `ALL_RULES`. Postgres/SQL Server share one code path over the already-normalized `io.cacheHitRatio`/`io.bufferReads` (no parser changes needed — Episode 6's field-catalog retrofit already populates this); SQL Server's wording explicitly states the ratio as approximate, never Postgres-level-confident. Snowflake has no per-node cache-hit field, so its own equivalent uses `timeBreakdown`'s local+remote disk-I/O percentage share of the node's own time — distinguishes remote (more severe) from local. New `"I/O issues"` `FindingCategory`. Unit-tested only (`bufferCacheInefficiency.test.ts`, `makeNode`-based) — each parser's own existing tests already prove `io`/`timeBreakdown` derivation, matching `diskSpill.ts`'s precedent for not needing new fixture files. 905/905 tests passing |
+
+**Note**: Episode 20 (multi-statement batch usability, SQL Server statement-tab clutter fix + node-click scroll-jump fix) is done on branch `feat/20.1-20.2-batch-usability-and-scroll-fix`, not yet merged to `main` as of this entry — its own BACKLOG-STATUS/episode rows live on that branch and will appear here once merged. This branch (`feat/21.1-buffer-cache-inefficiency-rule`) was cut from `main` before that merge, per the one-branch-per-story convention, so it doesn't carry Episode 20's unrelated changes.
+
 ---
 
 **`docs/11-manual-testing-gaps-episode8.md` is fully closed** — all 4 original gaps resolved (one real fix, two confirmed data-source limitations rather than bugs, one confirmed already-correct), plus a real Snowflake time-breakdown gap and a real SQL Server composite-seek-predicate bug found during re-verification, both fixed. Nothing outstanding there.
