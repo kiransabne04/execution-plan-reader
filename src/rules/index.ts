@@ -5,6 +5,7 @@ import { estimateOnlyNote } from "./estimateOnlyNote"
 import { explodingJoin } from "./explodingJoin"
 import { highLoopCount } from "./highLoopCount"
 import { missingIndexOpportunity } from "./missingIndexOpportunity"
+import { nonSargablePredicate } from "./nonSargablePredicate"
 import { parameterSensitivityNote } from "./parameterSensitivityNote"
 import { seqScanOnLargeTable } from "./seqScanOnLargeTable"
 import type { PlanContext, Rule } from "./types"
@@ -16,6 +17,7 @@ export { diskSpill } from "./diskSpill"
 export { highLoopCount } from "./highLoopCount"
 export { explodingJoin } from "./explodingJoin"
 export { missingIndexOpportunity } from "./missingIndexOpportunity"
+export { nonSargablePredicate } from "./nonSargablePredicate"
 export { parameterSensitivityNote } from "./parameterSensitivityNote"
 export { estimateOnlyNote } from "./estimateOnlyNote"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
@@ -29,6 +31,7 @@ export const ALL_RULES: Rule[] = [
   badRowEstimate,
   highLoopCount,
   missingIndexOpportunity,
+  nonSargablePredicate,
   parameterSensitivityNote,
   estimateOnlyNote,
 ]

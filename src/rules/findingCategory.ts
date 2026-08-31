@@ -24,6 +24,7 @@ export type FindingCategory =
 const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "seq-scan-on-large-table": "Scan issues",
   "missing-index-opportunity": "Index issues",
+  "non-sargable-predicate": "Index issues",
   "exploding-join": "Join issues",
   "bad-row-estimate": "Estimate issues",
   "disk-spill": "Spill issues",

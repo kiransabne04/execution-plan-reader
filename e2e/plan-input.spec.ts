@@ -8,7 +8,9 @@
 import { test, expect } from "@playwright/test"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
+import { loadFixture } from "./testUtils.js"
 
+const ANALYZE_BUTTON = /analyze plan/i
 const FIXTURES_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/fixtures")
 
 test("picking a real fixture file via the file picker analyzes it, identically to pasting its text", async ({ page }) => {
@@ -20,18 +22,27 @@ test("picking a real fixture file via the file picker analyzes it, identically t
   await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
 })
 
-test("each sample-plan button loads its own engine's plan and fires the specific rule it was chosen for", async ({ page }) => {
+test("a real fixture per engine analyzes correctly and fires the specific rule it was chosen for", async ({ page }) => {
   await page.goto("/")
 
-  await page.getByTestId("sample-plan-postgres").click()
+  await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "bitmap-and-or-zero-rows.json"))
+  await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("Postgres")
-  await page.getByTestId("findings-list-toggle").click()
-  await expect(page.getByText(/bad.row.estimate|estimate/i).first()).toBeVisible()
+  await expect(
+    page.getByTestId("finding-item").filter({ hasText: /bad.row.estimate|estimate/i }).first(),
+  ).toBeVisible()
 
-  await page.getByTestId("sample-plan-sqlserver").click()
+  // The paste box collapses to a "pasted · N lines" summary once analyzed
+  // (design review) — expand it back to a real textarea before filling
+  // the next engine's fixture in.
+  await page.getByTestId("paste-box-expand").click()
+  await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "missing-index-recommendation.xml"))
+  await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("SQL Server")
 
-  await page.getByTestId("sample-plan-snowflake").click()
+  await page.getByTestId("paste-box-expand").click()
+  await page.getByTestId("paste-textarea").fill(loadFixture("snowflake", "spill-to-remote-disk.json"))
+  await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("Snowflake")
 })
 
