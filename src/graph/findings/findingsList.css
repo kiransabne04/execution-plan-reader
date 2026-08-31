@@ -186,6 +186,22 @@
   font-size: 12px;
 }
 
+/* Story 20.4 — only rendered when this finding belongs to a DIFFERENT
+   statement than the one currently open, so clicking it is understood to
+   jump elsewhere in the batch, not just open THIS statement's detail
+   panel. Pushed to the far right, same alignment `margin-left: auto`
+   already gives the severity dot elsewhere in this codebase's tab strip. */
+.findings-list__statement-badge {
+  margin-left: auto;
+  color: var(--fl-text-muted);
+  font-size: 11px;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
 .findings-list__text {
   line-height: 1.4;
 }

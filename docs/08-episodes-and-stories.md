@@ -1099,6 +1099,57 @@ As a user clicking through a large plan's nodes, I want the page to stay exactly
 | A browser/environment where `focus({ preventScroll: true })` isn't supported (very old browsers) | Should degrade to today's behavior, never throw | The option is silently ignored by unsupporting browsers per the DOM spec — no feature-detection needed, but confirm no TypeScript lib-target issue makes this a compile error |
 | Keyboard activation (Enter/Space) of a node card, vs. mouse click | The keyboard path (`handleKeyDown` in `PlanNodeCard.tsx`) doesn't call `.focus()` itself — the element already has focus by the time Enter/Space fires | Confirm the keyboard path was never affected by this bug and stays that way — this story's fix is scoped to the two explicit `.focus()` call sites, not a speculative third one |
 
+### Story 20.3 — Add a way back: collapse an expanded control-flow group
+
+Source: manual testing found Story 20.1 shipped one direction of the toggle only — clicking "N control-flow statements — expand" replaced that single button with N individual tabs, and nothing else took its place. There was no control left anywhere to collapse the run back once expanded.
+
+As a user who expanded a large control-flow group by mistake (or is done looking at it), I want a way to collapse it back to the single summary row, so expanding isn't a one-way action that permanently re-clutters the tab strip.
+
+**Acceptance criteria**
+- `StatementTabRow`'s `"group"` variant gains an `expanded: boolean` field. An expanded run renders its OWN group row (now reading "Collapse N control-flow statements") immediately before the individual tab rows it reveals, instead of the group row disappearing entirely.
+- Clicking that row while expanded removes the run's `start` from `expandedStatementGroups`; clicking it while collapsed adds it — the same row, both directions, matching a disclosure-widget's usual behavior rather than a one-shot button.
+- A run forced open because the active statement sits inside it (not because the user explicitly expanded it) still shows the same "Collapse" control — clicking it removes any explicit expansion but the run correctly stays visually expanded if the active index is still inside it (the existing "never hide the active tab" invariant from Story 20.1 is unchanged, not weakened by this story).
+- `aria-expanded` on the group button reflects state, for assistive tech and for tests.
+
+**Testing approach**
+- Unit tests (`statementTabSummary.test.ts`): an expanded run's rows include its own `{ expanded: true }` group row ahead of the individual tabs; collapsing (empty `expandedRunStarts`) with the active index elsewhere returns to a single collapsed group row; collapsing while the active index is still inside the run stays expanded (never hides the active tab).
+- Component test (`PlanReaderPage.test.tsx`): click to expand, assert the button now reads "Collapse N control-flow statements" with `aria-expanded="true"`, click again, assert it's back to "N control-flow statements — expand" with the 2 original tabs.
+- Verified live against the real ~300-statement plan that motivated Episode 20: expand a 44-statement run, collapse it back, tab strip returns to its original 8-row state.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Collapsing a run while the active statement sits inside it | Must never hide the tab the user is currently looking at | `buildStatementTabRows`'s existing `activeInsideRun` check is unioned with `expandedRunStarts.has(start)` for the `expanded` flag — removing from `expandedRunStarts` alone doesn't force a hidden active tab |
+| Rapidly toggling expand/collapse | Shouldn't accumulate stale state or throw | Plain `Set` add/delete on each click, same pattern the original expand-only version already used — no new state shape to get inconsistent |
+
+### Story 20.4 — Findings panel covers the whole batch, not just the active statement
+
+Source: manual testing — `FindingsList` was wired to `activeStatement.root` only. On a large stored-procedure batch, findings on every OTHER statement (including info-level plan-wide notes sitting inside a currently-collapsed control-flow group) were completely invisible unless the user clicked into that exact statement's tab first.
+
+As a user reviewing a large multi-statement batch, I want the Findings panel to show issues from every statement, not just whichever one I happen to have open, so I don't have to click through dozens of statements one at a time to find out what's actually wrong with the batch.
+
+**Acceptance criteria**
+- `src/rules/findings.ts` gains `collectFindingsAcrossStatements(sources: FindingsSource[])` — merges `collectAllFindings` across every statement's root, tags each finding with its `statementIndex`/`statementLabel`, sorts by severity across the whole merged list (not grouped by statement first).
+- The two plan-wide honesty-note rule ids (`parameter-sensitivity-honesty-note`, `estimate-only-plan`) are deduped to their FIRST occurrence across statements — they restate the same batch-wide fact on every statement's own root, and merging ~100+ statements without this would show the same two sentences ~100+ times, which is worse noise than the single-statement view this story replaces, not better. Every other finding (including two different statements independently triggering the SAME ruleId on a real, distinct node) is never deduped — only these two specific plan-wide rule ids are special-cased.
+- `FindingsList` takes `sources: FindingsSource[]` and `activeStatementIndex: number` instead of a single `root`; `onSelectNode` now receives `(statementIndex, nodeId)`.
+- A finding belonging to a statement OTHER than the currently active one shows a small italic statement-label badge; a finding on the active statement shows no badge. The badge is never rendered at all for a single-statement batch (`sources.length === 1`) — visually identical to the pre-Story-20.4 single-statement view.
+- Clicking a finding from a different statement switches `activeStatementIndex` to that statement (reusing the exact same `switchToStatement` reset logic the statement-tab click handler already uses — matched-node-search state and the walkthrough both reset, since they're keyed to a specific tree) AND focuses the originating node — the centre graph must show the CORRECT tree before `focusNodeId` is applied to it, not silently fail to find a node id from a different statement's tree.
+- Filter (severity/category) reset logic keys off the SET of statement roots changing (object identity of each root, not just an equal count) — switching which statement is active must never reset an in-progress filter, but a genuinely new plan (including a re-paste producing the same statement count) must.
+
+**Testing approach**
+- Unit tests (`findings.test.ts`): merging across statements, severity-first sort across the merge, honesty-note dedup (5 statements × 2 notes → exactly 2, not 10, not 0), a REAL per-statement finding sharing a ruleId across two statements is NOT deduped, single-source behavior is identical to plain `collectAllFindings`.
+- Component tests (`FindingsList.test.tsx`): multi-statement merge count, badge shown only on non-active-statement findings, no badge at all for a single-statement batch, clicking a cross-statement finding calls `onSelectNode` with that finding's own statement index (not the active one), filter-reset-on-root-set-change.
+- Verified live against the real motivating plan: Findings count went from 3 (one statement) to 9 (whole batch, honesty notes deduped); clicking a badged finding switched the active tab, re-rendered the correct small graph, and opened the correct node's detail panel in one click.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| ~100+ statements each carrying the same two plan-wide info notes | Naive merging would flood the panel with duplicate sentences — the whole point of this story is LESS noise, not more | `PLAN_WIDE_RULE_IDS` dedup, first occurrence kept, in `collectFindingsAcrossStatements` |
+| A finding on a statement sitting inside a currently-collapsed control-flow group | Clicking it must still work even though that statement's own tab isn't visible in the strip right now | `switchToStatement` only changes `activeStatementIndex`; `buildStatementTabRows` (Story 20.1) already guarantees a run containing the active index renders expanded on the very next render — no separate expansion bookkeeping needed here |
+| Clicking a finding already on the active statement | Must behave exactly as before this story — no unnecessary state reset | `handleSelectFinding` only calls `switchToStatement` when the clicked finding's `statementIndex` differs from the current one |
+| Two different statements each independently triggering the same ruleId (e.g. two unrelated `disk-spill` warnings) | Must NOT be mistaken for the plan-wide-note case and collapsed into one | Only the two specific, known plan-wide rule ids are ever deduped; every other ruleId is kept per-occurrence regardless of how many statements share it |
+| Single-statement plans (Postgres, Snowflake, most SQL Server input) | Must render and behave exactly as before this story — no regression for the common case | `sources.length === 1` — no badges ever render, and `collectFindingsAcrossStatements` output is asserted identical to `collectAllFindings` for this case |
+
 ## Episode 21 — Buffer/cache and disk-I/O efficiency rule
 
 Source: user request ("include shared buffers based rule engine for postgres, and same equivalent for SQL Server and Snowflake"). The normalized `PlanNode.io`/`PlanNode.timeBreakdown` fields already carry this data for all three engines (Episode 6's field-catalog retrofit) — nothing in `ALL_RULES` (`src/rules/index.ts`) consumed it until this episode.

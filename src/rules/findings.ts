@@ -27,3 +27,54 @@ export function collectAllFindings(root: PlanNode): Finding[] {
   )
   return findings.sort((a, b) => SEVERITY_RANK[a.warning.severity] - SEVERITY_RANK[b.warning.severity])
 }
+
+// Story 20.4 — a multi-statement SQL Server batch's Findings panel was
+// scoped to whichever ONE statement happened to be active, silently
+// hiding every finding on the other statements (including ones sitting
+// inside a currently-collapsed control-flow group). This is the
+// whole-BATCH equivalent of `collectAllFindings` above.
+
+export interface BatchFinding extends Finding {
+  statementIndex: number
+  statementLabel: string
+}
+
+/** Root-level rules that restate the same PLAN-WIDE fact on every single
+ * statement's own root (parameter-sensitivity-honesty-note,
+ * estimate-only-plan — see parameterSensitivityNote.ts/estimateOnlyNote.ts)
+ * rather than describing something specific to that one statement. Merging
+ * findings across ~100+ statements without accounting for this would show
+ * the same two sentences ~100+ times — worse noise than the single-
+ * statement view this story is fixing, not better. */
+const PLAN_WIDE_RULE_IDS = new Set(["parameter-sensitivity-honesty-note", "estimate-only-plan"])
+
+export interface FindingsSource {
+  statementIndex: number
+  statementLabel: string
+  root: PlanNode
+}
+
+/**
+ * Every finding across every statement in the batch, tagged with which
+ * statement it came from — severity-first, with the plan-wide honesty
+ * notes deduped to one instance each (first occurrence, i.e. lowest
+ * statement index) rather than one per statement. A single-statement
+ * batch (`sources.length === 1`, the common case for Postgres/Snowflake
+ * and most SQL Server input) behaves identically to `collectAllFindings`
+ * — no plan-wide rule ever needs deduping when there's only one root to
+ * begin with.
+ */
+export function collectFindingsAcrossStatements(sources: FindingsSource[]): BatchFinding[] {
+  const seenPlanWide = new Set<string>()
+  const findings: BatchFinding[] = []
+  for (const { statementIndex, statementLabel, root } of sources) {
+    for (const finding of collectAllFindings(root)) {
+      if (PLAN_WIDE_RULE_IDS.has(finding.warning.ruleId)) {
+        if (seenPlanWide.has(finding.warning.ruleId)) continue
+        seenPlanWide.add(finding.warning.ruleId)
+      }
+      findings.push({ ...finding, statementIndex, statementLabel })
+    }
+  }
+  return findings.sort((a, b) => SEVERITY_RANK[a.warning.severity] - SEVERITY_RANK[b.warning.severity])
+}

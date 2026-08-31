@@ -66,7 +66,7 @@ export function findDefaultStatementIndex(roots: PlanNode[]): number {
 
 export type StatementTabRow =
   | { kind: "tab"; index: number }
-  | { kind: "group"; start: number; length: number }
+  | { kind: "group"; start: number; length: number; expanded: boolean }
 
 /** A maximal run of 2+ consecutive trivial statements — a lone trivial
  * statement between two non-trivial ones isn't worth collapsing (a
@@ -93,6 +93,12 @@ function findTrivialRuns(roots: PlanNode[]): { start: number; length: number }[]
  * row UNLESS it's in `expandedRunStarts` (the user clicked to expand it)
  * or it contains `activeIndex` (a restored share-link/Recent-plans
  * selection must never land inside a hidden group).
+ *
+ * Story 20.3: an expanded run ALWAYS keeps its own `"group"` row (with
+ * `expanded: true`), immediately before the individual tab rows it
+ * reveals — otherwise expanding a run of hundreds of statements had no
+ * way back to collapsed, since the only control that opened it (the
+ * collapsed row itself) disappeared the moment it was clicked.
  */
 export function buildStatementTabRows(roots: PlanNode[], activeIndex: number, expandedRunStarts: ReadonlySet<number> = new Set()): StatementTabRow[] {
   const runs = findTrivialRuns(roots)
@@ -107,10 +113,12 @@ export function buildStatementTabRows(roots: PlanNode[], activeIndex: number, ex
       continue
     }
     const activeInsideRun = activeIndex >= run.start && activeIndex < run.start + run.length
-    if (expandedRunStarts.has(run.start) || activeInsideRun) {
+    const expanded = expandedRunStarts.has(run.start) || activeInsideRun
+    if (expanded) {
+      rows.push({ kind: "group", start: run.start, length: run.length, expanded: true })
       for (let k = run.start; k < run.start + run.length; k++) rows.push({ kind: "tab", index: k })
     } else {
-      rows.push({ kind: "group", start: run.start, length: run.length })
+      rows.push({ kind: "group", start: run.start, length: run.length, expanded: false })
     }
     i = run.start + run.length
   }

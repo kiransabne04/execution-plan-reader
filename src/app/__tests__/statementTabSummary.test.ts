@@ -85,19 +85,23 @@ describe("buildStatementTabRows", () => {
     ])
   })
 
-  it("collapses a run of 2+ consecutive trivial statements into one group row", () => {
+  it("collapses a run of 2+ consecutive trivial statements into one group row (expanded: false)", () => {
     const roots: PlanNode[] = [real(10), trivial(), trivial(), trivial(), real(20)]
     expect(buildStatementTabRows(roots, 0)).toEqual([
       { kind: "tab", index: 0 },
-      { kind: "group", start: 1, length: 3 },
+      { kind: "group", start: 1, length: 3, expanded: false },
       { kind: "tab", index: 4 },
     ])
   })
 
-  it("pre-expands a run that contains the active statement index — a restored selection is never hidden", () => {
+  // Story 20.3: an expanded run keeps its OWN group row (expanded: true)
+  // right before the tabs it reveals — the only way back to collapsed,
+  // since without it the expand button vanished the moment it was clicked.
+  it("pre-expands a run that contains the active statement index — a restored selection is never hidden — and keeps a collapse control", () => {
     const roots: PlanNode[] = [real(10), trivial(), trivial(), trivial(), real(20)]
     expect(buildStatementTabRows(roots, 2)).toEqual([
       { kind: "tab", index: 0 },
+      { kind: "group", start: 1, length: 3, expanded: true },
       { kind: "tab", index: 1 },
       { kind: "tab", index: 2 },
       { kind: "tab", index: 3 },
@@ -105,22 +109,47 @@ describe("buildStatementTabRows", () => {
     ])
   })
 
-  it("expands a run the caller marked expanded, regardless of active index", () => {
+  it("expands a run the caller marked expanded, regardless of active index, and keeps a collapse control", () => {
     const roots: PlanNode[] = [real(10), trivial(), trivial(), real(20)]
     expect(buildStatementTabRows(roots, 0, new Set([1]))).toEqual([
       { kind: "tab", index: 0 },
+      { kind: "group", start: 1, length: 2, expanded: true },
       { kind: "tab", index: 1 },
       { kind: "tab", index: 2 },
       { kind: "tab", index: 3 },
     ])
   })
 
-  it("an all-trivial batch never renders empty — the default active index (0) falls inside the sole run, so it renders already-expanded rather than a hidden group", () => {
+  it("an all-trivial batch never renders empty — the default active index (0) falls inside the sole run, so it renders already-expanded (with a collapse control) rather than a hidden group", () => {
     const roots: PlanNode[] = [trivial(), trivial(), trivial()]
     expect(buildStatementTabRows(roots, 0)).toEqual([
+      { kind: "group", start: 0, length: 3, expanded: true },
       { kind: "tab", index: 0 },
       { kind: "tab", index: 1 },
       { kind: "tab", index: 2 },
+    ])
+  })
+
+  it("collapsing back removes the run's start from expandedRunStarts and it renders collapsed again, UNLESS the active index still sits inside it", () => {
+    const roots: PlanNode[] = [real(10), trivial(), trivial(), real(20)]
+    // Expanded via expandedRunStarts, active index elsewhere — an empty
+    // expandedRunStarts (simulating the user clicking "Collapse") returns
+    // to the collapsed group row.
+    expect(buildStatementTabRows(roots, 0, new Set())).toEqual([
+      { kind: "tab", index: 0 },
+      { kind: "group", start: 1, length: 2, expanded: false },
+      { kind: "tab", index: 3 },
+    ])
+  })
+
+  it("a run forced open by the active index stays expanded even after 'collapsing' (expandedRunStarts empty) — the active tab is never hidden", () => {
+    const roots: PlanNode[] = [real(10), trivial(), trivial(), real(20)]
+    expect(buildStatementTabRows(roots, 1, new Set())).toEqual([
+      { kind: "tab", index: 0 },
+      { kind: "group", start: 1, length: 2, expanded: true },
+      { kind: "tab", index: 1 },
+      { kind: "tab", index: 2 },
+      { kind: "tab", index: 3 },
     ])
   })
 })
