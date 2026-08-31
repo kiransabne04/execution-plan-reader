@@ -81,8 +81,12 @@ export function DetailPanel({
   // (it's the one that knows which element that was); this panel doesn't
   // implement a hard Tab-trap — Tab continues past its own controls
   // normally, since it's a persistent side panel, not a full-screen modal.
+  // Story 20.2: `{ preventScroll: true }` — same reasoning as
+  // PlanNodeCard's own click handler. The panel opening is already what
+  // brought it on-screen; moving focus into it shouldn't independently
+  // re-trigger a scroll of the outer page.
   useEffect(() => {
-    closeButtonRef.current?.focus()
+    closeButtonRef.current?.focus({ preventScroll: true })
   }, [node.id])
 
   // Story 16.1: memoized alongside the other per-node computations this

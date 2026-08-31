@@ -36,3 +36,83 @@ export function statementSeverity(root: PlanNode): Extract<Warning["severity"], 
   const worst = collectAllFindings(root)[0]?.warning.severity
   return worst === "critical" || worst === "warning" ? worst : undefined
 }
+
+// Story 20.1 — a large stored-procedure plan's batch can carry hundreds of
+// statements, most of which are SQL Server control-flow (DECLARE, IF
+// EXISTS, BEGIN/END) rather than a real query with its own operators.
+// Reuses the two functions above rather than a third, independently-
+// drifting definition of "nothing interesting here."
+
+/** No finding worth a tab dot, and no real duration/cost figure (either
+ * absent, or present but rounding to exactly "cost 0" — SQL Server still
+ * emits a trivial `QueryPlan` for pure control-flow statements). */
+export function isTrivialStatement(root: PlanNode): boolean {
+  if (statementSeverity(root) !== undefined) return false
+  const duration = formatStatementDuration(root)
+  return duration === undefined || duration === "cost 0"
+}
+
+/** Which statement a batch should open on by default: the first
+ * non-trivial one (a real query, or one with a finding), so a large
+ * stored-procedure plan doesn't land on statement 0's `DECLARE` by sheer
+ * accident of ordering. Falls back to 0 when every statement is trivial —
+ * there's nothing better to prefer, and `buildStatementTabRows` below
+ * already renders that degenerate case sensibly (expanded, never a
+ * hidden/empty tab strip). */
+export function findDefaultStatementIndex(roots: PlanNode[]): number {
+  const index = roots.findIndex((root) => !isTrivialStatement(root))
+  return index === -1 ? 0 : index
+}
+
+export type StatementTabRow =
+  | { kind: "tab"; index: number }
+  | { kind: "group"; start: number; length: number }
+
+/** A maximal run of 2+ consecutive trivial statements — a lone trivial
+ * statement between two non-trivial ones isn't worth collapsing (a
+ * "group of 1" adds a click for no clutter savings). */
+function findTrivialRuns(roots: PlanNode[]): { start: number; length: number }[] {
+  const runs: { start: number; length: number }[] = []
+  let i = 0
+  while (i < roots.length) {
+    if (!isTrivialStatement(roots[i])) {
+      i++
+      continue
+    }
+    let j = i + 1
+    while (j < roots.length && isTrivialStatement(roots[j])) j++
+    if (j - i >= 2) runs.push({ start: i, length: j - i })
+    i = j
+  }
+  return runs
+}
+
+/**
+ * The tab strip's row list: non-trivial statements and lone trivial ones
+ * render as plain tabs; a trivial run of 2+ collapses into one `"group"`
+ * row UNLESS it's in `expandedRunStarts` (the user clicked to expand it)
+ * or it contains `activeIndex` (a restored share-link/Recent-plans
+ * selection must never land inside a hidden group).
+ */
+export function buildStatementTabRows(roots: PlanNode[], activeIndex: number, expandedRunStarts: ReadonlySet<number> = new Set()): StatementTabRow[] {
+  const runs = findTrivialRuns(roots)
+  const runByStart = new Map(runs.map((run) => [run.start, run]))
+  const rows: StatementTabRow[] = []
+  let i = 0
+  while (i < roots.length) {
+    const run = runByStart.get(i)
+    if (!run) {
+      rows.push({ kind: "tab", index: i })
+      i++
+      continue
+    }
+    const activeInsideRun = activeIndex >= run.start && activeIndex < run.start + run.length
+    if (expandedRunStarts.has(run.start) || activeInsideRun) {
+      for (let k = run.start; k < run.start + run.length; k++) rows.push({ kind: "tab", index: k })
+    } else {
+      rows.push({ kind: "group", start: run.start, length: run.length })
+    }
+    i = run.start + run.length
+  }
+  return rows
+}

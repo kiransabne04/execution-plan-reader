@@ -1064,6 +1064,17 @@
   color: white;
 }
 
+/* Story 20.1 — a collapsed run of trivial control-flow statements. Italic
+   + dashed border (same "this represents several things, not one"
+   language AccessiblePlanList's own `--collapsed` row uses) rather than
+   `aria-selected`'s solid-fill treatment, since this row is never itself
+   "the active statement." */
+.plan-reader-page__statement-tab--group {
+  font-style: italic;
+  border-style: dashed;
+  opacity: 0.85;
+}
+
 /* Story 18.11 — additive to the tab's own label, never replacing it. */
 .plan-reader-page__statement-tab-duration {
   opacity: 0.75;

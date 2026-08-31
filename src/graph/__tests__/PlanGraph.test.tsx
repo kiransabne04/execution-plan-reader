@@ -158,6 +158,16 @@ describe("PlanGraph", () => {
     expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Hash Join")
   })
 
+  it("Story 20.2: clicking a card focuses it with preventScroll — a bare .focus() would let the browser scroll the whole page to it", () => {
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join" })
+    render(<PlanGraph root={root} />)
+
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus")
+    fireEvent.click(screen.getByTestId("plan-node-card"))
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true })
+    focusSpy.mockRestore()
+  })
+
   it("pressing Enter on a focused card opens the detail panel (keyboard access, not just mouse)", () => {
     const root = makeNode({ id: "root", rawOperatorLabel: "Seq Scan" })
     render(<PlanGraph root={root} />)
@@ -178,12 +188,16 @@ describe("PlanGraph", () => {
     expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
   })
 
-  it("moves focus into the panel (the close button) when it opens", () => {
+  it("moves focus into the panel (the close button) when it opens, without scrolling the page there", () => {
     const root = makeNode({ id: "root" })
     render(<PlanGraph root={root} />)
 
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus")
     fireEvent.click(screen.getByTestId("plan-node-card"))
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close details" }))
+    // Story 20.2
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true })
+    focusSpy.mockRestore()
   })
 
   it("restores focus to the triggering card when the panel closes", () => {
@@ -195,8 +209,13 @@ describe("PlanGraph", () => {
     fireEvent.keyDown(card, { key: "Enter" })
     expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
 
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus")
     fireEvent.click(screen.getByRole("button", { name: "Close details" }))
     expect(document.activeElement).toBe(card)
+    // Story 20.2: the restore-on-close focus call also needs preventScroll,
+    // same reasoning as the open-click case above.
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true })
+    focusSpy.mockRestore()
   })
 
   it("restores focus to the triggering card on Escape too, not just the close button", () => {
