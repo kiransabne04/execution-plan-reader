@@ -346,6 +346,35 @@ export function PlanReaderPage() {
 
   const activeStatement = analyzed?.statements[activeStatementIndex]
 
+  // Story 20.4 — the tab-click handler's own statement-switch logic,
+  // extracted so the Findings panel's "jump to a finding on a different
+  // statement" click goes through the exact same reset behavior (never a
+  // second, independently-drifting copy of it). `buildStatementTabRows`
+  // already guarantees a run containing this index renders expanded, so
+  // no separate `expandedStatementGroups` update is needed here either.
+  const switchToStatement = useCallback((index: number) => {
+    setActiveStatementIndex(index)
+    // Story 18.8: matched-id sets are keyed to a specific tree's node ids,
+    // which restart from "n0" per statement — carrying a stale set into a
+    // different statement's tree would dim/undim the wrong nodes.
+    setMatchedNodeIds(undefined)
+    setIsWalkthroughOpen(false)
+  }, [])
+
+  // Story 20.4 — every statement's root, for the Findings panel's
+  // whole-batch view (not just `activeStatement`'s own tree).
+  const findingsSources = useMemo(
+    () => analyzed?.statements.map((stmt, i) => ({ statementIndex: i, statementLabel: stmt.label, root: stmt.root })) ?? [],
+    [analyzed],
+  )
+  const handleSelectFinding = useCallback(
+    (statementIndex: number, nodeId: string) => {
+      if (statementIndex !== activeStatementIndex) switchToStatement(statementIndex)
+      setFocusNodeId(nodeId)
+    },
+    [activeStatementIndex, switchToStatement],
+  )
+
   // Design review — the metrics strip's colour/width legend needs to name
   // whatever `buildGraphElements.ts`'s `pickMetricValue` actually fell
   // back to for THIS plan (its own priority order:
@@ -602,15 +631,29 @@ export function PlanReaderPage() {
                 expandedStatementGroups,
               ).map((row) => {
                 if (row.kind === "group") {
+                  // Story 20.3: the SAME row toggles both directions — an
+                  // expanded run keeps this control (right before the tabs
+                  // it revealed) instead of vanishing once clicked, which
+                  // previously left no way back to collapsed.
                   return (
                     <button
                       key={`group-${row.start}`}
                       type="button"
                       className="plan-reader-page__statement-tab plan-reader-page__statement-tab--group"
                       data-testid="statement-tab-group"
-                      onClick={() => setExpandedStatementGroups((prev) => new Set(prev).add(row.start))}
+                      aria-expanded={row.expanded}
+                      onClick={() =>
+                        setExpandedStatementGroups((prev) => {
+                          const next = new Set(prev)
+                          if (row.expanded) next.delete(row.start)
+                          else next.add(row.start)
+                          return next
+                        })
+                      }
                     >
-                      {row.length} control-flow statement{row.length === 1 ? "" : "s"} — expand
+                      {row.expanded
+                        ? `Collapse ${row.length} control-flow statement${row.length === 1 ? "" : "s"}`
+                        : `${row.length} control-flow statement${row.length === 1 ? "" : "s"} — expand`}
                     </button>
                   )
                 }
@@ -625,15 +668,7 @@ export function PlanReaderPage() {
                     role="tab"
                     aria-selected={index === activeStatementIndex}
                     className="plan-reader-page__statement-tab"
-                    onClick={() => {
-                      setActiveStatementIndex(index)
-                      // Story 18.8: matched-id sets are keyed to a specific
-                      // tree's node ids, which restart from "n0" per
-                      // statement — carrying a stale set into a different
-                      // statement's tree would dim/undim the wrong nodes.
-                      setMatchedNodeIds(undefined)
-                      setIsWalkthroughOpen(false)
-                    }}
+                    onClick={() => switchToStatement(index)}
                   >
                     {/* Story 18.11 — additive to the existing tab label,
                         never replacing it: a duration figure (never
@@ -771,7 +806,7 @@ export function PlanReaderPage() {
                 </div>
 
                 {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "findings") && (
-                  <FindingsList root={activeStatement.root} onSelectNode={setFocusNodeId} />
+                  <FindingsList sources={findingsSources} activeStatementIndex={activeStatementIndex} onSelectNode={handleSelectFinding} />
                 )}
               </aside>
 

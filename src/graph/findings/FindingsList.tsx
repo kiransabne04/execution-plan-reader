@@ -5,19 +5,33 @@
 // .claude/skills/graph-visualization/SKILL.md.
 
 import { useMemo, useState } from "react"
-import type { PlanNode, Warning } from "../../parsers/normalize"
-import { collectAllFindings } from "../../rules/findings"
+import type { Warning } from "../../parsers/normalize"
+import { collectFindingsAcrossStatements, type FindingsSource } from "../../rules/findings"
 import { FINDING_CATEGORY_ORDER, type FindingCategory } from "../../rules/findingCategory"
 import { NO_ISSUES_TEXT } from "../../rules/summarize"
 import "./findingsList.css"
 
 export interface FindingsListProps {
-  root: PlanNode
-  /** Called with the originating node's id when a finding entry is
-   * clicked — the caller (PlanReaderPage) wires this into PlanGraph's
-   * `focusNodeId` prop to navigate the graph and open that node's detail
-   * panel. This component has no graph/panel knowledge of its own. */
-  onSelectNode: (nodeId: string) => void
+  /** Story 20.4: every statement in the batch, not just the active one —
+   * a large SQL Server stored-proc plan's findings were previously
+   * scoped to whichever ONE statement happened to be selected, silently
+   * hiding findings on the other statements (including ones sitting
+   * inside a currently-collapsed control-flow group). A single-statement
+   * plan (Postgres, Snowflake, most SQL Server input) just passes a
+   * one-element array — no behavior change there. */
+  sources: FindingsSource[]
+  /** Which statement is currently open in the centre graph — findings
+   * belonging to a DIFFERENT statement get a visible "jump to" label
+   * (only shown at all when `sources.length > 1`), and this is compared
+   * against each finding's own `statementIndex` to decide that. */
+  activeStatementIndex: number
+  /** Called with the originating statement's index and node id when a
+   * finding entry is clicked — the caller (PlanReaderPage) is expected to
+   * switch `activeStatementIndex` to the first argument (if it differs
+   * from the current one) and wire the second into PlanGraph's
+   * `focusNodeId` prop. This component has no graph/panel knowledge of
+   * its own. */
+  onSelectNode: (statementIndex: number, nodeId: string) => void
 }
 
 type SeverityFilter = "all" | Warning["severity"]
@@ -29,22 +43,26 @@ const SEVERITY_LABEL: Record<Warning["severity"], string> = {
   info: "Info",
 }
 
-export function FindingsList({ root, onSelectNode }: FindingsListProps) {
-  const allFindings = useMemo(() => collectAllFindings(root), [root])
+export function FindingsList({ sources, activeStatementIndex, onSelectNode }: FindingsListProps) {
+  const allFindings = useMemo(() => collectFindingsAcrossStatements(sources), [sources])
 
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all")
 
-  // Reset filters only when a genuinely new plan arrives (object identity,
-  // not just an equal id) — same "adjust state during render" pattern
+  // Reset filters only when the SET of statement roots genuinely changes
+  // (a fresh parse — object identity of the underlying roots, not just an
+  // equal statement count) — same "adjust state during render" pattern
   // PlanGraph uses for its own collapse/selection state, and for the same
   // reason: a filter left over from the previous plan silently hiding
-  // findings on a freshly pasted one would be confusing, but clicking into
-  // a finding's node and back on the SAME plan must NOT reset anything
-  // (Story 13.1's explicit edge case).
-  const [prevRoot, setPrevRoot] = useState(root)
-  if (root !== prevRoot) {
-    setPrevRoot(root)
+  // findings on a freshly pasted one would be confusing, but switching
+  // which statement is active, or clicking into a finding's node and back
+  // on the SAME plan, must NOT reset anything (Story 13.1's explicit edge
+  // case, still true now that "the plan" means the whole batch).
+  const rootsKey = sources.map((s) => s.root)
+  const [prevRoots, setPrevRoots] = useState(rootsKey)
+  const rootsChanged = rootsKey.length !== prevRoots.length || rootsKey.some((r, i) => r !== prevRoots[i])
+  if (rootsChanged) {
+    setPrevRoots(rootsKey)
     setSeverityFilter("all")
     setCategoryFilter("all")
   }
@@ -114,26 +132,38 @@ export function FindingsList({ root, onSelectNode }: FindingsListProps) {
             // similar) if a real plan surfaces that many — see Episode
             // 13's edge-case table.
             <ul className="findings-list__items">
-              {visible.map((finding, index) => (
-                <li key={`${finding.nodeId}-${finding.warning.ruleId}-${index}`}>
-                  <button
-                    type="button"
-                    className={`findings-list__item findings-list__item--${finding.warning.severity}`}
-                    data-testid="finding-item"
-                    onClick={() => onSelectNode(finding.nodeId)}
-                  >
-                    <span className="findings-list__item-header">
-                      <span
-                        className={`findings-list__severity-label findings-list__severity-label--${finding.warning.severity}`}
-                      >
-                        {SEVERITY_LABEL[finding.warning.severity]}
+              {visible.map((finding, index) => {
+                // Only meaningful (and only shown) once there's more than
+                // one statement to distinguish between — a plain single-
+                // statement plan's findings list looks exactly as it did
+                // before this story.
+                const isElsewhere = sources.length > 1 && finding.statementIndex !== activeStatementIndex
+                return (
+                  <li key={`${finding.statementIndex}-${finding.nodeId}-${finding.warning.ruleId}-${index}`}>
+                    <button
+                      type="button"
+                      className={`findings-list__item findings-list__item--${finding.warning.severity}`}
+                      data-testid="finding-item"
+                      onClick={() => onSelectNode(finding.statementIndex, finding.nodeId)}
+                    >
+                      <span className="findings-list__item-header">
+                        <span
+                          className={`findings-list__severity-label findings-list__severity-label--${finding.warning.severity}`}
+                        >
+                          {SEVERITY_LABEL[finding.warning.severity]}
+                        </span>
+                        <span className="findings-list__category">{finding.category}</span>
+                        {isElsewhere && (
+                          <span className="findings-list__statement-badge" data-testid="finding-statement-badge">
+                            {finding.statementLabel}
+                          </span>
+                        )}
                       </span>
-                      <span className="findings-list__category">{finding.category}</span>
-                    </span>
-                    <span className="findings-list__text">{finding.warning.shortText}</span>
-                  </button>
-                </li>
-              ))}
+                      <span className="findings-list__text">{finding.warning.shortText}</span>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </>

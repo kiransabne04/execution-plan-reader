@@ -131,10 +131,27 @@ describe("PlanReaderPage", () => {
     expect(screen.getAllByRole("tab")).toHaveLength(2)
     const group = screen.getByTestId("statement-tab-group")
     expect(group).toHaveTextContent("3 control-flow statements")
+    expect(group).toHaveAttribute("aria-expanded", "false")
 
     fireEvent.click(group)
     expect(screen.getAllByRole("tab")).toHaveLength(5)
-    expect(screen.queryByTestId("statement-tab-group")).not.toBeInTheDocument()
+    // Story 20.3: the group row stays, now offering a way back — it must
+    // NOT vanish once expanded, the original bug this story fixes.
+    expect(screen.getByTestId("statement-tab-group")).toHaveTextContent("Collapse 3 control-flow statements")
+    expect(screen.getByTestId("statement-tab-group")).toHaveAttribute("aria-expanded", "true")
+  })
+
+  // Story 20.3
+  it("collapses an expanded run back via the same group control", () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("sqlserver", "many-trivial-statements.xml"))
+
+    fireEvent.click(screen.getByTestId("statement-tab-group")) // expand
+    expect(screen.getAllByRole("tab")).toHaveLength(5)
+
+    fireEvent.click(screen.getByTestId("statement-tab-group")) // collapse back
+    expect(screen.getAllByRole("tab")).toHaveLength(2)
+    expect(screen.getByTestId("statement-tab-group")).toHaveTextContent("3 control-flow statements — expand")
   })
 
   it("does not show statement tabs for a single-statement plan", () => {
