@@ -132,6 +132,23 @@ describe("buildStatRows", () => {
     expect(row?.value).not.toContain("approximate")
   })
 
+  // Story 21.2 retrofit — io.readAheads existed on the model and drove
+  // bufferCacheInefficiency.ts's own exclusion logic, but was never
+  // surfaced in "This node's numbers" at all: a huge "Disk reads" figure
+  // that was mostly SQL Server read-ahead prefetch had no explanation
+  // anywhere in the panel for why the rule didn't flag it.
+  it("shows a Read-ahead reads row, separate from Disk reads, when io.readAheads is present", () => {
+    const node = makeNode({ engine: "sqlserver", io: { bufferReads: 500_000, readAheads: 499_500 } })
+    const rows = buildStatRows(node)
+    expect(rows.find((r) => r.label === "Disk reads")?.value).toBe("500,000")
+    expect(rows.find((r) => r.label === "Read-ahead reads")?.value).toBe("499,500 (prefetch, not a cache miss)")
+  })
+
+  it("does NOT show a Read-ahead reads row when io.readAheads is absent (Postgres, or a SQL Server node with none)", () => {
+    const node = makeNode({ engine: "postgres", io: { bufferHits: 8, bufferReads: 2, cacheHitRatio: 0.8 } })
+    expect(buildStatRows(node).find((r) => r.label === "Read-ahead reads")).toBeUndefined()
+  })
+
   it("shows Snowflake cost as not applicable rather than a fabricated zero", () => {
     const node = makeNode({ engine: "snowflake", operatorType: "seq_scan" })
     const row = buildStatRows(node).find((r) => r.label === "Cost")

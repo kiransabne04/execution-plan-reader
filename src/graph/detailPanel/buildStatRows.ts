@@ -178,6 +178,17 @@ function rowsIo(node: PlanNode): StatRow[] {
   const rows: StatRow[] = []
   if (node.io?.bufferHits !== undefined) rows.push({ label: "Buffer hits", value: formatNumber(node.io.bufferHits) })
   if (node.io?.bufferReads !== undefined) rows.push({ label: "Disk reads", value: formatNumber(node.io.bufferReads) })
+  // SQL Server-specific (field catalog §5's read-ahead note): read-ahead
+  // pages are counted inside "Disk reads" above (they ARE physical reads),
+  // but are a deliberate sequential-prefetch, not evidence of buffer-pool
+  // pressure the way an ordinary physical read is — see
+  // bufferCacheInefficiency.ts, which excludes them from its own ratio
+  // judgment. Surfaced as its own row (not folded into "Disk reads") so a
+  // large "Disk reads" figure that's mostly read-ahead doesn't read as
+  // alarming on its own with no explanation right next to it.
+  if (node.io?.readAheads !== undefined) {
+    rows.push({ label: "Read-ahead reads", value: `${formatNumber(node.io.readAheads)} (prefetch, not a cache miss)` })
+  }
   if (node.io?.cacheHitRatio !== undefined && Number.isFinite(node.io.cacheHitRatio)) {
     const approxNote = node.engine === "sqlserver" ? " (approximate)" : ""
     rows.push({ label: "Cache hit ratio", value: `${(node.io.cacheHitRatio * 100).toFixed(1)}%${approxNote}` })
