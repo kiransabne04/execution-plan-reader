@@ -1,0 +1,49 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Startup Cost": 0.5,
+      "Total Cost": 12000.5,
+      "Plan Rows": 2000,
+      "Plan Width": 32,
+      "Actual Startup Time": 0.1,
+      "Actual Total Time": 4200.0,
+      "Actual Rows": 2000,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "outer_small",
+          "Alias": "outer_small",
+          "Startup Cost": 0.0,
+          "Total Cost": 5.0,
+          "Plan Rows": 2000,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 0.5,
+          "Actual Rows": 2000,
+          "Actual Loops": 1
+        },
+        {
+          "Node Type": "Index Scan",
+          "Parent Relationship": "Inner",
+          "Relation Name": "inner_lookup",
+          "Alias": "inner_lookup",
+          "Index Name": "idx_inner_lookup_key",
+          "Startup Cost": 0.42,
+          "Total Cost": 2.1,
+          "Plan Rows": 1,
+          "Plan Width": 24,
+          "Actual Startup Time": 2.1,
+          "Actual Total Time": 2.1,
+          "Actual Rows": 1,
+          "Actual Loops": 2000,
+          "Index Cond": "(inner_lookup.key = outer_small.key)"
+        }
+      ]
+    },
+    "Planning Time": 0.2,
+    "Execution Time": 4201.0
+  }
+]

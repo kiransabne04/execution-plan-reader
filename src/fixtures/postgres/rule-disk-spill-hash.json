@@ -1,0 +1,37 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Hash",
+      "Startup Cost": 15000.0,
+      "Total Cost": 15000.0,
+      "Plan Rows": 8000,
+      "Plan Width": 32,
+      "Actual Startup Time": 320.4,
+      "Actual Total Time": 320.4,
+      "Actual Rows": 8000,
+      "Actual Loops": 1,
+      "Hash Buckets": 16384,
+      "Hash Batches": 4,
+      "Original Hash Batches": 1,
+      "Peak Memory Usage": 4096,
+      "Disk Usage": 51200,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "medium_table",
+          "Alias": "medium_table",
+          "Startup Cost": 0.0,
+          "Total Cost": 8000.0,
+          "Plan Rows": 8000,
+          "Plan Width": 32,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 45.1,
+          "Actual Rows": 8000,
+          "Actual Loops": 1
+        }
+      ]
+    },
+    "Planning Time": 0.1,
+    "Execution Time": 322.0
+  }
+]

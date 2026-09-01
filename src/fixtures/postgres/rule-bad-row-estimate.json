@@ -1,0 +1,20 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "widgets",
+      "Alias": "widgets",
+      "Startup Cost": 0.0,
+      "Total Cost": 2200.0,
+      "Plan Rows": 100,
+      "Plan Width": 36,
+      "Actual Startup Time": 0.02,
+      "Actual Total Time": 45.1,
+      "Actual Rows": 5000,
+      "Actual Loops": 1,
+      "Filter": "(status = 'archived')"
+    },
+    "Planning Time": 0.1,
+    "Execution Time": 45.3
+  }
+]

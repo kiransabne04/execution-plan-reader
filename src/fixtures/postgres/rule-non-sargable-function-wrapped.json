@@ -1,0 +1,20 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "customers",
+      "Alias": "customers",
+      "Startup Cost": 0.0,
+      "Total Cost": 1800.0,
+      "Plan Rows": 50,
+      "Plan Width": 40,
+      "Actual Startup Time": 0.03,
+      "Actual Total Time": 22.4,
+      "Actual Rows": 42,
+      "Actual Loops": 1,
+      "Filter": "(lower(email) = 'bob@example.com')"
+    },
+    "Planning Time": 0.1,
+    "Execution Time": 22.6
+  }
+]
