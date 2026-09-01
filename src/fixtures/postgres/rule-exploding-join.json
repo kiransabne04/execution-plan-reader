@@ -1,0 +1,47 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Startup Cost": 0.0,
+      "Total Cost": 50000.0,
+      "Plan Rows": 100,
+      "Plan Width": 16,
+      "Actual Startup Time": 0.05,
+      "Actual Total Time": 900.0,
+      "Actual Rows": 50000,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "table_a",
+          "Alias": "a",
+          "Startup Cost": 0.0,
+          "Total Cost": 5.0,
+          "Plan Rows": 100,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 0.2,
+          "Actual Rows": 100,
+          "Actual Loops": 1
+        },
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Inner",
+          "Relation Name": "table_b",
+          "Alias": "b",
+          "Startup Cost": 0.0,
+          "Total Cost": 3.0,
+          "Plan Rows": 50,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 0.15,
+          "Actual Rows": 50,
+          "Actual Loops": 100
+        }
+      ]
+    },
+    "Planning Time": 0.1,
+    "Execution Time": 901.0
+  }
+]
