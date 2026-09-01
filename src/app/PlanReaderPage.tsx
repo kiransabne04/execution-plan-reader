@@ -21,6 +21,7 @@ import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normaliz
 import type { PlanContext } from "../rules/types"
 import { formatNumber } from "../rules/format"
 import { OPENERS } from "../rules/summarize"
+import { collectFindingsAcrossStatements } from "../rules/findings"
 import {
   saveSession,
   loadSession,
@@ -367,6 +368,24 @@ export function PlanReaderPage() {
     () => analyzed?.statements.map((stmt, i) => ({ statementIndex: i, statementLabel: stmt.label, root: stmt.root })) ?? [],
     [analyzed],
   )
+  // Story 20.5 (found via manual testing on the same large batch): the two
+  // header honesty notes (parameter-sensitivity, estimate-only) are
+  // PLAN-WIDE facts — the rule engine attaches them to every statement's
+  // own root, so switching between statements kept re-showing the exact
+  // same two notes over and over, reading as the header "constantly
+  // repopulating" on a large multi-statement batch. Both are genuinely
+  // true for the whole batch or they aren't, so they're derived here from
+  // ALL statements (same dedup `collectFindingsAcrossStatements` already
+  // uses for the Findings panel — one definition, not two independently-
+  // drifting ones) rather than re-filtered per `activeStatement` on every
+  // click.
+  const planWideNotices = useMemo(
+    () =>
+      collectFindingsAcrossStatements(findingsSources).filter(
+        (f) => f.warning.ruleId === "parameter-sensitivity-honesty-note" || f.warning.ruleId === "estimate-only-plan",
+      ),
+    [findingsSources],
+  )
   const handleSelectFinding = useCallback(
     (statementIndex: number, nodeId: string) => {
       if (statementIndex !== activeStatementIndex) switchToStatement(statementIndex)
@@ -613,15 +632,16 @@ export function PlanReaderPage() {
               detail panel, or by expanding the findings list, which is
               collapsed by default (Story 13.1). Informational tier (spec
               §5 `1e`: "blurple = informational") — nothing is wrong, this
-              is a disclosure, not a problem. */}
-          {activeStatement &&
-            activeStatement.root.warnings
-              .filter((w) => w.ruleId === "parameter-sensitivity-honesty-note" || w.ruleId === "estimate-only-plan")
-              .map((w) => (
-                <Notice key={w.ruleId} severity="info">
-                  {w.shortText}
-                </Notice>
-              ))}
+              is a disclosure, not a problem.
+              Story 20.5: sourced from `planWideNotices` (deduped across
+              the WHOLE batch), not `activeStatement` — these are batch-
+              wide facts, so they render identically regardless of which
+              statement is active, never re-populating on every tab click. */}
+          {planWideNotices.map((f) => (
+            <Notice key={f.warning.ruleId} severity="info">
+              {f.warning.shortText}
+            </Notice>
+          ))}
 
           {analyzed && analyzed.statements.length > 1 && (
             <div className="plan-reader-page__statement-tabs" role="tablist" aria-label="Statements in this batch">
