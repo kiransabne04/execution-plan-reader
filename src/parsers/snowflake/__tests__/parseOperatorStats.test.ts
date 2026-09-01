@@ -144,6 +144,39 @@ describe("parseSnowflakeOperatorStats", () => {
     expect(root.actualRows).toBe(480)
   })
 
+  // Found via manual testing with a user-supplied export: a singular
+  // `parentOperatorId` (one id, not Snowflake's own plural/array
+  // `PARENT_OPERATORS` column) meant every row looked parentless, so the
+  // parser silently produced 8 disconnected "root" nodes instead of the
+  // real join tree — a much bigger problem than a missing glossary entry.
+  it("tolerates a singular parentOperatorId field, reconstructing real parent-child links instead of treating every row as a root", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("singular-parent-flat-stats.json"))
+    expect(root.rawOperatorLabel).toBe("Filter")
+    expect(root.children).toHaveLength(1)
+    expect(root.children[0].rawOperatorLabel).toBe("TableScan")
+  })
+
+  // Same fixture: this export has no separate `statistics`/
+  // `operatorStatistics` container at all — `outputRows` sits as a plain
+  // sibling field on the row. Without the row-level statistics fallback,
+  // EVERY node's actualRows comes back undefined.
+  it("tolerates row/time figures sitting as plain sibling fields instead of nested under a statistics container", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("singular-parent-flat-stats.json"))
+    expect(root.actualRows).toBe(480)
+    expect(root.children[0].actualRows).toBe(5000)
+  })
+
+  it("does NOT apply the row-level statistics fallback when a real statistics container is already present", () => {
+    // A row with BOTH a real `statistics` object AND its own stray
+    // top-level `outputRows` (malformed/inconsistent input) must trust the
+    // real container, not merge the stray field in on top of it.
+    const raw = JSON.stringify([
+      { id: 1, operation: "Filter", parentOperators: [], statistics: { output_rows: 10 }, outputRows: 999 },
+    ])
+    const { root } = parseSnowflakeOperatorStats(raw)
+    expect(root.actualRows).toBe(10)
+  })
+
   it("falls back to 'unknown' operatorType for an unmapped operation, without throwing", () => {
     const raw = JSON.stringify([{ id: 1, operation: "SomeBrandNewOperator", parentOperators: [] }])
     const { root } = parseSnowflakeOperatorStats(raw)
