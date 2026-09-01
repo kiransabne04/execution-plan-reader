@@ -880,6 +880,32 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       expect(notice).toBeDefined()
     })
 
+    // Story 20.5 — found via manual testing on a large multi-statement SQL
+    // Server batch: these two honesty notes are PLAN-WIDE facts (every
+    // statement's own root carries them), but were re-derived from
+    // `activeStatement` alone — switching statements kept re-showing the
+    // exact same two notes, reading as the header "constantly
+    // repopulating." Now sourced once from the whole batch, so switching
+    // statements changes nothing about them.
+    it("the estimate-only note stays visible, and doesn't duplicate, when switching between statements in a multi-statement batch", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-estimate-only.xml"))
+
+      // Scoped to the always-visible HEADER notice specifically — the same
+      // shortText also legitimately appears in the root node's own hover-
+      // tooltip DOM and in the (global, Story 20.4) Findings list, neither
+      // of which this test is about.
+      const findHeaderNotices = () =>
+        screen.getAllByText(/no actual execution numbers/i).map((el) => el.closest("p")).filter((p) => p?.classList.contains("plan-reader-page__notice--info"))
+
+      expect(findHeaderNotices()).toHaveLength(1)
+
+      fireEvent.click(screen.getAllByRole("tab")[1]) // switch to the second statement
+      // Still exactly one header notice — it's a plan-wide fact, so
+      // switching statements neither removes it nor adds a second copy.
+      expect(findHeaderNotices()).toHaveLength(1)
+    })
+
     it("recovers cleanly: switching from an error-triggering paste to a valid one clears the critical notice, no stale error left behind", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "non-plan-text.txt"))

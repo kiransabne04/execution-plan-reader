@@ -1153,6 +1153,27 @@ As a user reviewing a large multi-statement batch, I want the Findings panel to 
 | Two different statements each independently triggering the same ruleId (e.g. two unrelated `disk-spill` warnings) | Must NOT be mistaken for the plan-wide-note case and collapsed into one | Only the two specific, known plan-wide rule ids are ever deduped; every other ruleId is kept per-occurrence regardless of how many statements share it |
 | Single-statement plans (Postgres, Snowflake, most SQL Server input) | Must render and behave exactly as before this story — no regression for the common case | `sources.length === 1` — no badges ever render, and `collectFindingsAcrossStatements` output is asserted identical to `collectAllFindings` for this case |
 
+### Story 20.5 — Header honesty notes are plan-wide, not re-derived per active statement
+
+Source: manual testing on the same large SQL Server stored-procedure batch — the two always-visible header notes (parameter-sensitivity, estimate-only) were filtered from `activeStatement.root.warnings` alone. Since the rule engine attaches these PLAN-WIDE facts to every statement's own root independently, switching between statements kept re-showing the exact same two sentences over and over — reported as the header "populating notes" on every click, on a batch with 100+ statements to click through.
+
+As a user browsing a large multi-statement batch, I want the header's honesty notes to reflect the whole plan once, not flicker/re-derive every time I switch statements, so the header reads as a stable disclosure rather than noise that "keeps happening."
+
+**Acceptance criteria**
+- The two header `Notice` elements are sourced from `planWideNotices` — `collectFindingsAcrossStatements(findingsSources)` (Story 20.4's own whole-batch, deduped collector — the SAME dedup the Findings panel already uses, not a second independently-drifting definition) filtered to `parameter-sensitivity-honesty-note`/`estimate-only-plan` — instead of `activeStatement.root.warnings` directly.
+- Switching the active statement never adds, removes, or re-renders these two notices differently — they render identically regardless of which statement is currently open, since they're batch-wide facts, not statement-specific ones.
+- Single-statement plans (Postgres, Snowflake, most SQL Server input) are unaffected — `findingsSources` has one element, `collectFindingsAcrossStatements` on one source behaves identically to reading that one root's own warnings directly (already asserted by Story 20.4's own test for this).
+
+**Testing approach**
+- Component test (`PlanReaderPage.test.tsx`): a new 2-statement SQL Server fixture with no `RunTimeInformation` on either statement (both independently estimate-only) — asserts exactly one header notice exists, switches to the second statement's tab, asserts still exactly one (never zero, never two). Scoped specifically to the `.plan-reader-page__notice--info` class, since the same `shortText` also legitimately appears in the root node's own hover-tooltip and in the (global, Story 20.4) Findings list — this story is only about the always-visible header banner.
+- Verified live against the real motivating plan: switching between statement tabs no longer changes the header's two notes at all — same position, same text, no flicker.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A batch where the same `shortText` legitimately appears in three places at once (header notice, root node's hover-tooltip, global Findings list) | A naive `getAllByText` assertion would wrongly read 3 as "duplicated," when it's 3 different, correct UI surfaces | Test scopes to `.plan-reader-page__notice--info` specifically, not raw text-content count |
+| A theoretical batch where statements disagree on estimate-only status (some captured with actuals, some without) | Real single-capture showplans are always uniform on this — but the code shouldn't assume it | `collectFindingsAcrossStatements`'s existing "first occurrence" dedup naturally picks whichever statement shows the fact first; since the fact is true if ANY statement carries it, this is the correct, honest behavior even in that theoretical case |
+
 ## Episode 21 — Buffer/cache and disk-I/O efficiency rule
 
 Source: user request ("include shared buffers based rule engine for postgres, and same equivalent for SQL Server and Snowflake"). The normalized `PlanNode.io`/`PlanNode.timeBreakdown` fields already carry this data for all three engines (Episode 6's field-catalog retrofit) — nothing in `ALL_RULES` (`src/rules/index.ts`) consumed it until this episode.
