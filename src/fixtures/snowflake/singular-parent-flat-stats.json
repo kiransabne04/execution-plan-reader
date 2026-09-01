@@ -1,0 +1,18 @@
+[
+  {
+    "queryId": "01b2c3d4-0000-1234-0000-7890abcdef12",
+    "operatorId": 1,
+    "parentOperatorId": 2,
+    "operatorType": "TableScan",
+    "operatorAttributes": { "tableName": "ORDERS" },
+    "outputRows": 5000
+  },
+  {
+    "queryId": "01b2c3d4-0000-1234-0000-7890abcdef12",
+    "operatorId": 2,
+    "parentOperatorId": null,
+    "operatorType": "Filter",
+    "operatorAttributes": { "condition": "TOTAL > 100" },
+    "outputRows": 480
+  }
+]

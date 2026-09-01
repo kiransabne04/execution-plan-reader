@@ -20,7 +20,7 @@ _Last audited against `src/` and git history on 2026-08-28 (652/652 tests passin
 ## Episode 3 — Snowflake plan ingestion
 | Story | Status | Notes |
 |---|---|---|
-| 3.1 — Parse operator-stats JSON/table output into a tree | done | `src/parsers/snowflake/` (`buildTree.ts`, `rows.ts`) |
+| 3.1 — Parse operator-stats JSON/table output into a tree | done | `src/parsers/snowflake/` (`buildTree.ts`, `rows.ts`). **Two real near-miss-tolerance gaps found and fixed via manual testing with a user-supplied export** (this story's own edge-case table already calls for "tolerant parsing of common near-miss formats"): (1) a singular `parentOperatorId` field (one id, not Snowflake's own plural/array `PARENT_OPERATORS`) made every row look parentless — `parseRawRows` now accepts it as a `parentOperators` alias, reconstructing the real tree instead of N disconnected "root" nodes; (2) an export with no separate `statistics`/`operatorStatistics` container at all (row/time figures sitting as plain sibling fields on the row) lost every `actualRows` figure — rows with an empty statistics lookup now fall back to the row's own unclaimed fields as ad hoc statistics. Fixture: `singular-parent-flat-stats.json`. Separately confirmed `"HashJoin"` as an `operatorType` string is NOT real Snowflake vocabulary (this app's own `operatorMap.ts` already documents Snowflake exposing only a generic `"Join"`, no algorithm split) — correctly falls back to `unknown` + the honest "we don't have a detailed explanation" message; not added to the operator map |
 
 ## Episode 4 — Normalization layer
 | Story | Status | Notes |

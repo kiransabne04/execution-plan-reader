@@ -102,13 +102,36 @@ export function parseRawRows(rawInput: string): ParsedRawInput {
   return { rows, queryText, queryTextRedacted }
 }
 
+// Every alias this parser claims for a structural field, kept as one list
+// so the row-level statistics fallback below (which treats "everything not
+// already claimed" as ad hoc statistics) can never accidentally re-absorb
+// a field that's already been read as the id, operation, parent link,
+// attributes bag, or time breakdown.
+const ID_ALIASES = ["id", "operator_id", "operatorId"]
+const OPERATION_ALIASES = ["operation", "operator_type", "operatorType"]
+const PARENT_ALIASES = [
+  "parentOperators",
+  "parent_operators",
+  "parent",
+  "parentOperator",
+  // A near-miss export that gives each row exactly ONE parent (a scalar
+  // id, not an array) rather than Snowflake's own plural/array
+  // PARENT_OPERATORS column — coerceIdList below already handles a bare
+  // scalar under any of these keys the same way it handles a real array.
+  "parentOperatorId",
+  "parent_operator_id",
+]
+const ATTRIBUTE_ALIASES = ["attributes", "operator_attributes", "operatorAttributes"]
+const STATISTICS_ALIASES = ["statistics", "operator_statistics", "operatorStatistics"]
+const TIME_BREAKDOWN_ALIASES = ["executionTimeBreakdown", "execution_time_breakdown"]
+
 function parseRow(raw: unknown, index: number): OperatorRow {
   if (!isRecord(raw)) {
     throw new PlanParseError("NOT_A_PLAN", `Row ${index} isn't a recognizable operator object.`)
   }
 
-  const id = getField(raw, "id", "operator_id", "operatorId")
-  const operation = getField(raw, "operation", "operator_type", "operatorType")
+  const id = getField(raw, ...ID_ALIASES)
+  const operation = getField(raw, ...OPERATION_ALIASES)
   if (id === undefined || operation === undefined) {
     throw new PlanParseError(
       "NOT_A_PLAN",
@@ -116,10 +139,29 @@ function parseRow(raw: unknown, index: number): OperatorRow {
     )
   }
 
-  const parentIds = coerceIdList(getField(raw, "parentOperators", "parent_operators", "parent", "parentOperator"))
-  const attributes = coerceRecord(getField(raw, "attributes", "operator_attributes", "operatorAttributes"))
-  const statistics = coerceRecord(getField(raw, "statistics", "operator_statistics", "operatorStatistics"))
-  const timeBreakdownRaw = getField(raw, "executionTimeBreakdown", "execution_time_breakdown")
+  const parentIds = coerceIdList(getField(raw, ...PARENT_ALIASES))
+  const attributes = coerceRecord(getField(raw, ...ATTRIBUTE_ALIASES))
+  let statistics = coerceRecord(getField(raw, ...STATISTICS_ALIASES))
+  if (Object.keys(statistics).length === 0) {
+    // Near-miss shape: this export has no separate statistics container at
+    // all — row/time figures (e.g. `outputRows`, `executionTimeMs`) sit as
+    // plain sibling fields on the row itself instead of nested under
+    // `statistics`/`operator_statistics`/`operatorStatistics`. Rather than
+    // silently losing every row/time figure because of that, fall back to
+    // treating whatever the row has left over — once id/operation/parent/
+    // attributes/time-breakdown are excluded — as its statistics. This is
+    // deliberately generic (no guessing of a specific field name here):
+    // buildTree.ts's own `getField(row.statistics, "output_rows",
+    // "outputRows", ...)` lookups already do the actual field-name
+    // tolerance, this just gives them a container to look inside.
+    const claimed = new Set(
+      [...ID_ALIASES, ...OPERATION_ALIASES, ...PARENT_ALIASES, ...ATTRIBUTE_ALIASES, ...STATISTICS_ALIASES, ...TIME_BREAKDOWN_ALIASES].map(
+        (k) => k.toLowerCase(),
+      ),
+    )
+    statistics = Object.fromEntries(Object.entries(raw).filter(([key]) => !claimed.has(key.toLowerCase())))
+  }
+  const timeBreakdownRaw = getField(raw, ...TIME_BREAKDOWN_ALIASES)
   const executionTimeBreakdown = timeBreakdownRaw !== undefined ? coerceRecord(timeBreakdownRaw) : undefined
 
   return {
