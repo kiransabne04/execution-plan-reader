@@ -30,6 +30,8 @@ export { categorizeFinding, FINDING_CATEGORY_ORDER, type FindingCategory } from 
 export {
   computeQueryHealth,
   QUERY_HEALTH_DIMENSIONS,
+  CRITICAL_PENALTY,
+  WARNING_PENALTY,
   type QueryHealth,
   type QueryHealthDimension,
   type DimensionResult,

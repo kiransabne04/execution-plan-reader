@@ -24,6 +24,7 @@ import {
   SearchPalette,
   WalkthroughOverlay,
   SEVERITY_LABEL,
+  QueryHealthCard,
   type PlanGraphHandle,
 } from "../graph"
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
@@ -31,6 +32,7 @@ import type { PlanContext } from "../rules/types"
 import { formatNumber } from "../rules/format"
 import { OPENERS } from "../rules/summarize"
 import { collectFindingsAcrossStatements } from "../rules/findings"
+import { computeQueryHealth } from "../rules/queryHealth"
 import {
   saveSession,
   loadSession,
@@ -471,6 +473,17 @@ export function PlanReaderPage() {
   // means its root always carries the figure when any node has one, so
   // this is strictly more correct there too, never less.
   const activeStatementNodes = activeStatement ? collectNodes(activeStatement.root) : []
+
+  // Episode 23, Story 23.1/23.3 — recomputed on every `activeStatement`
+  // change (a fresh call keyed by object identity via useMemo, not cached
+  // across statements) — the exact per-statement scoping mistake Story
+  // 20.5 found and fixed for the header notices, applied here in the
+  // opposite direction: this SHOULD change per statement, not persist.
+  const queryHealth = useMemo(
+    () => (activeStatement ? computeQueryHealth(activeStatement.root, activeStatement.context) : undefined),
+    [activeStatement],
+  )
+
   const metricLabel = activeStatementNodes.some((n) => n.actualTimeMs !== undefined)
     ? "actual time"
     : activeStatementNodes.some((n) => n.estimatedCost !== undefined)
@@ -948,6 +961,22 @@ export function PlanReaderPage() {
                       activeStatement.summary.text
                     )}
                   </p>
+
+                  {/* Episode 23, Story 23.3 — additive to the summary
+                      sentence above, not a replacement: two different,
+                      complementary views of the same underlying findings.
+                      Scoped to normal (non-maximized) mode only — a
+                      decision made explicitly, not left to CSS accident
+                      (Episode 22's own edge-case tables set this
+                      precedent): maximized mode's toolbar already has 5
+                      other elements competing for the same top-of-viewport
+                      space (statement dropdown, Beginner/Expert, Walk-me-
+                      through, Findings, the maximize toggle itself — Story
+                      22.1), and this card's own value (an at-a-glance
+                      verdict on load) is squarely a normal-mode, first-
+                      look concern, not something a user who's already
+                      maximized to explore a large plan is reaching for. */}
+                  {queryHealth && !isMaximized && <QueryHealthCard health={queryHealth} />}
 
                   {/* Design review — completes spec §2's metrics strip:
                       "total, node count, collapsed count, colour legend,

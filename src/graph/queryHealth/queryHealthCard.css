@@ -1,0 +1,163 @@
+/* Episode 23, Story 23.3 — --qh-* tokens are aliases declared once in
+   src/styles/tokens.css. Dark-only: no `prefers-color-scheme` branch. */
+
+.query-health-card {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--qh-border);
+  border-radius: 8px;
+}
+
+.query-health-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.query-health-card__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--qh-text-muted);
+}
+
+.query-health-card__methodology-toggle {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--qh-text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.query-health-card__methodology-toggle:hover,
+.query-health-card__methodology-toggle:focus-visible {
+  color: var(--qh-healthy);
+}
+
+.query-health-card__methodology {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--qh-text-muted);
+}
+
+.query-health-card__insufficient {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--qh-insufficient-bg);
+  color: var(--qh-insufficient-text);
+  font-size: 13px;
+}
+
+.query-health-card__score {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.query-health-card__score-max {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--qh-text-muted);
+}
+
+.query-health-card__score--critical {
+  color: var(--qh-critical);
+}
+
+.query-health-card__score--warning {
+  color: var(--qh-warning);
+}
+
+.query-health-card__score--healthy {
+  color: var(--qh-healthy);
+}
+
+.query-health-card__legend {
+  margin: 6px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.query-health-card__legend-item--critical {
+  color: var(--qh-critical);
+}
+
+.query-health-card__legend-item--warning {
+  color: var(--qh-warning);
+}
+
+.query-health-card__legend-item--healthy {
+  color: var(--qh-healthy);
+}
+
+.query-health-card__breakdown-toggle {
+  margin-top: 8px;
+  border: none;
+  background: transparent;
+  color: var(--qh-text-muted);
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.query-health-card__breakdown {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.query-health-card__dimension {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.query-health-card__dimension-label {
+  color: var(--qh-text-muted);
+}
+
+.query-health-card__dimension-score {
+  font-weight: 700;
+}
+
+.query-health-card__dimension-score--critical {
+  color: var(--qh-critical);
+}
+
+.query-health-card__dimension-score--warning {
+  color: var(--qh-warning);
+}
+
+.query-health-card__dimension-score--healthy {
+  color: var(--qh-healthy);
+}
+
+/* Deliberately its own visual treatment — a greyed-out pill, not a colored
+   number — so "insufficient data" is never mistaken for a real low score
+   at a glance. The two mean opposite things: a real problem vs. an honest
+   absence of signal (this story's own edge-case table). */
+.query-health-card__dimension-insufficient {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--qh-insufficient-bg);
+  color: var(--qh-insufficient-text);
+  font-size: 11.5px;
+  font-style: italic;
+}

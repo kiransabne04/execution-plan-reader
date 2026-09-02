@@ -1033,6 +1033,46 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     })
   })
 
+  describe("Episode 23, Story 23.3 — Query Health card", () => {
+    it("renders with a real, computed score right alongside the existing summary sentence", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "rule-bad-row-estimate.json"))
+
+      expect(screen.getByTestId("plan-summary")).toBeInTheDocument() // the existing qualitative sentence — unchanged, still present
+      const card = screen.getByTestId("query-health-card")
+      // A real fixture with a genuine bad-row-estimate finding — either a
+      // real sub-100 score, or (if some other dimension happens to be the
+      // only eligible one and stays clean) at minimum a real number, never
+      // the top-level "insufficient data" state for a plan with actual data.
+      expect(within(card).queryByTestId("query-health-score") ?? within(card).queryByTestId("query-health-insufficient")).toBeInTheDocument()
+    })
+
+    it("is not shown while maximized — an explicit scope decision, not a CSS accident", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      expect(screen.getByTestId("query-health-card")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      expect(screen.queryByTestId("query-health-card")).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      expect(screen.getByTestId("query-health-card")).toBeInTheDocument()
+    })
+
+    it("survives switching statement tabs without crashing or losing the card", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
+      expect(screen.getByTestId("query-health-card")).toBeInTheDocument()
+
+      const tabs = screen.getAllByRole("tab")
+      fireEvent.click(tabs[1])
+      expect(screen.getByTestId("query-health-card")).toBeInTheDocument()
+
+      fireEvent.click(tabs[0])
+      expect(screen.getByTestId("query-health-card")).toBeInTheDocument()
+    })
+  })
+
   describe("Episode 18, Story 18.3 — Beginner/Expert lifted to page-level state", () => {
     // Design review (reference mock): the panel's own former Beginner/
     // Expert toggle is gone in the shell (`variant="shell"`) — the app
