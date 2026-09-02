@@ -16,6 +16,7 @@ export type FindingCategory =
   | "Spill issues"
   | "I/O issues"
   | "Loop issues"
+  | "Parallelism issues"
   | "General notes"
 
 // One entry per rule family currently in ALL_RULES (src/rules/index.ts).
@@ -31,6 +32,7 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "disk-spill": "Spill issues",
   "buffer-cache-inefficiency": "I/O issues",
   "high-loop-count": "Loop issues",
+  "parallel-worker-shortfall": "Parallelism issues",
   "parameter-sensitivity-honesty-note": "General notes",
   "estimate-only-plan": "General notes",
 }
@@ -55,5 +57,6 @@ export const FINDING_CATEGORY_ORDER: FindingCategory[] = [
   "Spill issues",
   "I/O issues",
   "Loop issues",
+  "Parallelism issues",
   "General notes",
 ]

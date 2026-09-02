@@ -24,6 +24,11 @@ export interface PlanContext {
   totalActualTimeMs?: number
   nodeCount: number
   hasActualData: boolean
+  /** Episode 23, Story 23.2 — surfaced from `root.parallel?.compiledDegreeOfParallelism`,
+   * the exact same "root field -> context field" pattern `totalEstimatedCost`/
+   * `totalActualTimeMs` above already use. SQL Server-only (see `ParallelInfo`'s
+   * own doc comment, `normalize.ts`) — always `undefined` for Postgres/Snowflake. */
+  compiledDegreeOfParallelism?: number
   statementText?: string
   missingIndexes?: MissingIndexSignal[]
   /** Snowflake-only: the account has query-text redaction enabled — used by
@@ -46,6 +51,7 @@ export function buildPlanContext(
     totalActualTimeMs: root.actualTimeMs,
     nodeCount: nodes.length,
     hasActualData,
+    compiledDegreeOfParallelism: root.parallel?.compiledDegreeOfParallelism,
     statementText: extra?.statementText,
     missingIndexes: extra?.missingIndexes,
     queryTextRedacted: extra?.queryTextRedacted,

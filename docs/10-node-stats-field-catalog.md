@@ -165,6 +165,18 @@ These are two different questions and the field catalog keeps them separate:
 
 ---
 
+## 9. Parallelism (added Episode 23, Story 23.2)
+
+| Concept | Postgres source | SQL Server source | Snowflake source |
+|---|---|---|---|
+| Planned parallelism | `Workers Planned` — per-node, on any operator eligible for parallel execution | `QueryPlan`'s own `DegreeOfParallelism` attribute — **query-level**, not per-node; SQL Server decides a compiled plan's DOP once for the whole plan, not per operator, so there is no per-node "planned" figure to capture the way Postgres has one | Not exposed at any level — `GET_QUERY_OPERATOR_STATS()` has no worker/thread/parallelism concept at all, per-node or per-query |
+| Observed parallelism at execution time | `Workers Launched` — per-node | Derived: the count of distinct `RunTimeCountersPerThread` entries under a node's own `RunTimeInformation` (already captured, `ParallelInfo.workersLaunched`, pre-dating this story) — genuinely per-node, unlike the planned figure above | Not exposed |
+| Why a plan didn't run in parallel | Not directly stated — inferable only from the planned-vs-launched gap itself | `QueryPlan`'s own `NonParallelPlanReason` attribute, when SQL Server recorded one — free text, no verified complete enumeration of every value it can take (some describe a deliberate configuration choice, e.g. an explicit `MAXDOP` setting, not a problem; see `parallelWorkerShortfall.ts`'s own doc comment for why this app only ever uses it as enrichment, never an independent trigger) | Not exposed |
+
+Both `compiledDegreeOfParallelism` and `nonParallelPlanReason` are captured on `ParallelInfo` (`normalize.ts`) but — unlike `workersLaunched`/`workersPlanned`, which are genuinely per-node — are only ever populated on the **root node**, mirroring how Postgres's top-level `Planning Time` attaches to the root rather than a specific operator (`parseJsonPlan.ts`). `PlanContext` surfaces `compiledDegreeOfParallelism` from `root.parallel?.compiledDegreeOfParallelism`, the same "root field → context field" pattern `totalEstimatedCost`/`totalActualTimeMs` already use.
+
+---
+
 ## Summary of genuine cross-engine gaps (state these honestly in the UI, never paper over them)
 
 - **Index type** (btree/gin/gist/hash) — not reliably available from Postgres's plan alone; not applicable to Snowflake at all; directly available on SQL Server via `IndexKind`.
@@ -172,5 +184,6 @@ These are two different questions and the field catalog keeps them separate:
 - **Cache hit ratio precision** — cleanly computable for Postgres (with `BUFFERS` enabled), approximate for SQL Server, and only query-level (not per-node) for Snowflake.
 - **Loop-based cumulation** — a real concern for Postgres specifically (its `Actual Rows`/`Actual Total Time` are per-loop averages needing an explicit `× Actual Loops` to see the true total — now surfaced directly, see the follow-up decision above); SQL Server's equivalent fields are already real totals in this app's model, and Snowflake has no loop concept in the same form at all.
 - **Partition pruning** — a Snowflake-specific concept (`partitionsScanned`/`partitionsTotal`) with no Postgres/SQL Server equivalent (those engines don't organize storage into pruning-relevant micro-partitions the same way).
+- **Parallelism** (§9 above) — Postgres has both a planned and an observed per-node figure; SQL Server has a query-level planned figure (`DegreeOfParallelism`) but only a per-node observed one, and no per-node "planned" concept at all; Snowflake exposes nothing here whatsoever — a permanent, checked ceiling (Episode 23's own dimension table), not a gap expected to close later.
 
 This table of gaps should be treated as a living checklist for the `operator-glossary-content` and `graph-visualization` skills: any time the detail panel would otherwise show an empty or zero-looking field for one of these, it should instead show a short, honest "not applicable for this engine" or "not captured in this plan" note.

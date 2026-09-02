@@ -91,6 +91,21 @@ export function parseSqlServerShowplanXml(rawInput: string): SqlServerParseResul
     }
     const counter = { next: 0 }
     const root = buildNode(rootRelOps[0], counter, "main")
+
+    // Episode 23, Story 23.2 — query-level (not per-node) parallelism facts,
+    // read off the QueryPlan element itself and attached to the root node's
+    // own `parallel`, the same "root-only, read after buildNode returns"
+    // pattern parseJsonPlan.ts already uses for Postgres's Planning Time.
+    // DegreeOfParallelism is the COMPILED plan's DOP — genuinely different
+    // from the per-node `workersLaunched` (observed thread count) buildNode
+    // already sets above; comparing the two is exactly what the new
+    // parallel-worker-shortfall rule does for SQL Server.
+    const compiledDegreeOfParallelism = toFiniteNumber(queryPlanEl.getAttribute("DegreeOfParallelism"))
+    const nonParallelPlanReason = queryPlanEl.getAttribute("NonParallelPlanReason") ?? undefined
+    if (compiledDegreeOfParallelism !== undefined || nonParallelPlanReason !== undefined) {
+      root.parallel = { ...root.parallel, compiledDegreeOfParallelism, nonParallelPlanReason }
+    }
+
     return {
       statementText: stmtEl.getAttribute("StatementText") ?? undefined,
       statementId: stmtEl.getAttribute("StatementId") ?? undefined,

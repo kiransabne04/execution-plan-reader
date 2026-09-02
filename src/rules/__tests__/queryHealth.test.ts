@@ -226,5 +226,20 @@ describe("computeQueryHealth", () => {
         if (dimension.status === "scored") expect(dimension.score).toBe(100)
       }
     })
+
+    // Episode 23, Story 23.2 — Parallelism now scores on SQL Server too,
+    // via the new context.compiledDegreeOfParallelism field.
+    it("Parallelism scores (not insufficient-data) on a real SQL Server fixture with a genuine shortfall", () => {
+      const { statements } = analyzePlanText(loadFixture("sqlserver", "parallel-dop-shortfall-critical.xml"))
+      const health = computeQueryHealth(statements[0].root, statements[0].context)
+      expect(health.dimensions.parallelism.status).toBe("scored")
+      expect((health.dimensions.parallelism as { status: "scored"; score: number }).score).toBeLessThan(100)
+    })
+
+    it("Parallelism stays insufficient-data on an estimate-only SQL Server fixture, even with DegreeOfParallelism > 1", () => {
+      const { statements } = analyzePlanText(loadFixture("sqlserver", "real-world-large-parallel-estimated.xml"))
+      const health = computeQueryHealth(statements[0].root, statements[0].context)
+      expect(health.dimensions.parallelism).toEqual({ status: "insufficient-data" })
+    })
   })
 })
