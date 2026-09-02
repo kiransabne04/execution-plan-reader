@@ -135,6 +135,29 @@
   }
 }
 
+/* Episode 22, Story 22.2 — the node-anchored popup variant. `left`/`top`
+   come from the caller as an inline style (PlanGraph.tsx, via
+   computePopupPosition.ts — only it knows a clicked node's on-screen
+   coordinate); this rule supplies everything else, and — same specificity
+   as the `@media (max-width: 619px)` bottom-sheet rule above, placed
+   AFTER it so cascade order lets THIS win — explicitly cancels that
+   rule's `right`/`bottom` edges too. A bottom sheet wouldn't make sense
+   for something this story's own AC requires to stay anchored to a
+   node's position while panning/zooming, so popup renders as a small
+   anchored card at every viewport width, never degrading to a sheet. */
+.detail-panel--popup {
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(70vh, 520px);
+  border-left: none;
+  border: 1px solid var(--dp-border);
+  border-radius: 10px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
+}
+
 .detail-panel__close {
   position: absolute;
   top: 12px;

@@ -14,6 +14,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useViewport,
   type NodeMouseHandler,
   type NodeTypes,
 } from "@xyflow/react"
@@ -27,6 +28,7 @@ import { resolveCssVar } from "./canvas/cssVars"
 import { exportGraphToPngBlob } from "./canvas/exportPng"
 import { computeDefaultCollapsedIds, findCollapsedAncestors } from "./collapse"
 import { DetailPanel } from "./detailPanel/DetailPanel"
+import { computePopupPosition } from "./detailPanel/popupPosition"
 import type { MetricKey } from "./encoding"
 import { PlanNodeCard } from "./PlanNodeCard"
 import { CollapsedGroupNode } from "./CollapsedGroupNode"
@@ -117,6 +119,21 @@ export interface PlanGraphProps {
    * `onNodeSelected`/`onDetailPanelChange` above, not a second source of
    * truth — the shell never sets collapse state itself. */
   onCollapsedCountChange?: (count: number) => void
+  /** Episode 22, Story 22.2 — "panel" (default) is every existing behavior
+   * unchanged (the right-rail/overlay `DetailPanel`, via
+   * `externalDetailPanel`/`onDetailPanelChange` or this component's own
+   * internal render). "popup" is the app shell's maximized mode: this
+   * component renders `DetailPanel` itself with `variant="popup"`,
+   * positioned next to the clicked node via `flowToScreenPosition()` +
+   * `computePopupPosition` — only this component (inside the
+   * `ReactFlowProvider`) can compute that coordinate, so unlike the
+   * "panel" path this isn't reported outward for the caller to render.
+   * `onDetailPanelChange` still fires as normal either way (PlanReaderPage
+   * uses it for its own Escape-stacking logic — see Story 22.1) even
+   * though it no longer decides what gets rendered in "popup" mode.
+   * Canvas-rendering mode (Story 22.3) is entirely separate — this prop
+   * only affects the DOM/SVG branch below. */
+  nodeDetailVariant?: "panel" | "popup"
 }
 
 /** Story 18.11 — the imperative surface a caller (the app bar's Export
@@ -144,6 +161,7 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
     onDetailPanelChange,
     matchedNodeIds,
     onCollapsedCountChange,
+    nodeDetailVariant = "panel",
   }: PlanGraphProps,
   ref: ForwardedRef<PlanGraphHandle>,
 ) {
@@ -368,6 +386,13 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
   }, [openPanel, expandCollapsedGroup])
 
   const selectedNode = selectedNodeId !== undefined ? allNodes.find((n) => n.id === selectedNodeId) : undefined
+  // Episode 22, Story 22.2 — the SAME node's React Flow graph node (not the
+  // plain PlanNode above), whose `position`/`width`/`height` the popup path
+  // needs to compute a screen anchor. `undefined` while the node sits behind
+  // a still-collapsed ancestor (same transient gap `pendingPanNodeId`'s own
+  // effect already handles elsewhere in this file) — NodeDetailPopup below
+  // simply doesn't render until `nodes` catches up on the next render.
+  const selectedGraphNode = selectedNodeId !== undefined ? nodes.find((n) => n.id === selectedNodeId) : undefined
 
   // Story 18.2 — report the panel outward instead of rendering it here,
   // when the caller has taken over placement. A plain effect (not computed
@@ -458,10 +483,64 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
             "toggle interactivity" lock button React Flow adds by default. */}
         <Controls className="plan-graph-controls" position="top-right" showInteractive={false} />
       </ReactFlow>
-      {!externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
+      {/* Episode 22, Story 22.2 — "popup" mode renders its own node-anchored
+          `DetailPanel`, computed by `NodeDetailPopup` below, instead of the
+          existing "report outward via onDetailPanelChange, caller renders
+          it" path: only a component inside THIS `<ReactFlowProvider>` can
+          call `flowToScreenPosition()`/`useViewport()` to get a screen
+          coordinate at all, so the popup can't be assembled purely from
+          outside this component the way the right-rail/overlay panel is.
+          `onDetailPanelChange` (the effect above) still fires either way —
+          PlanReaderPage's own Escape-stacking logic (Story 22.1) still
+          needs to know a panel/popup is open, even though it no longer
+          decides what gets rendered here. */}
+      {nodeDetailVariant === "popup"
+        ? selectedNode &&
+          selectedGraphNode && <NodeDetailPopup node={selectedNode} graphNode={selectedGraphNode} context={resolvedContext} onClose={closePanel} />
+        : !externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
     </div>
   )
 })
+
+/** Episode 22, Story 22.2 — a small component of its own (not inlined into
+ * `PlanGraphInner` above) specifically so `useViewport()` — which
+ * re-renders its OWN component on every pan/zoom tick, the mechanism this
+ * story's own AC relies on for "live-repositioning, no separate tracking
+ * loop" — only re-runs while a popup is actually mounted. Inlining this
+ * into `PlanGraphInner` directly would subscribe the ENTIRE graph (every
+ * node, the whole `ReactFlow` tree) to re-render on every pan/zoom tick
+ * even when no popup is open, a real, avoidable performance cost for
+ * ordinary panning that has nothing to do with this feature. */
+function NodeDetailPopup({
+  node,
+  graphNode,
+  context,
+  onClose,
+}: {
+  node: PlanNode
+  graphNode: PlanGraphNode
+  context: PlanContext
+  onClose: () => void
+}) {
+  const { flowToScreenPosition } = useReactFlow()
+  // Subscribing to the live viewport (not just reading it once) is the
+  // whole mechanism here: React Flow re-renders this component on every
+  // pan/zoom tick, so `flowToScreenPosition` below is re-evaluated against
+  // the CURRENT transform every time — the "confirmed with the user: live-
+  // reposition every frame, not close-on-pan/zoom" behavior falls out of
+  // ordinary React re-rendering, not a bespoke animation loop.
+  const { zoom } = useViewport()
+  const width = graphNode.width ?? 160
+  const height = graphNode.height ?? 56
+  const screenTopLeft = flowToScreenPosition({ x: graphNode.position.x, y: graphNode.position.y })
+  const anchor = { x: screenTopLeft.x, y: screenTopLeft.y, width: width * zoom, height: height * zoom }
+  // Matches detailPanel.css's `.detail-panel--popup` sizing
+  // (`min(360px, ...)`/`min(70vh, 520px)`) — an upper-bound estimate for
+  // clamping purposes, not a real DOM measurement (the panel's actual
+  // rendered height is content-dependent, capped by that same max-height).
+  const position = computePopupPosition(anchor, { width: 360, height: 520 }, { width: window.innerWidth, height: window.innerHeight })
+  return <DetailPanel node={node} context={context} onClose={onClose} variant="popup" position={position} />
+}
 
 /**
  * Story 18.4, spec §4: "Arrowheads are a fixed 11px regardless of stroke

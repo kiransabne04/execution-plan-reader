@@ -21,8 +21,18 @@ export interface DetailPanelProps {
    * grid-track element above 1180px, falling back to the same fixed-
    * overlay-with-scrim behavior below it — see detailPanel.css's
    * `--in-shell` rules and docs/12-ui-redesign-spec.md §2's breakpoint
-   * table. */
-  variant?: "overlay" | "shell"
+   * table. Story 22.2 — "popup" is a small, node-anchored card instead of
+   * an edge-docked panel: same content/component, positioned by the
+   * caller via the `position` prop below (only PlanGraph knows a node's
+   * on-screen coordinate — see popupPosition.ts). */
+  variant?: "overlay" | "shell" | "popup"
+  /** Story 22.2 — required when `variant="popup"`, ignored otherwise.
+   * Viewport-relative pixel coordinates (matching React Flow's own
+   * `flowToScreenPosition()`/`clientX`/`clientY` convention) already run
+   * through `computePopupPosition`'s clamp/flip logic — this component
+   * applies them as-is via inline `left`/`top`, it doesn't recompute or
+   * re-clamp anything itself. */
+  position?: { left: number; top: number }
   /** Story 18.3 — lifts Beginner/Expert to page-level state (the app
    * bar's segmented control, shared with Story 18.9's walkthrough) so it
    * doesn't reset every time a different node is opened. Both omitted:
@@ -53,6 +63,7 @@ export function DetailPanel({
   context,
   onClose,
   variant = "overlay",
+  position,
   expertMode: controlledExpertMode,
   onExpertModeChange,
 }: DetailPanelProps) {
@@ -98,7 +109,20 @@ export function DetailPanel({
 
   return (
     <div
-      className={variant === "shell" ? "detail-panel detail-panel--in-shell" : "detail-panel"}
+      className={
+        variant === "shell"
+          ? "detail-panel detail-panel--in-shell"
+          : variant === "popup"
+            ? "detail-panel detail-panel--popup"
+            : "detail-panel"
+      }
+      // Inline styles beat every external rule regardless of specificity —
+      // explicitly setting all four edges (not just left/top) is what
+      // actually neutralizes the narrow-viewport bottom-sheet rule's own
+      // `right: 0; bottom: 0` (detailPanel.css's `@media (max-width:
+      // 619px)` block), which would otherwise stretch this into a
+      // half-positioned, half-stretched box on a narrow screen.
+      style={variant === "popup" && position ? { left: position.left, top: position.top, right: "auto", bottom: "auto" } : undefined}
       role="dialog"
       aria-label={`Details for ${node.rawOperatorLabel}`}
       data-testid="detail-panel"
