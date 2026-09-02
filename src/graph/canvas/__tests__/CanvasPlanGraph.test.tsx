@@ -134,6 +134,76 @@ describe("CanvasPlanGraph", () => {
     expect(() => fireEvent.wheel(canvas, { clientX: 400, clientY: 300, deltaY: -100 })).not.toThrow()
   })
 
+  describe("Episode 22, Story 22.3 — onSelectedNodeScreenAnchorChange", () => {
+    it("reports the selected node's screen anchor, combining worldToScreen with the canvas element's own bounding rect", () => {
+      const onAnchorChange = vi.fn()
+      render(
+        <CanvasPlanGraph
+          nodes={[singleNode("only")]}
+          edges={[]}
+          selectedNodeId="only"
+          onSelectNode={vi.fn()}
+          onExpandCollapsedGroup={vi.fn()}
+          onSelectedNodeScreenAnchorChange={onAnchorChange}
+        />,
+      )
+
+      expect(onAnchorChange).toHaveBeenCalled()
+      const anchor = onAnchorChange.mock.calls.at(-1)![0]
+      expect(anchor).toBeDefined()
+      // fitTransform centers the sole node in the 800x600 mocked viewport —
+      // its anchor's center should land near the viewport's own center.
+      expect(anchor.x + anchor.width / 2).toBeCloseTo(400, 0)
+      expect(anchor.y + anchor.height / 2).toBeCloseTo(300, 0)
+    })
+
+    it("reports undefined when nothing is selected", () => {
+      const onAnchorChange = vi.fn()
+      render(
+        <CanvasPlanGraph
+          nodes={[singleNode("only")]}
+          edges={[]}
+          onSelectNode={vi.fn()}
+          onExpandCollapsedGroup={vi.fn()}
+          onSelectedNodeScreenAnchorChange={onAnchorChange}
+        />,
+      )
+      expect(onAnchorChange).toHaveBeenLastCalledWith(undefined)
+    })
+
+    it("re-reports a new anchor as the transform changes (a drag/pan) — the live-repositioning mechanism, not a one-shot value", () => {
+      const onAnchorChange = vi.fn()
+      render(
+        <CanvasPlanGraph
+          nodes={[singleNode("only")]}
+          edges={[]}
+          selectedNodeId="only"
+          onSelectNode={vi.fn()}
+          onExpandCollapsedGroup={vi.fn()}
+          onSelectedNodeScreenAnchorChange={onAnchorChange}
+        />,
+      )
+      const beforePan = onAnchorChange.mock.calls.at(-1)![0]
+      onAnchorChange.mockClear()
+
+      const canvas = screen.getByTestId("canvas-plan-graph-surface")
+      fireEvent.pointerDown(canvas, { pointerId: 1, clientX: 400, clientY: 300 })
+      fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 460, clientY: 340 }) // past DRAG_THRESHOLD_PX
+      fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 460, clientY: 340 })
+
+      expect(onAnchorChange).toHaveBeenCalled()
+      const afterPan = onAnchorChange.mock.calls.at(-1)![0]
+      expect(afterPan.x).toBeCloseTo(beforePan.x + 60, 0)
+      expect(afterPan.y).toBeCloseTo(beforePan.y + 40, 0)
+    })
+
+    it("never fires (no-op) when the callback prop is omitted — additive, changes nothing for existing 'panel'-mode callers", () => {
+      expect(() =>
+        render(<CanvasPlanGraph nodes={[singleNode("only")]} edges={[]} selectedNodeId="only" onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />),
+      ).not.toThrow()
+    })
+  })
+
   it("pauses scheduling a redraw while the tab is hidden (rule 5)", () => {
     const rafSpy = vi.spyOn(window, "requestAnimationFrame")
     const { rerender } = render(<CanvasPlanGraph nodes={[singleNode("a")]} edges={[]} onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
