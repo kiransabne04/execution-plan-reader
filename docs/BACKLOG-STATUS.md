@@ -106,6 +106,12 @@ Verified in a real browser, not just jsdom (which has no real `<canvas>` 2d cont
 
 Verified in a real browser, not just fake-indexeddb: `e2e/local-persistence.spec.ts` (save/reload/restore, dismiss-then-still-available, recent-plans add/reopen, don't-save opt-out, clear-saved-data) and a dedicated privacy check extending Episode 7's guarding per the story's own explicit requirement — `e2e/privacy-no-network-calls.spec.ts`'s new "Story 17.1/17.2" test drives the full save → reload → restore → browse-recent-plans round trip with network interception active, asserting zero outbound requests.
 
+## Episode 18 — UI redesign
+Full story-by-story detail lives in `docs/08-episodes-and-stories.md` Episode 18 (all 14 stories done, `new-ui` merged into `main`) — not duplicated here, since this row exists only to carry a post-ship retrofit found this session.
+| Story | Status | Notes |
+|---|---|---|
+| 18.9 — Guided walkthrough mode | done (retrofit this session) | Real bug + design gap found via manual testing on a large SQL Server stored-procedure batch, framed by the user as "any intern developer should be able to understand the complex execution plan based on the walk through." (1) `buildStepNarration`'s step heading used the glossary's generic `entry.displayName` ("Append") instead of `node.rawOperatorLabel` ("Concatenation") — the one surface in the app that didn't match the graph card/detail panel/findings list, breaking the mental link between the narration and the actual node. Now always `rawOperatorLabel`; `entry.displayName` isn't read anywhere in the app anymore. (2) The walkthrough gave no indication of which statement (out of 100+) it was touring, and never highlighted/panned the graph behind the dimmed overlay. Added an optional `statementLabel` (shown only for multi-statement batches) and `onStepChange(nodeId)` wired to the SAME `focusNodeId` mechanism the exit handler already used — the right-rail detail panel now stays live-synced to the current step, not just on exit. Verified live: heading/graph/detail-panel all agree ("Concatenation"), statement label visible, panel updates on every Next/Previous |
+
 ## Episode 20 — Multi-statement batch usability (large stored-procedure plans)
 | Story | Status | Notes |
 |---|---|---|

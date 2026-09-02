@@ -26,9 +26,24 @@ export interface WalkthroughOverlayProps {
    * same plumbing) so the shell reopens with that node's detail panel
    * already showing. */
   onExit: (lastViewedNodeId: string) => void
+  /** Story 20.6 — which statement this walkthrough is touring, shown
+   * under the step counter. Omitted entirely for a single-statement plan
+   * (Postgres, Snowflake, most SQL Server input) — there's nothing to
+   * disambiguate there, and the header renders exactly as before this
+   * story. On a large multi-statement batch, this is the only thing
+   * telling the reader WHICH of the batch's many statements they're
+   * currently being walked through. */
+  statementLabel?: string
+  /** Story 20.6 — fired with the current step's node id every time the
+   * step changes (including on mount, for step 1), so the caller can pan/
+   * highlight that node in the graph behind the dimmed overlay via the
+   * SAME `focusNodeId` mechanism `onExit` above already uses — not a
+   * second, parallel highlighting mechanism. Optional and additive:
+   * omitting it changes nothing about this component's own behavior. */
+  onStepChange?: (nodeId: string) => void
 }
 
-export function WalkthroughOverlay({ root, context, expertMode, onExpertModeChange, onExit }: WalkthroughOverlayProps) {
+export function WalkthroughOverlay({ root, context, expertMode, onExpertModeChange, onExit, statementLabel, onStepChange }: WalkthroughOverlayProps) {
   const { steps, isMinimal } = computeWalkthroughSteps(root, context)
   const [stepIndex, setStepIndex] = useState(0)
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -42,6 +57,17 @@ export function WalkthroughOverlay({ root, context, expertMode, onExpertModeChan
   }, [stepIndex])
 
   const currentNode = steps[stepIndex]
+
+  // Story 20.6 — same idea as the focus-the-heading effect above, fired
+  // on the same "step changed" trigger (including the initial mount):
+  // point the graph behind the dimmed overlay at whatever node this step
+  // is actually about, so a reader can glance past the card and see
+  // roughly where they are, rather than the graph sitting frozen on
+  // whatever was selected before the walkthrough opened.
+  useEffect(() => {
+    onStepChange?.(currentNode.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentNode.id])
   const narration = buildStepNarration(currentNode, context, expertMode)
   const isFirst = stepIndex === 0
   const isLast = stepIndex === steps.length - 1
@@ -95,6 +121,15 @@ export function WalkthroughOverlay({ root, context, expertMode, onExpertModeChan
             ×
           </button>
         </header>
+
+        {/* Story 20.6 — only rendered at all for a multi-statement batch
+            (see this prop's own doc comment); a single-statement plan's
+            walkthrough is visually unchanged by this story. */}
+        {statementLabel && (
+          <p className="walkthrough-overlay__statement-label" data-testid="walkthrough-statement-label">
+            {statementLabel}
+          </p>
+        )}
 
         <h2 className="walkthrough-overlay__heading" tabIndex={-1} ref={headingRef} data-testid="walkthrough-step-heading">
           {narration.displayName}

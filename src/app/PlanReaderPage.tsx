@@ -1019,6 +1019,17 @@ export function PlanReaderPage() {
             setIsWalkthroughOpen(false)
             setFocusNodeId(lastViewedNodeId)
           }}
+          // Story 20.6 — only meaningful once there's more than one
+          // statement to disambiguate between; a single-statement plan's
+          // walkthrough header is unchanged.
+          statementLabel={analyzed && analyzed.statements.length > 1 ? activeStatement.label : undefined}
+          // Story 20.6 — reuses the exact same focusNodeId channel `onExit`
+          // above already feeds: pans/selects the current step's node in
+          // the graph behind the dimmed overlay (and, as a bonus rather
+          // than a problem, keeps the right-rail detail panel in sync with
+          // whatever the walkthrough is currently narrating) as the reader
+          // steps through, not only once on exit.
+          onStepChange={setFocusNodeId}
         />
       )}
 

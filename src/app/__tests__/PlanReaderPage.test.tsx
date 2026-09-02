@@ -331,6 +331,49 @@ describe("PlanReaderPage", () => {
 
       expect(screen.getByTestId("walkthrough-mode-expert")).toHaveAttribute("aria-pressed", "true")
     })
+
+    // Story 20.6 — a large multi-statement batch's walkthrough previously
+    // gave no indication of WHICH statement (out of possibly hundreds) it
+    // was touring.
+    it("shows the active statement's label in the walkthrough for a multi-statement batch", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
+      fireEvent.click(screen.getByTestId("walkthrough-open"))
+
+      expect(screen.getByTestId("walkthrough-statement-label")).toHaveTextContent("SELECT * FROM Orders")
+    })
+
+    it("does NOT show a statement label for a single-statement plan — no regression for the common case", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      fireEvent.click(screen.getByTestId("walkthrough-open"))
+
+      expect(screen.queryByTestId("walkthrough-statement-label")).not.toBeInTheDocument()
+    })
+
+    // Story 20.6 — the graph/detail-panel behind the dimmed overlay now
+    // stays in sync with the current step, not frozen on whatever was
+    // selected before the walkthrough opened, and not only updated once
+    // on exit.
+    it("stepping through the walkthrough keeps the (still-mounted, dimmed) detail panel in sync with the current step's node, not just on exit", () => {
+      // Reuses a real fixture with an actual multi-node tree so there's a
+      // genuine step-2 node distinct from the root to switch to.
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
+      fireEvent.click(screen.getByTestId("walkthrough-open"))
+
+      // Step 1's node is already reflected in the detail panel — not just
+      // after Escape/Finish.
+      expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+      const firstStepHeading = screen.getByTestId("walkthrough-step-heading").textContent
+
+      fireEvent.click(screen.getByTestId("walkthrough-next"))
+      const secondStepHeading = screen.getByTestId("walkthrough-step-heading").textContent
+      expect(secondStepHeading).not.toBe(firstStepHeading)
+      // The detail panel's own display name tracks the new step, live,
+      // while the walkthrough is still open.
+      expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent(secondStepHeading!)
+    })
   })
 
   // Episode 16, Story 16.2 audit finding: a pathologically deep (not
