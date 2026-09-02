@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { clampScale, fitTransform, screenToWorld, zoomAtPoint, IDENTITY_TRANSFORM, MIN_SCALE, MAX_SCALE } from "../viewportTransform"
+import { clampScale, fitTransform, screenToWorld, worldToScreen, zoomAtPoint, IDENTITY_TRANSFORM, MIN_SCALE, MAX_SCALE } from "../viewportTransform"
 
 describe("clampScale", () => {
   it("clamps below MIN_SCALE and above MAX_SCALE", () => {
@@ -28,6 +28,46 @@ describe("screenToWorld", () => {
 
   it("accounts for pan and scale together", () => {
     expect(screenToWorld({ x: 220, y: 120 }, { x: 20, y: 20, scale: 2 })).toEqual({ x: 100, y: 50 })
+  })
+})
+
+describe("worldToScreen", () => {
+  it("is the identity at the identity transform", () => {
+    expect(worldToScreen({ x: 50, y: 80 }, IDENTITY_TRANSFORM)).toEqual({ x: 50, y: 80 })
+  })
+
+  it("accounts for pan offset", () => {
+    expect(worldToScreen({ x: 10, y: 10 }, { x: 100, y: 50, scale: 1 })).toEqual({ x: 110, y: 60 })
+  })
+
+  it("accounts for scale", () => {
+    expect(worldToScreen({ x: 100, y: 50 }, { x: 0, y: 0, scale: 2 })).toEqual({ x: 200, y: 100 })
+  })
+
+  it("accounts for pan and scale together", () => {
+    expect(worldToScreen({ x: 100, y: 50 }, { x: 20, y: 20, scale: 2 })).toEqual({ x: 220, y: 120 })
+  })
+
+  it("round-trips with screenToWorld — the cheapest, strongest correctness check for an inverse-function pair", () => {
+    const transforms: Array<{ x: number; y: number; scale: number }> = [
+      IDENTITY_TRANSFORM,
+      { x: 123.4, y: -56.7, scale: 1.75 },
+      { x: -300, y: 40, scale: MIN_SCALE },
+      { x: 0, y: 0, scale: MAX_SCALE },
+    ]
+    const points = [
+      { x: 0, y: 0 },
+      { x: 500, y: 250 },
+      { x: -120, y: 875.5 },
+    ]
+    for (const transform of transforms) {
+      for (const point of points) {
+        const world = screenToWorld(point, transform)
+        const backToScreen = worldToScreen(world, transform)
+        expect(backToScreen.x).toBeCloseTo(point.x, 6)
+        expect(backToScreen.y).toBeCloseTo(point.y, 6)
+      }
+    }
   })
 })
 

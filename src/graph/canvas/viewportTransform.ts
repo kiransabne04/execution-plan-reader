@@ -29,6 +29,20 @@ export function screenToWorld(screen: { x: number; y: number }, transform: Viewp
   }
 }
 
+/** Episode 22, Story 22.3 — the exact inverse of `screenToWorld` above:
+ * a world/graph coordinate to its current on-screen (canvas-local, same
+ * "relative to the canvas element's own top-left" convention as
+ * `screenToWorld`'s own input) position. This is what the node-anchored
+ * detail popup needs: `screenToWorld` turns a click into "which node did
+ * you hit," `worldToScreen` turns a hit node's own position back into
+ * "where should the popup that describes it render." */
+export function worldToScreen(world: { x: number; y: number }, transform: ViewportTransform): { x: number; y: number } {
+  return {
+    x: world.x * transform.scale + transform.x,
+    y: world.y * transform.scale + transform.y,
+  }
+}
+
 /** Zoom around a fixed screen point (e.g. the cursor) rather than the
  * canvas origin — standard "zoom toward where you're pointing" behavior,
  * without which every zoom step would visibly recenter the view. */

@@ -119,20 +119,25 @@ export interface PlanGraphProps {
    * `onNodeSelected`/`onDetailPanelChange` above, not a second source of
    * truth — the shell never sets collapse state itself. */
   onCollapsedCountChange?: (count: number) => void
-  /** Episode 22, Story 22.2 — "panel" (default) is every existing behavior
-   * unchanged (the right-rail/overlay `DetailPanel`, via
-   * `externalDetailPanel`/`onDetailPanelChange` or this component's own
-   * internal render). "popup" is the app shell's maximized mode: this
-   * component renders `DetailPanel` itself with `variant="popup"`,
-   * positioned next to the clicked node via `flowToScreenPosition()` +
-   * `computePopupPosition` — only this component (inside the
-   * `ReactFlowProvider`) can compute that coordinate, so unlike the
-   * "panel" path this isn't reported outward for the caller to render.
-   * `onDetailPanelChange` still fires as normal either way (PlanReaderPage
-   * uses it for its own Escape-stacking logic — see Story 22.1) even
-   * though it no longer decides what gets rendered in "popup" mode.
-   * Canvas-rendering mode (Story 22.3) is entirely separate — this prop
-   * only affects the DOM/SVG branch below. */
+  /** Episode 22, Story 22.2 (DOM/SVG mode) + Story 22.3 (canvas mode) —
+   * "panel" (default) is every existing behavior unchanged (the right-
+   * rail/overlay `DetailPanel`, via `externalDetailPanel`/
+   * `onDetailPanelChange` or this component's own internal render).
+   * "popup" is the app shell's maximized mode: this component renders
+   * `DetailPanel` itself with `variant="popup"`, positioned next to the
+   * clicked node — via `flowToScreenPosition()` + `computePopupPosition`
+   * in the DOM/SVG branch (`NodeDetailPopup`), or via `CanvasPlanGraph`'s
+   * own `onSelectedNodeScreenAnchorChange` + `worldToScreen` in the canvas
+   * branch (`CanvasNodeDetailPopup`) — only this component (or, in canvas
+   * mode, its `CanvasPlanGraph` child) can compute that coordinate, so
+   * unlike the "panel" path this isn't reported outward for the caller to
+   * render. `onDetailPanelChange` still fires as normal either way
+   * (PlanReaderPage uses it for its own Escape-stacking logic — see Story
+   * 22.1) even though it no longer decides what gets rendered in "popup"
+   * mode. The accessible-list fallback (canvas mode, Story 15.2) keeps the
+   * plain panel/overlay behavior even when this is "popup" — it has no
+   * node-position concept to anchor a popup to (this episode's own edge
+   * case). */
   nodeDetailVariant?: "panel" | "popup"
 }
 
@@ -394,6 +399,14 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
   // simply doesn't render until `nodes` catches up on the next render.
   const selectedGraphNode = selectedNodeId !== undefined ? nodes.find((n) => n.id === selectedNodeId) : undefined
 
+  // Episode 22, Story 22.3 — canvas mode's own equivalent of the DOM/SVG
+  // path's `flowToScreenPosition()`-derived anchor: reported outward by
+  // `CanvasPlanGraph` (it's the one that owns the live pan/zoom `transform`
+  // and the canvas element's own `getBoundingClientRect()`) via
+  // `onSelectedNodeScreenAnchorChange`, on every pan/drag/wheel-zoom tick —
+  // that's the live-repositioning mechanism, not a separate loop here.
+  const [canvasPopupAnchor, setCanvasPopupAnchor] = useState<{ x: number; y: number; width: number; height: number } | undefined>(undefined)
+
   // Story 18.2 — report the panel outward instead of rendering it here,
   // when the caller has taken over placement. A plain effect (not computed
   // inline in the return below): `onDetailPanelChange` is how the PARENT's
@@ -457,9 +470,40 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
             selectedNodeId={selectedNodeId}
             onSelectNode={openPanel}
             onExpandCollapsedGroup={expandCollapsedGroup}
+            // Story 22.3 — only wired up in popup mode: the accessible
+            // list has no node-position concept to anchor a popup to at
+            // all (this episode's own edge-case table), and it isn't even
+            // mounted alongside CanvasPlanGraph (the ternary above), so
+            // this only ever matters for the branch that's actually
+            // showing. Passing `undefined` in "panel" mode is deliberate,
+            // not an oversight — it makes CanvasPlanGraph's own reporting
+            // effect a no-op, matching how DOM/SVG mode's NodeDetailPopup
+            // simply isn't mounted at all outside popup mode.
+            onSelectedNodeScreenAnchorChange={nodeDetailVariant === "popup" ? setCanvasPopupAnchor : undefined}
           />
         )}
-        {!externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
+        {/* Story 22.3 — same "popup" vs "panel" split Story 22.2 gave the
+            DOM/SVG branch above, via the SAME `nodeDetailVariant` prop —
+            with one extra wrinkle "popup" mode alone doesn't have: the
+            accessible list (Story 15.2) has no node-position concept to
+            anchor a popup to at all (this episode's own edge-case table).
+            `nodeDetailVariant === "popup"` is also, from the caller's own
+            perspective, the signal that it's hidden ITS external rendering
+            (PlanReaderPage suppresses the right rail while maximized,
+            trusting a popup to show instead — see Story 22.1) — so when
+            BOTH are true (maximized AND the accessible list is showing),
+            neither the popup NOR the caller's own external panel is
+            reachable unless this component falls back to rendering
+            directly itself, `externalDetailPanel` notwithstanding. This is
+            a real, found-via-testing gap this line specifically closes:
+            without it, opening a node through the accessible list while
+            maximized silently showed nothing at all. */}
+        {nodeDetailVariant === "popup"
+          ? showAccessibleList
+            ? selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />
+            : selectedNode &&
+              canvasPopupAnchor && <CanvasNodeDetailPopup node={selectedNode} context={resolvedContext} onClose={closePanel} anchor={canvasPopupAnchor} />
+          : !externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
       </div>
     )
   }
@@ -534,11 +578,48 @@ function NodeDetailPopup({
   const height = graphNode.height ?? 56
   const screenTopLeft = flowToScreenPosition({ x: graphNode.position.x, y: graphNode.position.y })
   const anchor = { x: screenTopLeft.x, y: screenTopLeft.y, width: width * zoom, height: height * zoom }
-  // Matches detailPanel.css's `.detail-panel--popup` sizing
-  // (`min(360px, ...)`/`min(70vh, 520px)`) — an upper-bound estimate for
-  // clamping purposes, not a real DOM measurement (the panel's actual
-  // rendered height is content-dependent, capped by that same max-height).
-  const position = computePopupPosition(anchor, { width: 360, height: 520 }, { width: window.innerWidth, height: window.innerHeight })
+  const position = computePopupPosition(anchor, POPUP_ESTIMATED_SIZE, viewportSize())
+  return <DetailPanel node={node} context={context} onClose={onClose} variant="popup" position={position} />
+}
+
+/** Matches detailPanel.css's `.detail-panel--popup` sizing (`min(360px,
+ * ...)`/`min(70vh, 520px)`) — an upper-bound estimate for clamping
+ * purposes, not a real DOM measurement (the panel's actual rendered height
+ * is content-dependent, capped by that same max-height). Shared by both
+ * `NodeDetailPopup` (DOM/SVG mode, Story 22.2) and `CanvasNodeDetailPopup`
+ * below (canvas mode, Story 22.3) — one popup implementation, one size
+ * estimate, never two independently-drifting copies. */
+const POPUP_ESTIMATED_SIZE = { width: 360, height: 520 }
+
+/** `window.innerWidth`/`innerHeight` is the right viewport for a popup
+ * positioned via `position: fixed` — same basis `flowToScreenPosition()`'s
+ * own `getBoundingClientRect()`-based screen coordinates already assume.
+ * Read fresh on every call (not memoized) since a real browser resize is
+ * exactly the case a stale cached value would get wrong. */
+function viewportSize() {
+  return { width: window.innerWidth, height: window.innerHeight }
+}
+
+/** Episode 22, Story 22.3 — canvas mode's own node-anchored popup. The SAME
+ * `DetailPanel`/`computePopupPosition` `NodeDetailPopup` above uses for
+ * DOM/SVG mode — this component is entirely about FEEDING it a correct
+ * position in canvas mode, never a second popup implementation. Unlike
+ * `NodeDetailPopup` (which computes its own anchor via React Flow hooks),
+ * the anchor here is simply a prop: only `CanvasPlanGraph` owns the live
+ * pan/zoom `transform` and the canvas element's own bounding rect needed to
+ * compute it (see that component's `onSelectedNodeScreenAnchorChange`). */
+function CanvasNodeDetailPopup({
+  node,
+  context,
+  onClose,
+  anchor,
+}: {
+  node: PlanNode
+  context: PlanContext
+  onClose: () => void
+  anchor: { x: number; y: number; width: number; height: number }
+}) {
+  const position = computePopupPosition(anchor, POPUP_ESTIMATED_SIZE, viewportSize())
   return <DetailPanel node={node} context={context} onClose={onClose} variant="popup" position={position} />
 }
 

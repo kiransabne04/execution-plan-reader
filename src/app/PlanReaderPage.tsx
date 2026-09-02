@@ -24,7 +24,6 @@ import {
   SearchPalette,
   WalkthroughOverlay,
   SEVERITY_LABEL,
-  CANVAS_NODE_COUNT_THRESHOLD,
   type PlanGraphHandle,
 } from "../graph"
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
@@ -472,14 +471,6 @@ export function PlanReaderPage() {
   // means its root always carries the figure when any node has one, so
   // this is strictly more correct there too, never less.
   const activeStatementNodes = activeStatement ? collectNodes(activeStatement.root) : []
-  // Episode 22, Story 22.2 — the SAME threshold PlanGraph.tsx uses
-  // internally to pick canvas-rendering mode (`useCanvas` there), re-derived
-  // from data this component already computes rather than a new prop/
-  // callback: PlanGraph only renders the node-anchored popup itself in its
-  // DOM/SVG branch (Story 22.3 gives canvas mode its own, separate
-  // mechanism) — until that story lands, canvas mode while maximized keeps
-  // this story's own interim overlay-variant fallback below.
-  const isCanvasMode = activeStatementNodes.length > CANVAS_NODE_COUNT_THRESHOLD
   const metricLabel = activeStatementNodes.some((n) => n.actualTimeMs !== undefined)
     ? "actual time"
     : activeStatementNodes.some((n) => n.estimatedCost !== undefined)
@@ -1134,34 +1125,15 @@ export function PlanReaderPage() {
                       onDetailPanelChange={handleDetailPanelChange}
                       matchedNodeIds={matchedNodeIds}
                       onCollapsedCountChange={setCollapsedCount}
-                      // Story 22.2 — DOM/SVG mode renders its own node-
-                      // anchored popup when maximized (only it can compute a
-                      // node's screen position). Canvas mode (Story 22.3, not
-                      // built yet) still needs this story's own interim
-                      // overlay-variant fallback just below, since PlanGraph
-                      // only implements "popup" in its DOM/SVG branch so far.
-                      nodeDetailVariant={isMaximized && !isCanvasMode ? "popup" : "panel"}
+                      // Stories 22.2 (DOM/SVG mode) + 22.3 (canvas mode) —
+                      // PlanGraph now renders its own node-anchored popup
+                      // itself in BOTH rendering modes when maximized (only
+                      // it, or its CanvasPlanGraph child, can compute a
+                      // node's on-screen position). Story 22.1's own interim
+                      // overlay-variant fallback for canvas mode is gone —
+                      // Story 22.3 gave it a real popup mechanism of its own.
+                      nodeDetailVariant={isMaximized ? "popup" : "panel"}
                     />
-
-                    {/* Story 22.1's own interim behavior, now narrowed to
-                        canvas mode only (Story 22.2 gave DOM/SVG mode a real
-                        node-anchored popup, rendered by PlanGraph itself —
-                        see `nodeDetailVariant` above): reuses the exact same
-                        `detailPanel` state/component the right rail below
-                        uses, never a second content surface, so maximizing a
-                        LARGE (canvas-mode) plan doesn't silently break node-
-                        detail access before Story 22.3 gives canvas mode its
-                        own popup mechanism. */}
-                    {isMaximized && isCanvasMode && detailPanel && (
-                      <DetailPanel
-                        node={detailPanel.node}
-                        context={detailPanel.context}
-                        onClose={detailPanel.onClose}
-                        variant="overlay"
-                        expertMode={expertMode}
-                        onExpertModeChange={setExpertMode}
-                      />
-                    )}
                   </div>
                 </main>
               )}

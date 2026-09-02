@@ -17,6 +17,7 @@ import { resolveCssVar } from "./cssVars"
 import {
   fitTransform,
   screenToWorld,
+  worldToScreen,
   zoomAtPoint,
   IDENTITY_TRANSFORM,
   type ViewportTransform,
@@ -29,6 +30,21 @@ export interface CanvasPlanGraphProps {
   selectedNodeId?: string
   onSelectNode: (nodeId: string) => void
   onExpandCollapsedGroup: (parentPlanNodeId: string) => void
+  /** Episode 22, Story 22.3 — the selected node's current on-screen
+   * bounding rect (viewport-relative pixels, matching `flowToScreenPosition`'s
+   * own convention in the DOM/SVG path's `NodeDetailPopup`), or `undefined`
+   * when nothing's selected. Recomputed via `worldToScreen` + the canvas
+   * element's own `getBoundingClientRect()` in a dedicated effect below,
+   * keyed on `transform` — so it fires again on every pan/drag/wheel-zoom
+   * tick, not just once at click time. That's the whole mechanism behind
+   * this story's own "live-repositions during pan/zoom" requirement: the
+   * PARENT (`PlanGraph.tsx`) just re-renders the popup at whatever anchor
+   * this reports, the same "derive from current state on every render, no
+   * separate tracking loop" idea `NodeDetailPopup` already uses for
+   * DOM/SVG mode. Optional and additive — omitting it changes nothing
+   * about this component's own behavior (existing `panel`-mode callers
+   * never pass it). */
+  onSelectedNodeScreenAnchorChange?: (anchor: { x: number; y: number; width: number; height: number } | undefined) => void
 }
 
 const DRAG_THRESHOLD_PX = 4
@@ -41,6 +57,7 @@ export function CanvasPlanGraph({
   selectedNodeId,
   onSelectNode,
   onExpandCollapsedGroup,
+  onSelectedNodeScreenAnchorChange,
 }: CanvasPlanGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -169,6 +186,47 @@ export function CanvasPlanGraph({
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     }
   }, [nodes, edges, transform, selectedNodeId, size, dpr, isVisible])
+
+  // Episode 22, Story 22.3 — reports the selected node's live on-screen
+  // anchor outward (see this prop's own doc comment). Deliberately its own
+  // effect, not folded into the draw effect above: this is cheap arithmetic
+  // that should run every time `transform` changes (including mid-drag,
+  // every `handlePointerMove` tick), not batched behind a
+  // requestAnimationFrame the way the actual `ctx.draw*` calls are (Rule 3
+  // is about avoiding EXPENSIVE redundant canvas work, not about this).
+  useEffect(() => {
+    if (!onSelectedNodeScreenAnchorChange) return
+    const node = selectedNodeId !== undefined ? nodes.find((n) => n.id === selectedNodeId) : undefined
+    if (!node) {
+      onSelectedNodeScreenAnchorChange(undefined)
+      return
+    }
+    // Same two-step composition React Flow's own `flowToScreenPosition`
+    // does internally (viewportTransform.ts's own doc comment on
+    // `worldToScreen`): the pure world-to-canvas-local math, then adding
+    // the canvas element's own `getBoundingClientRect()` offset to land on
+    // true viewport-relative coordinates — `position: fixed` popup styling
+    // needs the latter, not the former.
+    const rect = canvasRef.current?.getBoundingClientRect()
+    const width = node.width ?? 160
+    const height = node.height ?? 56
+    const local = worldToScreen(node.position, transform)
+    const anchor = {
+      x: local.x + (rect?.left ?? 0),
+      y: local.y + (rect?.top ?? 0),
+      width: width * transform.scale,
+      height: height * transform.scale,
+    }
+    // Defensive guard (this file's own numeric-edge-case discipline, Rule
+    // 3's sibling concern): an extreme zoom or a node far from the world
+    // origin should degrade to "no popup this frame," never a NaN/Infinity
+    // reaching the DOM as an inline style.
+    if (![anchor.x, anchor.y, anchor.width, anchor.height].every(Number.isFinite)) {
+      onSelectedNodeScreenAnchorChange(undefined)
+      return
+    }
+    onSelectedNodeScreenAnchorChange(anchor)
+  }, [selectedNodeId, transform, nodes, onSelectedNodeScreenAnchorChange])
 
   // Pointer interaction: drag-to-pan, and a click (movement below the drag
   // threshold) resolves via hit-testing (rule 2) rather than any DOM event
