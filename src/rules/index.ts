@@ -25,6 +25,15 @@ export { estimateOnlyNote } from "./estimateOnlyNote"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
 export { collectAllFindings, type Finding } from "./findings"
 export { categorizeFinding, FINDING_CATEGORY_ORDER, type FindingCategory } from "./findingCategory"
+export {
+  computeQueryHealth,
+  QUERY_HEALTH_DIMENSIONS,
+  type QueryHealth,
+  type QueryHealthDimension,
+  type DimensionResult,
+  type DimensionScored,
+  type DimensionInsufficientData,
+} from "./queryHealth"
 
 export const ALL_RULES: Rule[] = [
   diskSpill,
