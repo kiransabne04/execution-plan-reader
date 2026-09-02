@@ -56,8 +56,12 @@ export interface QueryHealth {
  * benchmarked" note (`PlanGraph.tsx`). An `info`-severity finding never
  * penalizes (no defect rule currently emits `info` — the two honesty-note
  * rules are excluded entirely below, not merely zero-penalized). */
-const CRITICAL_PENALTY = 30
-const WARNING_PENALTY = 12
+// Exported so QueryHealthCard's own "how this is calculated" disclosure
+// (Story 23.3) can be tested against these exact numbers directly, rather
+// than the UI's prose text silently drifting out of sync with the real
+// formula over time.
+export const CRITICAL_PENALTY = 30
+export const WARNING_PENALTY = 12
 
 // Disclosure notes about the plan's own nature (parameter sensitivity,
 // estimate-only), never defects — excluded from scoring entirely, not

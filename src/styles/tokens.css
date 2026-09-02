@@ -152,6 +152,18 @@
   --fl-info-border: color-mix(in srgb, var(--color-accent) 45%, transparent);
   --fl-info-text: var(--color-accent-hover);
 
+  /* src/graph/queryHealth/queryHealthCard.css — Episode 23, Story 23.3.
+     "healthy" is this card's own name for what every other severity
+     surface in this app calls "info"/clean — a raw 0-100 score has no
+     info tier of its own, so it borrows the success color instead. */
+  --qh-border: var(--color-border);
+  --qh-text-muted: var(--color-text-muted);
+  --qh-critical: var(--color-critical);
+  --qh-warning: var(--color-warning-text);
+  --qh-healthy: var(--color-success);
+  --qh-insufficient-bg: color-mix(in srgb, var(--color-text) 6%, var(--color-surface));
+  --qh-insufficient-text: var(--color-text-muted);
+
   /* src/index.css — the Vite template's own leftover token names. Kept as
      aliases for the same zero-usage-site-risk reason as the rest of this
      file: the generic h1/h2/code/#root rules in index.css still read
