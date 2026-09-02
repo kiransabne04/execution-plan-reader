@@ -840,6 +840,126 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     })
   })
 
+  describe("Episode 22, Story 22.1 — maximize-to-viewport canvas mode", () => {
+    it("toggling maximize applies/removes the fixed-overlay class and preserves the selected node/active statement across the toggle", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
+
+      const tabs = screen.getAllByRole("tab")
+      fireEvent.click(tabs[1]) // switch off the default statement first, so we can assert it SURVIVES the toggle below
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0]) // open a detail panel too
+
+      const graphPane = screen.getByTestId("plan-shell-graph")
+      expect(graphPane).not.toHaveClass("plan-shell__graph--maximized")
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      expect(graphPane).toHaveClass("plan-shell__graph--maximized")
+      expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true") // active statement preserved
+      // Story 22.1's own interim behavior: the detail panel that was open
+      // moves INTO the maximized pane (overlay variant), it doesn't close.
+      expect(within(graphPane).getByTestId("detail-panel")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      expect(graphPane).not.toHaveClass("plan-shell__graph--maximized")
+      expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true")
+    })
+
+    it("Escape restores from maximized mode", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      expect(screen.getByTestId("plan-shell-graph")).toHaveClass("plan-shell__graph--maximized")
+
+      fireEvent.keyDown(document, { key: "Escape" })
+      expect(screen.getByTestId("plan-shell-graph")).not.toHaveClass("plan-shell__graph--maximized")
+    })
+
+    it("Escape closes an open detail panel FIRST, innermost-modal-first — a second Escape then restores from maximize", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+
+      fireEvent.keyDown(document, { key: "Escape" })
+      expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+      expect(screen.getByTestId("plan-shell-graph")).toHaveClass("plan-shell__graph--maximized") // still maximized
+
+      fireEvent.keyDown(document, { key: "Escape" })
+      expect(screen.getByTestId("plan-shell-graph")).not.toHaveClass("plan-shell__graph--maximized")
+    })
+
+    it("an open WalkthroughOverlay wins over Escape-to-restore — Escape closes the walkthrough, not maximize", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      fireEvent.click(screen.getByTestId("maximized-walkthrough-open"))
+      expect(screen.getByTestId("walkthrough-overlay")).toBeInTheDocument()
+
+      fireEvent.keyDown(screen.getByTestId("walkthrough-overlay"), { key: "Escape" })
+      expect(screen.queryByTestId("walkthrough-overlay")).not.toBeInTheDocument()
+      expect(screen.getByTestId("plan-shell-graph")).toHaveClass("plan-shell__graph--maximized") // maximize untouched
+    })
+
+    it("keeps Findings, Beginner/Expert, and Walk-me-through reachable while maximized", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+
+      const toolbar = screen.getByTestId("maximized-toolbar")
+      expect(within(toolbar).getByTestId("maximized-mode-beginner")).toBeInTheDocument()
+      expect(within(toolbar).getByTestId("maximized-walkthrough-open")).toBeInTheDocument()
+
+      // Findings opens as a drawer inside the maximized pane, reusing the
+      // exact same <FindingsList> the left rail uses (not a new surface).
+      expect(screen.queryByTestId("maximized-findings-panel")).not.toBeInTheDocument()
+      fireEvent.click(within(toolbar).getByTestId("maximized-findings-toggle"))
+      expect(screen.getByTestId("maximized-findings-panel")).toBeInTheDocument()
+      expect(within(screen.getByTestId("maximized-findings-panel")).getByTestId("findings-list")).toBeInTheDocument()
+
+      // The maximized toolbar's own Beginner/Expert toggle drives the SAME
+      // lifted page state the app-bar's copy does — not a third, independent
+      // toggle (Story 18.3's own established rule).
+      fireEvent.click(within(toolbar).getByTestId("maximized-mode-expert"))
+      expect(screen.getByTestId("shell-mode-expert")).toHaveAttribute("aria-pressed", "true")
+    })
+
+    it("shows a compact statement dropdown (not the full tab strip) while maximized, for a multi-statement batch, and switching it drives the same switchToStatement flow the tab strip uses", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+
+      const select = screen.getByTestId("maximized-statement-select")
+      expect(select).toBeInTheDocument()
+
+      const tabs = screen.getAllByRole("tab")
+      expect(tabs[0]).toHaveAttribute("aria-selected", "true")
+
+      fireEvent.change(select, { target: { value: "1" } })
+      expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true")
+    })
+
+    it("does not show the statement dropdown while maximized for a single-statement plan", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      expect(screen.queryByTestId("maximized-statement-select")).not.toBeInTheDocument()
+    })
+
+    it("a fresh analyze resets out of maximized mode — a new result screen starts un-maximized", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      expect(screen.getByTestId("plan-shell-graph")).toHaveClass("plan-shell__graph--maximized")
+
+      pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
+      expect(screen.getByTestId("plan-shell-graph")).not.toHaveClass("plan-shell__graph--maximized")
+    })
+  })
+
   describe("Episode 18, Story 18.3 — Beginner/Expert lifted to page-level state", () => {
     // Design review (reference mock): the panel's own former Beginner/
     // Expert toggle is gone in the shell (`variant="shell"`) — the app
