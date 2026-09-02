@@ -23,6 +23,29 @@ function loadFixture(engine: string, filename: string): string {
   return readFileSync(path.join(dir, filename), "utf-8")
 }
 
+// Episode 22, Story 22.2 — a synthetic Postgres plan crossing
+// CANVAS_NODE_COUNT_THRESHOLD (300), so PlanGraph switches to canvas-
+// rendering mode: a plain chain of wrapping "Nested Loop" nodes over one
+// "Seq Scan" leaf, `nodeCount` nodes total. No fixture file in the repo is
+// this large, and this story specifically needs to distinguish
+// canvas-mode's own interim overlay fallback from DOM/SVG mode's real
+// node-anchored popup.
+function buildLargePostgresPlanText(nodeCount: number): string {
+  let plan: Record<string, unknown> = {
+    "Node Type": "Seq Scan",
+    "Relation Name": "t",
+    "Alias": "t",
+    "Startup Cost": 0,
+    "Total Cost": 1,
+    "Plan Rows": 1,
+    "Plan Width": 4,
+  }
+  for (let i = 1; i < nodeCount; i++) {
+    plan = { "Node Type": "Nested Loop", "Startup Cost": 0, "Total Cost": 1, "Plan Rows": 1, "Plan Width": 4, Plans: [plan] }
+  }
+  return JSON.stringify([{ Plan: plan }])
+}
+
 // Episode 17: PlanReaderPage now touches the local persistence layer
 // (IndexedDB, faked in tests — see src/__tests__/setup.ts) on every
 // successful analyze. Without this, one test's save could bleed into the
@@ -855,9 +878,11 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
       expect(graphPane).toHaveClass("plan-shell__graph--maximized")
       expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true") // active statement preserved
-      // Story 22.1's own interim behavior: the detail panel that was open
-      // moves INTO the maximized pane (overlay variant), it doesn't close.
-      expect(within(graphPane).getByTestId("detail-panel")).toBeInTheDocument()
+      // Story 22.2: this fixture stays in DOM/SVG mode, so the detail panel
+      // that was open moves into PlanGraph's own node-anchored popup, not
+      // Story 22.1's canvas-mode-only interim overlay fallback (see the
+      // dedicated Story 22.2 describe block below for that distinction).
+      expect(within(graphPane).getByTestId("detail-panel")).toHaveClass("detail-panel--popup")
 
       fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
       expect(graphPane).not.toHaveClass("plan-shell__graph--maximized")
@@ -957,6 +982,47 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
       expect(screen.getByTestId("plan-shell-graph")).not.toHaveClass("plan-shell__graph--maximized")
+    })
+  })
+
+  describe("Episode 22, Story 22.2 — node-anchored detail popup (DOM/SVG mode)", () => {
+    it("a small (DOM/SVG-mode) plan gets the real node-anchored popup while maximized, not Story 22.1's canvas-only interim overlay", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+
+      const panel = screen.getByTestId("detail-panel")
+      expect(panel).toHaveClass("detail-panel--popup")
+      expect(panel).not.toHaveClass("detail-panel--in-shell")
+    })
+
+    it("does not open any popup outside maximized mode — normal-mode node clicks are exactly as before this story", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      const rightRail = screen.getByTestId("plan-shell-right-rail")
+      expect(within(rightRail).getByTestId("detail-panel")).toHaveClass("detail-panel--in-shell")
+      expect(screen.queryByTestId("detail-panel")).not.toHaveClass("detail-panel--popup")
+    })
+
+    it("a large (canvas-mode) plan keeps Story 22.1's own interim overlay fallback while maximized — Story 22.3 hasn't given canvas mode its own popup yet", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(buildLargePostgresPlanText(320))
+      expect(screen.getByTestId("canvas-mode-banner")).toBeInTheDocument() // confirms this plan actually triggered canvas mode
+
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      // Canvas mode has no DOM node cards to click — the accessible list
+      // (Story 15.2) is its real, keyboard/screen-reader-reachable way to
+      // open a node's detail panel.
+      fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+      fireEvent.click(screen.getAllByTestId("accessible-plan-list-item")[0])
+
+      const panel = screen.getByTestId("detail-panel")
+      expect(panel).not.toHaveClass("detail-panel--popup") // PlanGraph's canvas branch doesn't implement popup mode yet
+      expect(panel.style.left).toBe("") // the interim fallback is the plain "overlay" variant, not a positioned popup
     })
   })
 

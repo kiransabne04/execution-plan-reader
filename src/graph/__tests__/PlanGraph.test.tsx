@@ -292,6 +292,83 @@ describe("PlanGraph", () => {
   })
 })
 
+describe("PlanGraph — Episode 22, Story 22.2 — node-anchored detail popup (DOM/SVG mode)", () => {
+  it("nodeDetailVariant='popup' opens a popup-variant DetailPanel, positioned via inline left/top, instead of the default edge-docked panel", () => {
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join" })
+    render(<PlanGraph root={root} nodeDetailVariant="popup" />)
+
+    fireEvent.click(screen.getByTestId("plan-node-card"))
+    const panel = screen.getByTestId("detail-panel")
+    expect(panel).toHaveClass("detail-panel--popup")
+    // A real, finite pixel position — not the default variant's edge-docked
+    // "no inline position" styling.
+    expect(panel.style.left).toMatch(/^-?\d+(\.\d+)?px$/)
+    expect(panel.style.top).toMatch(/^-?\d+(\.\d+)?px$/)
+  })
+
+  it("clicking a different node while the popup is open closes the first and opens the second at the new position — never two at once", () => {
+    const a = makeNode({ id: "a", rawOperatorLabel: "Seq Scan" })
+    const b = makeNode({ id: "b", rawOperatorLabel: "Index Scan" })
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join", children: [a, b] })
+    render(<PlanGraph root={root} nodeDetailVariant="popup" />)
+
+    const cards = screen.getAllByTestId("plan-node-card")
+    const aCard = cards.find((c) => c.getAttribute("data-node-id") === "a")!
+    const bCard = cards.find((c) => c.getAttribute("data-node-id") === "b")!
+
+    fireEvent.click(aCard)
+    expect(screen.getAllByTestId("detail-panel")).toHaveLength(1)
+    expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Seq Scan")
+
+    fireEvent.click(bCard)
+    expect(screen.getAllByTestId("detail-panel")).toHaveLength(1)
+    expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Index Scan")
+  })
+
+  it("keyboard activation (Enter) opens the popup too, not just a mouse click", () => {
+    const root = makeNode({ id: "root", rawOperatorLabel: "Seq Scan" })
+    render(<PlanGraph root={root} nodeDetailVariant="popup" />)
+
+    const card = screen.getByTestId("plan-node-card")
+    card.focus()
+    fireEvent.keyDown(card, { key: "Enter" })
+    expect(screen.getByTestId("detail-panel")).toHaveClass("detail-panel--popup")
+  })
+
+  it("Escape and the close button both still close the popup, reusing DetailPanel's own existing behavior unchanged", () => {
+    const root = makeNode({ id: "root" })
+    render(<PlanGraph root={root} nodeDetailVariant="popup" />)
+
+    fireEvent.click(screen.getByTestId("plan-node-card"))
+    expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("plan-node-card"))
+    fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+    expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+  })
+
+  it("a collapsed-group placeholder click still just expands it — never opens a popup for the placeholder itself", () => {
+    const root = buildLargePlan(DOM_MODE_COLLAPSE_FILLER_DEPTH)
+    render(<PlanGraph root={root} nodeDetailVariant="popup" />)
+
+    expect(screen.getByTestId("collapsed-group-node")).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId("collapsed-group-node"))
+    expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+  })
+
+  it("default nodeDetailVariant ('panel') is completely unaffected — this story changes nothing about normal-mode behavior", () => {
+    const root = makeNode({ id: "root", rawOperatorLabel: "Hash Join" })
+    render(<PlanGraph root={root} />)
+
+    fireEvent.click(screen.getByTestId("plan-node-card"))
+    const panel = screen.getByTestId("detail-panel")
+    expect(panel).not.toHaveClass("detail-panel--popup")
+    expect(panel.style.left).toBe("")
+  })
+})
+
 // Episode 15 — above CANVAS_NODE_COUNT_THRESHOLD, PlanGraph switches from
 // the DOM/SVG <ReactFlow> tree to the canvas rendering path, with the
 // accessible list as its required companion (Story 15.2). Pointer-driven
