@@ -311,6 +311,24 @@ describe("parseSqlServerShowplanXml", () => {
     }
   })
 
+  // Episode 23, Story 23.2
+  it("captures the QueryPlan's DegreeOfParallelism/NonParallelPlanReason onto the ROOT node's own parallel field, not per-node", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("parallel-shortfall-with-reason.xml"))
+    const root = result.statements[0].root
+    expect(root.parallel?.compiledDegreeOfParallelism).toBe(8)
+    expect(root.parallel?.nonParallelPlanReason).toBe("NoParallelDueToRowsetOverhead")
+    // A non-root child node never carries these query-level fields.
+    for (const child of root.children) {
+      expect(child.parallel?.compiledDegreeOfParallelism).toBeUndefined()
+    }
+  })
+
+  it("leaves root.parallel entirely undefined when the QueryPlan has neither attribute", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
+    expect(result.statements[0].root.parallel?.compiledDegreeOfParallelism).toBeUndefined()
+    expect(result.statements[0].root.parallel?.nonParallelPlanReason).toBeUndefined()
+  })
+
   it("gives every node in every fixture a stable id and non-empty children array", () => {
     for (const fixture of [
       "default-namespace-scan.xml",

@@ -88,6 +88,22 @@ export interface PruningInfo {
 export interface ParallelInfo {
   workersLaunched?: number
   workersPlanned?: number
+  /** Episode 23, Story 23.2 — SQL Server-specific, root-node-only: the
+   * COMPILED plan's degree of parallelism (`QueryPlan`'s own
+   * `DegreeOfParallelism` XML attribute), a query-level fact genuinely
+   * different from `workersLaunched` above (a per-node OBSERVED thread
+   * count). SQL Server has no per-node "planned" concept the way
+   * Postgres's `workersPlanned` is — DOP is decided once, for the whole
+   * compiled plan, not per operator. */
+  compiledDegreeOfParallelism?: number
+  /** SQL Server-specific, root-node-only: `QueryPlan`'s own
+   * `NonParallelPlanReason` attribute, when SQL Server recorded why a plan
+   * didn't run in parallel. Enrichment only (see `parallelWorkerShortfall.ts`'s
+   * own doc comment for why this never independently triggers a finding) —
+   * this app doesn't have a verified, complete enumeration of every reason
+   * string SQL Server can emit, and some describe a deliberate
+   * configuration choice, not a problem. */
+  nonParallelPlanReason?: string
 }
 
 /** Snowflake-specific — no Postgres/SQL Server equivalent. Snowflake doesn't

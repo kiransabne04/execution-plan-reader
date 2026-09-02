@@ -105,12 +105,18 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
         (n) => n.io?.bufferHits !== undefined || n.io?.bufferReads !== undefined || n.timeBreakdown?.localDiskIoPercentage !== undefined || n.timeBreakdown?.remoteDiskIoPercentage !== undefined,
       )
     case "parallelism":
-      // Postgres only, for now — both fields genuinely populated.
-      // Story 23.2 extends this to also recognize SQL Server's
-      // context.compiledDegreeOfParallelism once that field exists;
-      // Snowflake has no signal to add here at all (Episode 23's own
-      // dimension table — a permanent, checked ceiling, not a gap).
-      return nodes.some((n) => n.parallel?.workersPlanned !== undefined && n.parallel?.workersLaunched !== undefined)
+      // Postgres: per-node, both fields genuinely populated
+      // (extendedFields.ts). SQL Server: query-level — real per-node
+      // thread-count data must exist (hasActualData) alongside a real
+      // compiled DOP figure (Story 23.2's own new context field), the
+      // exact same gate `parallelWorkerShortfall.ts`'s own SQL Server
+      // check uses, not a second, differently-worded copy of it. Snowflake
+      // has no signal to add here at all (Episode 23's own dimension
+      // table — a permanent, checked ceiling, not a gap).
+      return (
+        nodes.some((n) => n.parallel?.workersPlanned !== undefined && n.parallel?.workersLaunched !== undefined) ||
+        (context.hasActualData && context.compiledDegreeOfParallelism !== undefined && context.compiledDegreeOfParallelism > 1)
+      )
   }
 }
 

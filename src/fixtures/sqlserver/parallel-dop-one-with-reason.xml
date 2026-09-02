@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM SmallTable" StatementId="1" StatementCompId="1">
+          <QueryPlan DegreeOfParallelism="1" NonParallelPlanReason="MaxDOPSetToOne">
+            <RelOp NodeId="0" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="500" EstimatedTotalSubtreeCost="1.0">
+              <RunTimeInformation>
+                <RunTimeCountersPerThread Thread="0" ActualRows="500" ActualExecutions="1" ActualElapsedms="4" />
+              </RunTimeInformation>
+              <TableScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[SmallTable]" />
+              </TableScan>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>
