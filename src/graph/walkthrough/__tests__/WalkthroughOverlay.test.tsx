@@ -21,7 +21,10 @@ describe("WalkthroughOverlay", () => {
     render(<WalkthroughOverlay root={root} context={buildPlanContext(root)} expertMode={false} onExpertModeChange={() => {}} onExit={() => {}} />)
 
     expect(screen.getByTestId("walkthrough-step-counter")).toHaveTextContent("Step 1 of 2")
-    expect(screen.getByTestId("walkthrough-step-heading")).toHaveTextContent(/Sequential Scan/i)
+    // Story 20.6: the raw label ("Seq Scan"), not the glossary's generic
+    // cross-engine name ("Sequential Scan") — matching the graph card and
+    // detail panel, which never showed the generic name to begin with.
+    expect(screen.getByTestId("walkthrough-step-heading")).toHaveTextContent(/Seq Scan/i)
     expect(screen.getByTestId("walkthrough-prev")).toBeDisabled()
 
     fireEvent.click(screen.getByTestId("walkthrough-next"))
@@ -114,5 +117,59 @@ describe("WalkthroughOverlay", () => {
     const { root } = buildMultiStepRoot()
     render(<WalkthroughOverlay root={root} context={buildPlanContext(root)} expertMode={false} onExpertModeChange={() => {}} onExit={() => {}} />)
     expect(screen.getByTestId("walkthrough-findings")).toHaveTextContent("short")
+  })
+
+  describe("Story 20.6 — statement label and step-change highlighting", () => {
+    it("shows the statement label when provided", () => {
+      const { root } = buildMultiStepRoot()
+      render(
+        <WalkthroughOverlay
+          root={root}
+          context={buildPlanContext(root)}
+          expertMode={false}
+          onExpertModeChange={() => {}}
+          onExit={() => {}}
+          statementLabel="UPDATE dbo.Orders SET Status = 'Shipped'"
+        />,
+      )
+      expect(screen.getByTestId("walkthrough-statement-label")).toHaveTextContent("UPDATE dbo.Orders SET Status = 'Shipped'")
+    })
+
+    it("renders no statement label at all when omitted — no regression for the single-statement common case", () => {
+      const { root } = buildMultiStepRoot()
+      render(<WalkthroughOverlay root={root} context={buildPlanContext(root)} expertMode={false} onExpertModeChange={() => {}} onExit={() => {}} />)
+      expect(screen.queryByTestId("walkthrough-statement-label")).not.toBeInTheDocument()
+    })
+
+    it("calls onStepChange with the first step's node id on mount", () => {
+      const { root, leaf } = buildMultiStepRoot()
+      const onStepChange = vi.fn()
+      render(
+        <WalkthroughOverlay root={root} context={buildPlanContext(root)} expertMode={false} onExpertModeChange={() => {}} onExit={() => {}} onStepChange={onStepChange} />,
+      )
+      expect(onStepChange).toHaveBeenCalledWith(leaf.id)
+    })
+
+    it("calls onStepChange again with the new node id on Next/Previous, not just on mount", () => {
+      const { root, leaf } = buildMultiStepRoot()
+      const onStepChange = vi.fn()
+      render(
+        <WalkthroughOverlay root={root} context={buildPlanContext(root)} expertMode={false} onExpertModeChange={() => {}} onExit={() => {}} onStepChange={onStepChange} />,
+      )
+      onStepChange.mockClear() // isolate the click below from the mount call already asserted above
+
+      fireEvent.click(screen.getByTestId("walkthrough-next"))
+      expect(onStepChange).toHaveBeenCalledWith("root")
+
+      fireEvent.click(screen.getByTestId("walkthrough-prev"))
+      expect(onStepChange).toHaveBeenCalledWith(leaf.id)
+    })
+
+    it("never throws when onStepChange is omitted — it's optional and additive", () => {
+      const { root } = buildMultiStepRoot()
+      expect(() =>
+        render(<WalkthroughOverlay root={root} context={buildPlanContext(root)} expertMode={false} onExpertModeChange={() => {}} onExit={() => {}} />),
+      ).not.toThrow()
+    })
   })
 })

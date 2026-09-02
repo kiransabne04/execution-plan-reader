@@ -28,6 +28,20 @@ describe("buildStepNarration", () => {
     expect(narration.displayName).toBe("Weird Op")
   })
 
+  // Story 20.6 — real bug found via manual testing: this is the ONE place
+  // in the app that showed the glossary's generic, engine-agnostic
+  // `displayName` ("Append") instead of the node's actual raw label
+  // ("Concatenation", SQL Server's own term) — every other surface (graph
+  // card, detail panel, findings list) only ever shows rawOperatorLabel.
+  // An intern reading "Step 2: Append" then looking at a graph node
+  // labeled "Concatenation" had no way to tell they're the same node.
+  it("displayName is ALWAYS the raw label, never the glossary's generic cross-engine name, even when a glossary entry exists with a different displayName", () => {
+    const node = makeNode({ id: "a", operatorType: "append", rawOperatorLabel: "Concatenation", actualTimeMs: 10 })
+    const narration = buildStepNarration(node, buildPlanContext(node), false)
+    expect(narration.displayName).toBe("Concatenation")
+    expect(narration.displayName).not.toBe("Append") // the glossary's own displayName for "append" — must never leak in here
+  })
+
   it("Beginner findings use shortText, Expert findings use longText — same inversion WarningsSection.tsx uses", () => {
     const node = makeNode({
       id: "a",

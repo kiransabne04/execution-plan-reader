@@ -13,6 +13,14 @@ import { getGlossaryEntry, getGlossaryFallback } from "../glossary"
 import { computeContributionPercent } from "../detailPanel/computeContributionPercent"
 
 export interface WalkthroughStepNarration {
+  /** Always `node.rawOperatorLabel` — the SAME label the graph card,
+   * detail panel, and findings list all show for this exact node
+   * (Story 20.6 fix). The glossary's own `entry.displayName` is a
+   * generic, engine-agnostic name ("Append") used nowhere else in this
+   * app — showing it here instead of the raw label ("Concatenation")
+   * made the walkthrough the one surface where the SAME node appeared
+   * to have two different names, breaking the mental link between what
+   * the walkthrough narrates and what's visible in the graph behind it. */
   displayName: string
   /** Same field OperatorEducation.tsx's "What this does" section reads for
    * this exact mode — `entry.longDefinition` in Beginner, `entry.shortDefinition`
@@ -38,10 +46,9 @@ export function buildStepNarration(node: PlanNode, context: PlanContext, expertM
       ? entry.shortDefinition
       : entry.longDefinition
     : getGlossaryFallback(node.rawOperatorLabel).message
-  const displayName = entry?.displayName ?? node.rawOperatorLabel
 
   return {
-    displayName,
+    displayName: node.rawOperatorLabel,
     explanation,
     findings: node.warnings.map((w) => (expertMode ? w.longText : w.shortText)),
     contributionPercent: computeContributionPercent(node, context),
