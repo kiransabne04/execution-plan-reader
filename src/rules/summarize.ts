@@ -42,7 +42,7 @@ export const OPENERS: Record<Exclude<SummarySeverity, "none">, string> = {
   info: "This plan looks mostly fine, with a minor note: ",
 }
 
-interface Finding {
+export interface Finding {
   nodeId: string
   family: string
   warning: Warning
@@ -63,8 +63,12 @@ function collectFindings(root: PlanNode): Finding[] {
   )
 }
 
-/** Keep only the highest-severity instance per family/theme. */
-function dedupeByFamily(findings: Finding[]): Finding[] {
+/** Keep only the highest-severity instance per family/theme. Exported for
+ * Episode 23's `queryHealth.ts`, which needs the exact same "worst instance
+ * per rule family wins" reduction to turn a dimension's findings into ONE
+ * penalty per family rather than one per node — not a second, independently
+ * drifting copy of this logic. */
+export function dedupeByFamily(findings: Finding[]): Finding[] {
   const bestByFamily = new Map<string, Finding>()
   for (const finding of findings) {
     const existing = bestByFamily.get(finding.family)
