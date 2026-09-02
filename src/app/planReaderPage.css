@@ -820,18 +820,32 @@
   overflow: hidden;
 }
 
-/* Design review (reference mock) — docked top-left over the canvas. Above
-   React Flow's own panes/background (z-index 5 or lower); the actual
-   search UI is still the existing modal palette (searchPalette.css) —
-   this is only the trigger. */
-.plan-shell__search-trigger {
+/* Episode 22, Story 22.1 — docked top-left over the canvas, above React
+   Flow's own panes/background (z-index 5 or lower). Was the search
+   trigger's own absolute positioning directly; now a shared wrapper so the
+   new maximize toggle sits beside it as a second flex item, rather than
+   colliding with React Flow's top-right zoom Controls (unaffected, still
+   docked top-right in DOM mode via planGraph.css). */
+.plan-shell__graph-toolbar {
   position: absolute;
   top: 12px;
   left: 12px;
   z-index: 6;
   display: flex;
   align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+}
+
+/* Design review (reference mock) — the actual search UI is still the
+   existing modal palette (searchPalette.css); this is only the trigger.
+   Positioning now comes from `.plan-shell__graph-toolbar` above, not this
+   element directly (Story 22.1). */
+.plan-shell__search-trigger {
+  display: flex;
+  align-items: center;
   gap: 10px;
+  min-width: 0;
   max-width: min(320px, calc(100% - 24px));
   padding: 8px 10px;
   border: 1px solid var(--pr-border);
@@ -869,6 +883,94 @@
   padding: 1px 5px;
   font-size: 11px;
   font-family: inherit;
+}
+
+/* Episode 22, Story 22.1 */
+.plan-shell__maximize-toggle {
+  flex: none;
+  padding: 8px 10px;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  background: var(--pr-bg);
+  color: var(--pr-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.plan-shell__maximize-toggle:hover,
+.plan-shell__maximize-toggle:focus-visible {
+  border-color: var(--pr-accent);
+  color: var(--pr-text);
+}
+
+/* Confirmed with the user: maximize means filling the WHOLE browser
+   viewport, matching WalkthroughOverlay's own `position: fixed; inset: 0`
+   pattern (walkthroughOverlay.css) — not the real Fullscreen API. z-index
+   15: above the shell's own normal content and the narrow-shell detail
+   scrim (19 is ABOVE this — see note below on why that's fine), but below
+   WalkthroughOverlay (25) and SearchPalette (30), so opening either from
+   inside a maximized graph still renders correctly on top of it, per this
+   story's own explicit stacking-order requirement.
+   The narrow-shell `.plan-shell__detail-scrim` (19) sitting above this is
+   harmless: that scrim only ever renders together with the right rail's
+   own `<DetailPanel>`, which Story 22.1 suppresses entirely while
+   maximized (see PlanReaderPage.tsx) — so the two are never on screen
+   together. */
+.plan-shell__graph--maximized {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  border-radius: 0;
+  background: var(--pr-bg);
+}
+
+/* Live-verified (chrome dev tools, real render): top-RIGHT collides with
+   DetailPanel's own overlay variant, which is `position: fixed; top: 0;
+   right: 0; bottom: 0` at z-index 20 (detailPanel.css) — well above this
+   toolbar's z-index 6, so it would render on top of / hide these controls
+   entirely the moment a node's popup opens. Stacked under the existing
+   top-left graph-toolbar (search trigger + Maximize/Restore) instead,
+   which the right-edge detail panel never reaches. */
+.plan-shell__maximized-toolbar {
+  position: absolute;
+  top: 56px;
+  left: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+}
+
+.plan-shell__maximized-statement-select {
+  padding: 6px 8px;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  background: var(--pr-bg);
+  color: var(--pr-text);
+  font-size: 13px;
+  max-width: 220px;
+}
+
+/* A slide-in drawer for Findings while maximized — the left rail Findings
+   normally lives in is visually covered by the fixed overlay above, so
+   this is a second render location for the exact same `<FindingsList>`
+   component/props (PlanReaderPage.tsx), not new content. */
+.plan-shell__maximized-findings {
+  position: absolute;
+  top: 104px;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  width: min(320px, calc(100% - 24px));
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  background: var(--pr-bg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
 .plan-shell__tabs {
