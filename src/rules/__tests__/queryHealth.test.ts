@@ -219,6 +219,17 @@ describe("computeQueryHealth", () => {
       expect((health.dimensions.cardinality as { status: "scored"; score: number }).score).toBeLessThan(100)
     })
 
+    // Episode 24 — the new rule families must actually move the score,
+    // not be silently ignored (this file's own DIMENSION_RULE_FAMILIES
+    // comment on why an unmapped new rule family would be a real honesty
+    // gap in this feature, not just an oversight).
+    it("Episode 24's memory-dimension rules (hash-batching) drop the Memory score on a real fixture", () => {
+      const { statements } = analyzePlanText(loadFixture("postgres", "rule-disk-spill-hash.json"))
+      const health = computeQueryHealth(statements[0].root, statements[0].context)
+      expect(health.dimensions.memory.status).toBe("scored")
+      expect((health.dimensions.memory as { status: "scored"; score: number }).score).toBeLessThan(100)
+    })
+
     it("a clean real Postgres fixture with no findings scores 100 on every eligible dimension", () => {
       const { statements } = analyzePlanText(loadFixture("postgres", "simple-seq-scan.json"))
       const health = computeQueryHealth(statements[0].root, statements[0].context)
