@@ -1,0 +1,62 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Hash Join",
+      "Join Type": "Inner",
+      "Startup Cost": 500.0,
+      "Total Cost": 95000.0,
+      "Plan Rows": 50000,
+      "Plan Width": 48,
+      "Actual Startup Time": 12.4,
+      "Actual Total Time": 6200.8,
+      "Actual Rows": 50000,
+      "Actual Loops": 1,
+      "Hash Cond": "(a.customer_id = b.customer_id)",
+      "Join Filter": "(a.amount > b.threshold)",
+      "Rows Removed by Join Filter": 19950000,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "orders",
+          "Alias": "a",
+          "Startup Cost": 0.0,
+          "Total Cost": 10000.0,
+          "Plan Rows": 4000000,
+          "Plan Width": 24,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 210.0,
+          "Actual Rows": 4000000,
+          "Actual Loops": 1
+        },
+        {
+          "Node Type": "Hash",
+          "Startup Cost": 350.0,
+          "Total Cost": 350.0,
+          "Plan Rows": 5000,
+          "Plan Width": 24,
+          "Actual Startup Time": 4.1,
+          "Actual Total Time": 4.1,
+          "Actual Rows": 5000,
+          "Actual Loops": 1,
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "thresholds",
+              "Alias": "b",
+              "Startup Cost": 0.0,
+              "Total Cost": 350.0,
+              "Plan Rows": 5000,
+              "Plan Width": 24,
+              "Actual Startup Time": 0.01,
+              "Actual Total Time": 1.8,
+              "Actual Rows": 5000,
+              "Actual Loops": 1
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.3,
+    "Execution Time": 6202.5
+  }
+]

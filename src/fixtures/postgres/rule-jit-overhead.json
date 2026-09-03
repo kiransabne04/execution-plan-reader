@@ -1,0 +1,25 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "big_table",
+      "Alias": "big_table",
+      "Startup Cost": 0.0,
+      "Total Cost": 500000.0,
+      "Plan Rows": 1000000,
+      "Plan Width": 32,
+      "Actual Startup Time": 0.02,
+      "Actual Total Time": 40.0,
+      "Actual Rows": 1000000,
+      "Actual Loops": 1,
+      "Filter": "((a * b + c) > 100)"
+    },
+    "Planning Time": 0.4,
+    "Execution Time": 40.0,
+    "JIT": {
+      "Functions": 4,
+      "Options": { "Inlining": true, "Optimization": true, "Expressions": true, "Deforming": true },
+      "Timing": { "Generation": 0.5, "Inlining": 5.0, "Optimization": 15.0, "Emission": 7.5, "Total": 28.0 }
+    }
+  }
+]

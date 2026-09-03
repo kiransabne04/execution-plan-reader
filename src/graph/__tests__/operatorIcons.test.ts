@@ -65,6 +65,12 @@ const ACCEPTED_UNMAPPED_OPERATOR_TYPES = [
   "exchange",
   "filter",
   "gather",
+  // Episode 24 — the first fixtures to actually exercise Materialize/
+  // Memoize nodes (they existed in operatorMap.ts/this file's own doc
+  // comment as deliberately-unmapped-to-a-specific-icon types already;
+  // no fixture had triggered this sweep to see them until now).
+  "materialize",
+  "memoize",
   "modify_table",
   "result",
   "unknown",

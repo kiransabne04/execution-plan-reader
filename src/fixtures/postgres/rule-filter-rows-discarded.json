@@ -1,0 +1,21 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "events",
+      "Alias": "events",
+      "Startup Cost": 0.0,
+      "Total Cost": 185000.0,
+      "Plan Rows": 100,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.03,
+      "Actual Total Time": 4000.2,
+      "Actual Rows": 100,
+      "Actual Loops": 1,
+      "Filter": "(event_type = 'rare_event')",
+      "Rows Removed by Filter": 9000000
+    },
+    "Planning Time": 0.15,
+    "Execution Time": 4001.0
+  }
+]

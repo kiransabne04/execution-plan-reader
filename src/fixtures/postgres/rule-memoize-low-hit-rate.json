@@ -1,0 +1,67 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Startup Cost": 0.0,
+      "Total Cost": 60000.0,
+      "Plan Rows": 1000,
+      "Plan Width": 48,
+      "Actual Startup Time": 0.1,
+      "Actual Total Time": 420.5,
+      "Actual Rows": 1000,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "orders",
+          "Alias": "orders",
+          "Startup Cost": 0.0,
+          "Total Cost": 500.0,
+          "Plan Rows": 1000,
+          "Plan Width": 16,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 5.1,
+          "Actual Rows": 1000,
+          "Actual Loops": 1
+        },
+        {
+          "Node Type": "Memoize",
+          "Startup Cost": 0.28,
+          "Total Cost": 45.5,
+          "Plan Rows": 1,
+          "Plan Width": 32,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 0.4,
+          "Actual Rows": 1,
+          "Actual Loops": 1000,
+          "Cache Key": "customers.id",
+          "Cache Mode": "logical",
+          "Cache Hits": 100,
+          "Cache Misses": 900,
+          "Cache Evictions": 0,
+          "Cache Overflows": 0,
+          "Peak Memory Usage": 64,
+          "Plans": [
+            {
+              "Node Type": "Index Scan",
+              "Index Name": "customers_pkey",
+              "Relation Name": "customers",
+              "Alias": "customers",
+              "Startup Cost": 0.28,
+              "Total Cost": 45.5,
+              "Plan Rows": 1,
+              "Plan Width": 32,
+              "Actual Startup Time": 0.01,
+              "Actual Total Time": 0.01,
+              "Actual Rows": 1,
+              "Actual Loops": 900
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.25,
+    "Execution Time": 422.0
+  }
+]
