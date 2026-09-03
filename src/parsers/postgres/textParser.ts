@@ -130,14 +130,35 @@ export function parsePostgresTextPlan(rawInput: string): PlanNode {
   // is actually complete, not at node-creation time.
   applyExtendedFieldsToTree(root)
 
+  // Episode 24, Story 24.7 — "Planning Time: 0.123 ms"/"Execution Time:
+  // 1.456 ms" are whole-statement summary lines that land on the root
+  // node's own `attributes` bag via the same generic detail-line mechanism
+  // above (indent 0 falls through to the root — `ownerForDetailIndent`'s
+  // own fallback) — already captured as raw strings there (unchanged, for
+  // backward-compatible display), but never previously promoted to real
+  // typed numbers the way the JSON parser's own root-attrs loop does.
+  root.planningTimeMs = parseMsValue(root.attributes["Planning Time"])
+  root.executionTimeMs = parseMsValue(root.attributes["Execution Time"])
+
   return root
+}
+
+/** `"0.123 ms"` (the TEXT format's own raw-attribute string, unit and all)
+ * -> `0.123`. Only ever called on a value already in `attributes` as a
+ * plain string, never undefined-vs-NaN-ambiguous. */
+function parseMsValue(raw: string | number | undefined): number | undefined {
+  if (typeof raw !== "string") return undefined
+  const match = raw.match(/^([\d.]+)\s*ms$/)
+  if (!match) return undefined
+  const value = Number(match[1])
+  return Number.isFinite(value) ? value : undefined
 }
 
 function applyExtendedFieldsToTree(root: PlanNode): void {
   const stack = [root]
   while (stack.length > 0) {
     const node = stack.pop()!
-    Object.assign(node, derivePostgresExtendedFields(node.attributes, node.actualTimeMs))
+    Object.assign(node, derivePostgresExtendedFields(node.attributes, node.actualTimeMs, node.operatorType))
     stack.push(...node.children)
   }
 }
@@ -164,7 +185,51 @@ function ownerForDetailIndent(stack: StackEntry[], indent: number): PlanNode | u
   return stack[0]?.node
 }
 
+// Episode 24 — a handful of TEXT-format detail lines pack more than one
+// stat onto a single line ("Sort Method: external merge  Disk: 100400kB"),
+// which the generic `DETAIL_KV_RE` (one key, one value, split on the FIRST
+// colon) would otherwise mangle into a single wrong-shaped value. These are
+// checked FIRST and decomposed into the exact same attribute key names the
+// JSON parser already produces (`extendedFields.ts` is shared, deliberately
+// engine-format-agnostic, and reads those key names either way) — best-
+// effort against Postgres's documented/typical TEXT output shape, not
+// verified against a real server; a fixture pins down the exact format
+// this app currently recognizes.
+const SORT_METHOD_RE = /^Sort Method:\s*(.+?)\s+(Memory|Disk):\s*(\d+)kB\s*$/
+const HASH_BUCKETS_RE = /^Buckets:\s*(\d+)(?:\s*\(originally\s+\d+\))?\s+Batches:\s*(\d+)(?:\s*\(originally\s+(\d+)\))?\s+Memory Usage:\s*(\d+)kB\s*$/
+const WAL_LINE_RE = /^WAL:\s*(.+)$/
+
 function applyDetailLine(owner: PlanNode, text: string): void {
+  const sortMatch = text.match(SORT_METHOD_RE)
+  if (sortMatch) {
+    const [, method, spaceType, spaceUsedKb] = sortMatch
+    owner.attributes["Sort Method"] = method.trim()
+    owner.attributes["Sort Space Type"] = spaceType
+    owner.attributes["Sort Space Used"] = spaceUsedKb
+    return
+  }
+
+  const hashMatch = text.match(HASH_BUCKETS_RE)
+  if (hashMatch) {
+    const [, buckets, batches, originalBatches, memoryKb] = hashMatch
+    owner.attributes["Hash Buckets"] = buckets
+    owner.attributes["Hash Batches"] = batches
+    if (originalBatches !== undefined) owner.attributes["Original Hash Batches"] = originalBatches
+    owner.attributes["Peak Memory Usage"] = memoryKb
+    return
+  }
+
+  const walMatch = text.match(WAL_LINE_RE)
+  if (walMatch) {
+    for (const pair of walMatch[1].split(/\s+/)) {
+      const [key, value] = pair.split("=")
+      if (key === "records") owner.attributes["WAL Records"] = value
+      else if (key === "fpi") owner.attributes["WAL FPI"] = value
+      else if (key === "bytes") owner.attributes["WAL Bytes"] = value
+    }
+    return
+  }
+
   const m = text.match(DETAIL_KV_RE)
   if (!m) return // unrecognized detail line — best-effort; skip rather than crash
   const [, key, value] = m

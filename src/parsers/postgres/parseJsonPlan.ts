@@ -63,6 +63,30 @@ export function parsePostgresJsonPlan(rawInput: string): PlanNode {
         root.attributes[key] = toAttributeValue(container[key])
       }
     }
+
+    // Episode 24, Story 24.7 — the SAME two figures above, ALSO promoted to
+    // real typed root fields (mirroring how the TEXT parser's own raw-
+    // string versions get parsed into these same fields — see
+    // textParser.ts's `parseMsValue`) rather than left only as raw
+    // strings in `attributes` for a rule to have to re-parse.
+    root.planningTimeMs = toFiniteNumber(container["Planning Time"])
+    root.executionTimeMs = toFiniteNumber(container["Execution Time"])
+
+    // Episode 24, Story 24.8 — `EXPLAIN (ANALYZE)`'s own top-level `JIT`
+    // block, a whole-query fact (see `JitInfo`'s own doc comment,
+    // normalize.ts, for why this is root-node-only, not per-operator).
+    const jitRaw = container["JIT"]
+    if (isRawPlan(jitRaw)) {
+      const timing = isRawPlan(jitRaw["Timing"]) ? jitRaw["Timing"] : undefined
+      const generationMs = toFiniteNumber(timing?.["Generation"])
+      const inliningMs = toFiniteNumber(timing?.["Inlining"])
+      const optimizationMs = toFiniteNumber(timing?.["Optimization"])
+      const emissionMs = toFiniteNumber(timing?.["Emission"])
+      const totalMs = toFiniteNumber(timing?.["Total"])
+      if (generationMs !== undefined || inliningMs !== undefined || optimizationMs !== undefined || emissionMs !== undefined || totalMs !== undefined) {
+        root.jit = { generationMs, inliningMs, optimizationMs, emissionMs, totalMs }
+      }
+    }
   }
 
   return root
@@ -130,7 +154,7 @@ function buildNode(raw: RawPlan, counter: { next: number }, role: PlanNodeRole):
     attributes[key] = toAttributeValue(value)
   }
 
-  const extended = derivePostgresExtendedFields(attributes, actualTimeMs)
+  const extended = derivePostgresExtendedFields(attributes, actualTimeMs, operatorType)
 
   return {
     id,
