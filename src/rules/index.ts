@@ -4,12 +4,24 @@ import { bufferCacheInefficiency } from "./bufferCacheInefficiency"
 import { diskSpill } from "./diskSpill"
 import { estimateOnlyNote } from "./estimateOnlyNote"
 import { explodingJoin } from "./explodingJoin"
+import { filterRowsDiscarded } from "./filterRowsDiscarded"
+import { hashBatching } from "./hashBatching"
 import { highLoopCount } from "./highLoopCount"
+import { indexOnlyHeapFetches } from "./indexOnlyHeapFetches"
+import { jitOverhead } from "./jitOverhead"
+import { joinFilterRowsDiscarded } from "./joinFilterRowsDiscarded"
+import { materializeRepeated } from "./materializeRepeated"
+import { memoizeEffectiveness } from "./memoizeEffectiveness"
 import { missingIndexOpportunity } from "./missingIndexOpportunity"
 import { nonSargablePredicate } from "./nonSargablePredicate"
 import { parallelWorkerShortfall } from "./parallelWorkerShortfall"
 import { parameterSensitivityNote } from "./parameterSensitivityNote"
+import { partitionFanout } from "./partitionFanout"
+import { planningOverhead } from "./planningOverhead"
 import { seqScanOnLargeTable } from "./seqScanOnLargeTable"
+import { sortDiskSpill } from "./sortDiskSpill"
+import { temporaryIo } from "./temporaryIo"
+import { walVolume } from "./walVolume"
 import type { PlanContext, Rule } from "./types"
 
 export * from "./types"
@@ -24,6 +36,19 @@ export { nonSargablePredicate } from "./nonSargablePredicate"
 export { parallelWorkerShortfall, parallelShortfallSeverity } from "./parallelWorkerShortfall"
 export { parameterSensitivityNote } from "./parameterSensitivityNote"
 export { estimateOnlyNote } from "./estimateOnlyNote"
+// Episode 24 — Postgres advanced rules.
+export { indexOnlyHeapFetches } from "./indexOnlyHeapFetches"
+export { filterRowsDiscarded } from "./filterRowsDiscarded"
+export { joinFilterRowsDiscarded } from "./joinFilterRowsDiscarded"
+export { hashBatching } from "./hashBatching"
+export { sortDiskSpill } from "./sortDiskSpill"
+export { temporaryIo } from "./temporaryIo"
+export { planningOverhead } from "./planningOverhead"
+export { jitOverhead } from "./jitOverhead"
+export { materializeRepeated } from "./materializeRepeated"
+export { memoizeEffectiveness } from "./memoizeEffectiveness"
+export { partitionFanout } from "./partitionFanout"
+export { walVolume } from "./walVolume"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
 export { collectAllFindings, type Finding } from "./findings"
 export { categorizeFinding, FINDING_CATEGORY_ORDER, type FindingCategory } from "./findingCategory"
@@ -49,6 +74,19 @@ export const ALL_RULES: Rule[] = [
   nonSargablePredicate,
   bufferCacheInefficiency,
   parallelWorkerShortfall,
+  // Episode 24 — Postgres advanced rules.
+  indexOnlyHeapFetches,
+  filterRowsDiscarded,
+  joinFilterRowsDiscarded,
+  hashBatching,
+  sortDiskSpill,
+  temporaryIo,
+  planningOverhead,
+  jitOverhead,
+  materializeRepeated,
+  memoizeEffectiveness,
+  partitionFanout,
+  walVolume,
   parameterSensitivityNote,
   estimateOnlyNote,
 ]
