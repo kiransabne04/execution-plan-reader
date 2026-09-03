@@ -177,6 +177,27 @@ Both `compiledDegreeOfParallelism` and `nonParallelPlanReason` are captured on `
 
 ---
 
+## 10. Postgres advanced fields (Episode 24)
+
+Every field below is **Postgres-only** — none of it has a SQL Server or Snowflake equivalent this app's data sources expose, so these all live on Postgres-specific sub-objects/rules rather than the shared cross-engine model. JSON key names confirmed against real `EXPLAIN (FORMAT JSON, ANALYZE, BUFFERS, WAL)` output and this repo's own fixtures; TEXT-format equivalents confirmed against Postgres's documented plain-EXPLAIN output shape and locked in with dedicated parser tests (`extendedFields.test.ts`) — three of them (Sort Method+space, Hash Buckets+Batches+Memory, `WAL:` records/fpi/bytes) pack multiple stats onto one combined line that the generic single-`Key: Value`-per-line detail mechanism (`textParser.ts`'s own `DETAIL_KV_RE`) can't parse correctly, so those three got dedicated regexes rather than falling through to the generic path.
+
+| Field | JSON key(s) | TEXT shape | Normalized on |
+|---|---|---|---|
+| Heap fetches (Index Only Scan) | `Heap Fetches` | `Heap Fetches: N` (generic) | `PlanNode.heapFetches`, per-node |
+| Rows removed by a join's own filter | `Rows Removed by Join Filter` | `Rows Removed by Join Filter: N` (generic) | `PlanNode.rowsRemovedByJoinFilter`, per-node |
+| Sort method/space | `Sort Method`, `Sort Space Used` (KB), `Sort Space Type` (`"Disk"`\|`"Memory"`) | `Sort Method: X  Disk: NkB` / `Sort Method: X  Memory: NkB` — ONE combined line, dedicated regex | `PlanNode.sort` (`SortInfo`), per-node, Sort operators only |
+| Hash batching | `Hash Buckets`, `Hash Batches`, `Original Hash Batches`, `Peak Memory Usage` (KB) | `Buckets: N (originally M)  Batches: N (originally M)  Memory Usage: NkB` — ONE combined line, dedicated regex; the buckets-side `(originally M)` isn't captured (no normalized field for it — Postgres's JSON output has no `Original Hash Buckets` key either) | `PlanNode.hash` (`HashInfo`), per-node, Hash operators only |
+| Memoize cache stats | `Cache Hits`, `Cache Misses`, `Cache Evictions`, `Cache Overflows`, `Peak Memory Usage` (KB) | Not specially parsed — TEXT-format Memoize cache-stat lines are a known gap, JSON-only for now | `PlanNode.memoize` (`MemoizeInfo`), per-node, Memoize operators only. **`Peak Memory Usage` is the exact same JSON key Hash also uses** — `extendedFields.ts`'s `derivePostgresExtendedFields` takes `operatorType` specifically to route this one correctly, not guessable from the key name alone |
+| Temp-file I/O | `Temp Read Blocks`, `Temp Written Blocks` | Both generic | `IoInfo.tempReadBlocks`/`tempWrittenBlocks` — a genuinely different I/O concern from `bufferHits`/`bufferReads` (shared buffer cache), which is why they're separate fields on the same `IoInfo` rather than folded together |
+| WAL generation | `WAL Records`, `WAL FPI`, `WAL Bytes` | `WAL: records=N fpi=M bytes=P` — ONE combined line using `key=value` pairs (not `Key: Value`), dedicated regex | `PlanNode.wal` (`WalInfo`), per-node — whichever write operator generated it, not a whole-query fact |
+| Partition-pruning subplans removed | `Subplans Removed` | Generic | `PruningInfo.subplansRemoved` — shares the `pruning` field with Snowflake's `partitionsScanned`/`partitionsTotal` (a related but structurally different "how much did pruning avoid" concept, not the same field reused across engines) |
+| Planning/Execution Time as real numbers | Top-level `Planning Time`/`Execution Time` (already captured as raw strings in `attributes` pre-Episode-24) | Trailing `Planning Time: N ms`/`Execution Time: N ms` summary lines (already landed in the root's raw `attributes` via the generic mechanism pre-Episode-24, just never parsed to a number) | `PlanNode.planningTimeMs`/`executionTimeMs`, root-node-only |
+| JIT compilation timing | Top-level `JIT.Timing` object (`Generation`/`Inlining`/`Optimization`/`Emission`/`Total`) | Not specially parsed — TEXT-format JIT's own multi-line nested block (`JIT:` header + indented `Functions:`/`Options:`/`Timing:` sub-lines) is a known gap, JSON-only for now; lower confidence in getting an unverified multi-line block regex exactly right than the single combined-lines above, so left honestly unsupported rather than guessed | `PlanNode.jit` (`JitInfo`), root-node-only |
+
+**Known TEXT-format gaps, stated plainly rather than silently unsupported**: Memoize's cache-stat line and the JIT block are JSON-only for now. Every other Episode 24 field (including the three combined-line shapes) has real TEXT support, verified with dedicated parser tests — this isn't "TEXT format is second-class," it's "these two specific shapes weren't confirmed carefully enough to ship without a real Postgres instance to check against."
+
+---
+
 ## Summary of genuine cross-engine gaps (state these honestly in the UI, never paper over them)
 
 - **Index type** (btree/gin/gist/hash) — not reliably available from Postgres's plan alone; not applicable to Snowflake at all; directly available on SQL Server via `IndexKind`.
@@ -185,5 +206,6 @@ Both `compiledDegreeOfParallelism` and `nonParallelPlanReason` are captured on `
 - **Loop-based cumulation** — a real concern for Postgres specifically (its `Actual Rows`/`Actual Total Time` are per-loop averages needing an explicit `× Actual Loops` to see the true total — now surfaced directly, see the follow-up decision above); SQL Server's equivalent fields are already real totals in this app's model, and Snowflake has no loop concept in the same form at all.
 - **Partition pruning** — a Snowflake-specific concept (`partitionsScanned`/`partitionsTotal`) with no Postgres/SQL Server equivalent (those engines don't organize storage into pruning-relevant micro-partitions the same way).
 - **Parallelism** (§9 above) — Postgres has both a planned and an observed per-node figure; SQL Server has a query-level planned figure (`DegreeOfParallelism`) but only a per-node observed one, and no per-node "planned" concept at all; Snowflake exposes nothing here whatsoever — a permanent, checked ceiling (Episode 23's own dimension table), not a gap expected to close later.
+- **Every §10 field (Episode 24)** — heap fetches, join-filter row discards, Sort/Hash internals, temp I/O, WAL generation, partition-pruning subplan counts, Planning/JIT timing — all Postgres-only, permanently, not a gap to close: none of these concepts exist in SQL Server's Showplan XML or Snowflake's `GET_QUERY_OPERATOR_STATS()` output at all, checked directly rather than assumed.
 
 This table of gaps should be treated as a living checklist for the `operator-glossary-content` and `graph-visualization` skills: any time the detail panel would otherwise show an empty or zero-looking field for one of these, it should instead show a short, honest "not applicable for this engine" or "not captured in this plan" note.

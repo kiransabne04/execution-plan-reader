@@ -17,6 +17,9 @@ export type FindingCategory =
   | "I/O issues"
   | "Loop issues"
   | "Parallelism issues"
+  | "Planning issues"
+  | "Caching issues"
+  | "Partition issues"
   | "General notes"
 
 // One entry per rule family currently in ALL_RULES (src/rules/index.ts).
@@ -33,6 +36,21 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "buffer-cache-inefficiency": "I/O issues",
   "high-loop-count": "Loop issues",
   "parallel-worker-shortfall": "Parallelism issues",
+  // Episode 24 — Postgres advanced rules.
+  "index-only-heap-fetches": "Scan issues",
+  "filter-rows-discarded": "Scan issues",
+  "join-filter-rows-discarded": "Join issues",
+  "hash-batching": "Spill issues",
+  "sort-disk": "Spill issues",
+  "sort-large": "Spill issues",
+  "temp-io": "Spill issues",
+  "planning-overhead": "Planning issues",
+  "jit-overhead": "Planning issues",
+  "materialize-repeated": "Loop issues",
+  "memoize-low-hit-rate": "Caching issues",
+  "memoize-evictions": "Caching issues",
+  "partition-fanout": "Partition issues",
+  "wal-volume": "I/O issues",
   "parameter-sensitivity-honesty-note": "General notes",
   "estimate-only-plan": "General notes",
 }
@@ -58,5 +76,8 @@ export const FINDING_CATEGORY_ORDER: FindingCategory[] = [
   "I/O issues",
   "Loop issues",
   "Parallelism issues",
+  "Planning issues",
+  "Caching issues",
+  "Partition issues",
   "General notes",
 ]

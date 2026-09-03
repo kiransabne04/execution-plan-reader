@@ -1,0 +1,38 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Sort",
+      "Startup Cost": 45210.5,
+      "Total Cost": 46100.2,
+      "Plan Rows": 200000,
+      "Plan Width": 64,
+      "Actual Startup Time": 850.2,
+      "Actual Total Time": 1120.5,
+      "Actual Rows": 200000,
+      "Actual Loops": 1,
+      "Sort Key": ["created_at DESC"],
+      "Sort Method": "external merge",
+      "Sort Space Used": 102400,
+      "Sort Space Type": "Disk",
+      "Temp Read Blocks": 12800,
+      "Temp Written Blocks": 12800,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "big_table",
+          "Alias": "big_table",
+          "Startup Cost": 0.0,
+          "Total Cost": 30000.0,
+          "Plan Rows": 200000,
+          "Plan Width": 64,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 210.1,
+          "Actual Rows": 200000,
+          "Actual Loops": 1
+        }
+      ]
+    },
+    "Planning Time": 0.15,
+    "Execution Time": 1125.8
+  }
+]

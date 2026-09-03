@@ -1,0 +1,19 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "t",
+      "Alias": "t",
+      "Startup Cost": 0.0,
+      "Total Cost": 10.0,
+      "Plan Rows": 5,
+      "Plan Width": 16,
+      "Actual Startup Time": 0.01,
+      "Actual Total Time": 0.02,
+      "Actual Rows": 5,
+      "Actual Loops": 1
+    },
+    "Planning Time": 240.5,
+    "Execution Time": 8.2
+  }
+]

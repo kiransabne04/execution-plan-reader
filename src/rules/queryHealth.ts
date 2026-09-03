@@ -71,12 +71,38 @@ const EXCLUDED_RULE_IDS = new Set(["parameter-sensitivity-honesty-note", "estima
 
 // Episode 23's own dimension table (docs/08-episodes-and-stories.md) is the
 // actual spec for this mapping — update that table first if this ever
-// changes, per STORY_TEMPLATE.md rule 4.
+// changes, per STORY_TEMPLATE.md rule 4. Episode 24's own 12 new rule
+// families are mapped here too (see that episode's own doc for the
+// reasoning) — leaving a new rule family unmapped would silently let
+// Query Health ignore it forever, which is its own honesty violation:
+// a plan could carry a critical Episode 24 finding and still show a
+// misleadingly clean score. A handful of the new families are info-only
+// (never critical/warning) and so never actually move the score even
+// once mapped — mapped anyway, for the same reason the two honesty-note
+// rules are explicitly EXCLUDED rather than just silently zero-penalty:
+// consistency should be a stated decision, not an accident of which
+// rules happen to emit which severities today.
 const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
-  runtime: ["seq-scan-on-large-table", "high-loop-count"],
-  cardinality: ["bad-row-estimate", "exploding-join", "missing-index-opportunity", "non-sargable-predicate"],
-  memory: ["disk-spill"],
-  io: ["buffer-cache-inefficiency"],
+  runtime: [
+    "seq-scan-on-large-table",
+    "high-loop-count",
+    "index-only-heap-fetches",
+    "planning-overhead",
+    "jit-overhead",
+    "materialize-repeated",
+    "memoize-low-hit-rate",
+  ],
+  cardinality: [
+    "bad-row-estimate",
+    "exploding-join",
+    "missing-index-opportunity",
+    "non-sargable-predicate",
+    "filter-rows-discarded",
+    "join-filter-rows-discarded",
+    "partition-fanout",
+  ],
+  memory: ["disk-spill", "hash-batching", "sort-disk", "sort-large", "temp-io", "memoize-evictions"],
+  io: ["buffer-cache-inefficiency", "wal-volume"],
   // Story 23.2 adds the parallel-worker-shortfall rule that actually feeds
   // this family; the mapping is declared here already so Story 23.2 only
   // has to add the rule + extend `isDimensionEligible` below, not touch

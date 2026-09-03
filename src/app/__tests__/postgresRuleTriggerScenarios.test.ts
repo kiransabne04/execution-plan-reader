@@ -90,4 +90,80 @@ describe("Postgres rule-trigger scenarios — end-to-end (user-requested)", () =
     const ids = allRuleIds(loadFixture("simple-seq-scan.json"))
     expect(ids).toEqual([])
   })
+
+  // Episode 24 — Postgres advanced rules, each through the real parser ->
+  // rule-engine pipeline against a real fixture, per Story 24.13's own
+  // explicit requirement.
+  it("index-only-heap-fetches fires on a 90% heap-fetch ratio", () => {
+    const ids = allRuleIds(loadFixture("rule-index-only-heap-fetches.json"))
+    expect(ids).toContain("index-only-heap-fetches")
+  })
+
+  it("filter-rows-discarded fires on 9M removed vs. 100 returned", () => {
+    const ids = allRuleIds(loadFixture("rule-filter-rows-discarded.json"))
+    expect(ids).toContain("filter-rows-discarded")
+  })
+
+  it("join-filter-rows-discarded fires on 19.95M candidate combinations discarded", () => {
+    const ids = allRuleIds(loadFixture("rule-join-filter-rows-discarded.json"))
+    expect(ids).toContain("join-filter-rows-discarded")
+  })
+
+  it("hash-batching fires on Hash Batches: 4 (reusing the existing disk-spill-hash fixture — both findings legitimately co-occur)", () => {
+    const ids = allRuleIds(loadFixture("rule-disk-spill-hash.json"))
+    expect(ids).toContain("hash-batching")
+    expect(ids).toContain("disk-spill") // the generic signal still fires too — this rule is additive, not a replacement
+  })
+
+  it("sort-large fires on a 100MB+ external merge (reusing the existing disk-spill-sort fixture)", () => {
+    const ids = allRuleIds(loadFixture("rule-disk-spill-sort.json"))
+    expect(ids).toContain("sort-large")
+    expect(ids).toContain("disk-spill")
+  })
+
+  it("temp-io fires on material Temp Read/Written Blocks, and relates itself to the co-occurring disk-based sort", () => {
+    const { statements } = analyzePlanText(loadFixture("rule-temp-io.json"))
+    const findings = collectNodes(statements[0].root).flatMap((n) => n.warnings)
+    const tempIoFinding = findings.find((w) => w.ruleId === "temp-io")
+    expect(tempIoFinding).toBeDefined()
+    expect(tempIoFinding!.longText).toMatch(/matches the disk-based sort/i)
+  })
+
+  it("planning-overhead fires when planning (240ms) dominates execution (8ms)", () => {
+    const ids = allRuleIds(loadFixture("rule-planning-overhead.json"))
+    expect(ids).toContain("planning-overhead")
+  })
+
+  it("jit-overhead fires when JIT (28ms) is a large share of execution (40ms)", () => {
+    const ids = allRuleIds(loadFixture("rule-jit-overhead.json"))
+    expect(ids).toContain("jit-overhead")
+  })
+
+  it("materialize-repeated fires on a large, frequently re-scanned Materialize", () => {
+    const ids = allRuleIds(loadFixture("rule-materialize-repeated.json"))
+    expect(ids).toContain("materialize-repeated")
+  })
+
+  it("memoize-low-hit-rate fires on a 10% Memoize hit rate", () => {
+    const ids = allRuleIds(loadFixture("rule-memoize-low-hit-rate.json"))
+    expect(ids).toContain("memoize-low-hit-rate")
+  })
+
+  it("partition-fanout fires on a 50-child Append with no pruning evidence captured", () => {
+    const ids = allRuleIds(loadFixture("rule-partition-fanout.json"))
+    expect(ids).toContain("partition-fanout")
+  })
+
+  it("wal-volume fires on a materially large WAL-generating Insert", () => {
+    const ids = allRuleIds(loadFixture("rule-wal-volume.json"))
+    expect(ids).toContain("wal-volume")
+  })
+
+  // Negative controls for the Episode 24 rules specifically — the SAME
+  // "healthy" fixture already used above must not accidentally trip any
+  // of the 12 new rules either, now that they're all registered.
+  it("the existing clean fixture still produces zero findings with all 12 new rules registered", () => {
+    const ids = allRuleIds(loadFixture("simple-seq-scan.json"))
+    expect(ids).toEqual([])
+  })
 })
