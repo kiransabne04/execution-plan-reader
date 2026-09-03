@@ -79,7 +79,13 @@ export function dedupeByFamily(findings: Finding[]): Finding[] {
   return [...bestByFamily.values()]
 }
 
-function buildAncestryIndex(root: PlanNode): Map<string, Set<string>> {
+// Exported for Episode 25's `cardinalityPropagation.ts`, which needs the
+// exact same "every ancestor id above this node" index to walk propagation
+// chains of arbitrary length — not a second, independently-computed tree
+// walk. A node's own ancestor-set SIZE doubles as its depth from root
+// (root's own set is empty = depth 0), which `cardinalityPropagation.ts`
+// relies on to compute hop counts without a separate depth map.
+export function buildAncestryIndex(root: PlanNode): Map<string, Set<string>> {
   const ancestors = new Map<string, Set<string>>()
   const walk = (node: PlanNode, chain: string[]) => {
     ancestors.set(node.id, new Set(chain))

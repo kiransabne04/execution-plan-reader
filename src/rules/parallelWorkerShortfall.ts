@@ -22,9 +22,42 @@
 // thread field `GET_QUERY_OPERATOR_STATS()` exposes) — this rule simply
 // never fires there, by construction (every field both checks read is
 // always `undefined` for a Snowflake node), not a special-cased branch.
+//
+// Episode 25, Story 25.6 — three additions to the Postgres path, all
+// enrichment on an ALREADY-firing shortfall (matching the existing SQL
+// Server `NonParallelPlanReason` pattern below — never a second,
+// independent trigger condition of their own, which would risk exactly
+// the false-positive-erodes-trust failure mode `rule-engine-authoring`
+// warns about): (1) the shortfall's own severity restated in plain words,
+// not just implied by critical/warning; (2) whether this node's own share
+// of total plan runtime was even meaningful — a shortfall on a parallel
+// portion that barely mattered to total runtime is a different story than
+// one on the plan's dominant cost; (3) Gather/Gather Merge's own
+// coordination overhead (its own actualTimeMs beyond its slowest child's),
+// when the node IS a Gather/Gather Merge and that overhead is real.
+// PER-WORKER IMBALANCE IS DELIBERATELY NOT ADDED — checked against
+// `extendedFields.ts` first: Postgres's own per-worker `Workers` array
+// (individual worker actual rows/time) is not parsed anywhere in this
+// codebase today, only the aggregate `workersLaunched`/`workersPlanned`.
+// Inventing a per-worker-skew finding without that data would be
+// fabrication this story's own instruction explicitly forbids.
 
 import { collectNodes, type PlanNode, type Warning } from "../parsers/normalize"
 import type { PlanContext, Rule } from "./types"
+
+/** Below this share of total plan runtime, the parallel portion of the
+ * query was a small enough slice of the whole that a shortfall there is
+ * unlikely to matter much to overall performance — noted, not suppressed
+ * (the shortfall is still real and still shown). */
+export const INSIGNIFICANT_RUNTIME_SHARE_THRESHOLD = 0.05
+
+/** A Gather/Gather Merge's own coordination overhead (its actualTimeMs
+ * beyond its slowest child) below this many ms isn't worth mentioning even
+ * if proportionally large — avoids a technically-true but practically
+ * meaningless note on a fast query. */
+export const MATERIAL_GATHER_OVERHEAD_MS_THRESHOLD = 50
+
+const GATHER_OPERATOR_TYPES = new Set(["gather", "gather_merge"])
 
 /** Shared by both engine paths — a real shortfall grades by degree, not
  * mere existence, mirroring `bufferCacheInefficiency.ts`'s own threshold-
@@ -37,12 +70,60 @@ export function parallelShortfallSeverity(planned: number, launched: number): Wa
   return launched === 0 || launched < planned / 2 ? "critical" : "warning"
 }
 
-function checkPostgresNode(node: PlanNode): Warning[] {
+/** Story 25.6, addition 1 — the shortfall's own severity restated in plain
+ * words, next to the numbers rather than only implied by the finding's
+ * `severity` field. */
+function describeShortfallDegree(severity: Warning["severity"], launched: number): string {
+  if (launched === 0) return "No workers at all were launched"
+  return severity === "critical" ? "Fewer than half the planned workers were launched" : "Most, but not all, planned workers were launched"
+}
+
+/** Story 25.6, addition 2 — was the parallel portion of this query even a
+ * meaningful share of total runtime? `undefined` when there isn't enough
+ * data to say (no actual data, or no total to compare against). */
+function describeRuntimeSignificance(node: PlanNode, context: PlanContext): string | undefined {
+  if (!context.hasActualData || context.totalActualTimeMs === undefined || context.totalActualTimeMs <= 0) return undefined
+  if (node.actualTimeMs === undefined) return undefined
+  const share = node.actualTimeMs / context.totalActualTimeMs
+  if (share < INSIGNIFICANT_RUNTIME_SHARE_THRESHOLD) {
+    return (
+      `This parallel portion accounted for only about ${(share * 100).toFixed(1)}% of the query's total runtime, so ` +
+      `even with the shortfall, its impact on overall performance was likely small.`
+    )
+  }
+  return `This parallel portion accounted for about ${(share * 100).toFixed(1)}% of the query's total runtime — a meaningful share, so this shortfall likely mattered to overall performance.`
+}
+
+/** Story 25.6, addition 3 — Gather/Gather Merge's own coordination
+ * overhead: its own actualTimeMs beyond its slowest child's, when the node
+ * IS a Gather/Gather Merge and that overhead clears a real-ms floor. Never
+ * fabricated when the node isn't a Gather, or when children carry no
+ * actual-time data to compare against. */
+function describeGatherOverhead(node: PlanNode): string | undefined {
+  if (!GATHER_OPERATOR_TYPES.has(node.operatorType)) return undefined
+  if (node.actualTimeMs === undefined) return undefined
+  const childTimes = node.children.map((c) => c.actualTimeMs).filter((t): t is number => t !== undefined && Number.isFinite(t))
+  if (childTimes.length === 0) return undefined
+  const overheadMs = node.actualTimeMs - Math.max(...childTimes)
+  if (!Number.isFinite(overheadMs) || overheadMs < MATERIAL_GATHER_OVERHEAD_MS_THRESHOLD) return undefined
+  return (
+    `This ${node.rawOperatorLabel} node itself added about ${overheadMs.toFixed(0)}ms beyond its slowest child — the ` +
+    `cost of collecting and merging worker output, on top of the shortfall above.`
+  )
+}
+
+function checkPostgresNode(node: PlanNode, context: PlanContext): Warning[] {
   const planned = node.parallel?.workersPlanned
   const launched = node.parallel?.workersLaunched
   if (planned === undefined || launched === undefined) return []
   const severity = parallelShortfallSeverity(planned, launched)
   if (!severity) return []
+
+  const degreeNote = describeShortfallDegree(severity, launched)
+  const runtimeNote = describeRuntimeSignificance(node, context)
+  const gatherNote = describeGatherOverhead(node)
+  const enrichment = [runtimeNote, gatherNote].filter((n): n is string => n !== undefined)
+  const enrichmentText = enrichment.length > 0 ? ` ${enrichment.join(" ")}` : ""
 
   return [
     {
@@ -51,10 +132,10 @@ function checkPostgresNode(node: PlanNode): Warning[] {
       shortText: `Planned ${planned} parallel workers, only ${launched} launched.`,
       longText:
         `This ${node.rawOperatorLabel} planned to use ${planned} parallel worker${planned === 1 ? "" : "s"}, but only ` +
-        `${launched} ${launched === 1 ? "was" : "were"} actually launched at execution time. This usually means ` +
-        `Postgres's worker pool (max_parallel_workers / max_worker_processes) was exhausted by other concurrent ` +
-        `activity on the instance when this query ran — this single plan can't confirm what else was running, only ` +
-        `that fewer workers than planned were available.`,
+        `${launched} ${launched === 1 ? "was" : "were"} actually launched at execution time. ${degreeNote} — this ` +
+        `usually means Postgres's worker pool (max_parallel_workers / max_worker_processes) was exhausted by other ` +
+        `concurrent activity on the instance when this query ran; this single plan can't confirm what else was ` +
+        `running, only that fewer workers than planned were available.${enrichmentText}`,
     },
   ]
 }
@@ -103,6 +184,6 @@ function checkSqlServerQueryLevel(node: PlanNode, context: PlanContext): Warning
 
 export const parallelWorkerShortfall: Rule = (node, context) => {
   if (node.engine === "sqlserver") return checkSqlServerQueryLevel(node, context)
-  if (node.engine === "postgres") return checkPostgresNode(node)
+  if (node.engine === "postgres") return checkPostgresNode(node, context)
   return []
 }

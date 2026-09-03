@@ -17,6 +17,7 @@ import { nonSargablePredicate } from "./nonSargablePredicate"
 import { parallelWorkerShortfall } from "./parallelWorkerShortfall"
 import { parameterSensitivityNote } from "./parameterSensitivityNote"
 import { partitionFanout } from "./partitionFanout"
+import { pgNestedLoopExplosion } from "./pgNestedLoopExplosion"
 import { planningOverhead } from "./planningOverhead"
 import { seqScanOnLargeTable } from "./seqScanOnLargeTable"
 import { sortDiskSpill } from "./sortDiskSpill"
@@ -49,6 +50,10 @@ export { materializeRepeated } from "./materializeRepeated"
 export { memoizeEffectiveness } from "./memoizeEffectiveness"
 export { partitionFanout } from "./partitionFanout"
 export { walVolume } from "./walVolume"
+// Episode 25 — Postgres cross-node reasoning.
+export { pgNestedLoopExplosion } from "./pgNestedLoopExplosion"
+export { linkPropagatedFindings, groupByRootCause, type FindingRelationship, type RootCauseGroup } from "./cardinalityPropagation"
+export { severityForEstimateError } from "./badRowEstimate"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
 export { collectAllFindings, type Finding } from "./findings"
 export { categorizeFinding, FINDING_CATEGORY_ORDER, type FindingCategory } from "./findingCategory"
@@ -87,6 +92,8 @@ export const ALL_RULES: Rule[] = [
   memoizeEffectiveness,
   partitionFanout,
   walVolume,
+  // Episode 25 — Postgres cross-node reasoning.
+  pgNestedLoopExplosion,
   parameterSensitivityNote,
   estimateOnlyNote,
 ]

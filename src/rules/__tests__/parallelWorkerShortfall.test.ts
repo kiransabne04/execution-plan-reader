@@ -66,6 +66,83 @@ describe("parallelWorkerShortfall — Postgres (per-node)", () => {
   })
 })
 
+// Story 25.6 — enrichment on an already-firing Postgres shortfall: degree
+// in plain words, runtime-significance note, Gather/Gather Merge overhead.
+describe("parallelWorkerShortfall — Story 25.6 enrichment (Postgres)", () => {
+  it("states the shortfall degree in plain words", () => {
+    const zero = makeNode({ engine: "postgres", parallel: { workersPlanned: 4, workersLaunched: 0 } })
+    const zeroContext = makeContext(makeNode({ children: [zero] }))
+    expect(parallelWorkerShortfall(zero, zeroContext)[0].longText).toContain("No workers at all were launched")
+
+    const partial = makeNode({ engine: "postgres", parallel: { workersPlanned: 4, workersLaunched: 3 } })
+    const partialContext = makeContext(makeNode({ children: [partial] }))
+    expect(parallelWorkerShortfall(partial, partialContext)[0].longText).toContain("Most, but not all, planned workers were launched")
+  })
+
+  it("notes when the parallel portion was an insignificant share of total runtime", () => {
+    const node = makeNode({ engine: "postgres", actualTimeMs: 20, parallel: { workersPlanned: 4, workersLaunched: 0 } })
+    const root = makeNode({ actualTimeMs: 5000, children: [node] })
+    const context = makeContext(root, { hasActualData: true, totalActualTimeMs: 5000 })
+    const longText = parallelWorkerShortfall(node, context)[0].longText
+    expect(longText).toContain("only about 0.4%")
+    expect(longText).toContain("likely small")
+  })
+
+  it("notes when the parallel portion was a meaningful share of total runtime", () => {
+    const node = makeNode({ engine: "postgres", actualTimeMs: 2000, parallel: { workersPlanned: 4, workersLaunched: 0 } })
+    const root = makeNode({ actualTimeMs: 5000, children: [node] })
+    const context = makeContext(root, { hasActualData: true, totalActualTimeMs: 5000 })
+    const longText = parallelWorkerShortfall(node, context)[0].longText
+    expect(longText).toContain("40.0%")
+    expect(longText).toContain("likely mattered")
+  })
+
+  it("omits the runtime-significance note on an estimate-only plan (no actual data)", () => {
+    const node = makeNode({ engine: "postgres", parallel: { workersPlanned: 4, workersLaunched: 0 } })
+    const context = makeContext(makeNode({ children: [node] }), { hasActualData: false })
+    expect(parallelWorkerShortfall(node, context)[0].longText).not.toContain("This parallel portion accounted for")
+  })
+
+  it("notes Gather overhead when the Gather node's own time exceeds its slowest child's by a material amount", () => {
+    const child = makeNode({ operatorType: "seq_scan", actualTimeMs: 100 })
+    const gather = makeNode({
+      operatorType: "gather",
+      rawOperatorLabel: "Gather",
+      actualTimeMs: 300,
+      children: [child],
+      parallel: { workersPlanned: 4, workersLaunched: 0 },
+    })
+    const context = makeContext(makeNode({ children: [gather] }))
+    const longText = parallelWorkerShortfall(gather, context)[0].longText
+    expect(longText).toContain("added about 200ms beyond its slowest child")
+  })
+
+  it("omits the Gather overhead note when overhead is below the material-ms floor", () => {
+    const child = makeNode({ operatorType: "seq_scan", actualTimeMs: 100 })
+    const gather = makeNode({
+      operatorType: "gather",
+      actualTimeMs: 110,
+      children: [child],
+      parallel: { workersPlanned: 4, workersLaunched: 0 },
+    })
+    const context = makeContext(makeNode({ children: [gather] }))
+    expect(parallelWorkerShortfall(gather, context)[0].longText).not.toContain("added about")
+  })
+
+  it("never fabricates Gather overhead when the node isn't a Gather/Gather Merge", () => {
+    const node = makeNode({ operatorType: "index_scan", actualTimeMs: 300, parallel: { workersPlanned: 4, workersLaunched: 0 } })
+    const context = makeContext(makeNode({ children: [node] }))
+    expect(parallelWorkerShortfall(node, context)[0].longText).not.toContain("added about")
+  })
+
+  it("never invents per-worker imbalance — no such field exists on ParallelInfo to read", () => {
+    const node = makeNode({ engine: "postgres", parallel: { workersPlanned: 4, workersLaunched: 2 } })
+    const context = makeContext(makeNode({ children: [node] }))
+    const longText = parallelWorkerShortfall(node, context)[0].longText
+    expect(longText).not.toMatch(/imbalance|skew/i)
+  })
+})
+
 describe("parallelWorkerShortfall — SQL Server (query-level, end-to-end through analyzePlanText)", () => {
   it("fires critical when compiled DOP far exceeds observed threads", () => {
     const findings = ruleIdsFor(loadFixture("sqlserver", "parallel-dop-shortfall-critical.xml"))

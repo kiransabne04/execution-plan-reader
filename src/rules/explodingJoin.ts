@@ -6,7 +6,11 @@ import type { Rule } from "./types"
 
 export const EXPLOSION_RATIO_THRESHOLD = 10
 
-const JOIN_OPERATOR_TYPES = new Set(["hash_join", "nested_loop_join", "merge_join", "join", "cartesian_join"])
+// Exported for Episode 25's `badRowEstimate.ts`, which reuses this exact
+// same operator-type set to check whether a bad-estimate node IS itself a
+// join (its own "join impact" materiality factor) — not a second,
+// independently-drifting copy of which operator types count as a join.
+export const JOIN_OPERATOR_TYPES = new Set(["hash_join", "nested_loop_join", "merge_join", "join", "cartesian_join"])
 
 export const explodingJoin: Rule = (node) => {
   if (!JOIN_OPERATOR_TYPES.has(node.operatorType)) return []

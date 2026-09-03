@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { badRowEstimate, computeMismatchFactor } from "../badRowEstimate"
+import { badRowEstimate, computeMismatchFactor, severityForEstimateError } from "../badRowEstimate"
 import { makeContext, makeNode } from "./testHelpers"
 
 describe("badRowEstimate", () => {
@@ -53,6 +53,76 @@ describe("badRowEstimate", () => {
     const negativeActual = makeNode({ estimatedRows: 100, actualRows: -5 })
     expect(() => badRowEstimate(negativeActual, makeContext(negativeActual))).not.toThrow()
     expect(badRowEstimate(negativeActual, makeContext(negativeActual))).toEqual([])
+  })
+
+  // Story 25.5 — never states "stale statistics" as a settled fact.
+  it("recommends investigating possible causes rather than diagnosing stale statistics", () => {
+    const node = makeNode({ estimatedRows: 100, actualRows: 50_000 })
+    const warnings = badRowEstimate(node, makeContext(node))
+    expect(warnings[0].longText).not.toMatch(/stale/i)
+    expect(warnings[0].longText).toContain("statistics freshness")
+    expect(warnings[0].longText).toContain("extended statistics")
+    expect(warnings[0].longText).toContain("parameter values")
+  })
+})
+
+// Story 25.4 — materiality-graded severity: ratio alone no longer decides
+// severity. Both worked examples from the story are covered end-to-end
+// through the real rule, not just the pure helper below.
+describe("badRowEstimate — Story 25.4 materiality-graded severity", () => {
+  it("est 1 → actual 50 (50x ratio, 49 rows difference): still fires, but capped at info — not material", () => {
+    const node = makeNode({ estimatedRows: 1, actualRows: 50 })
+    const warnings = badRowEstimate(node, makeContext(node))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].severity).toBe("info")
+  })
+
+  it("est 10 → actual 500,000 (50,000x ratio, ~500k rows difference): material, at least warning", () => {
+    const node = makeNode({ estimatedRows: 10, actualRows: 500_000 })
+    const warnings = badRowEstimate(node, makeContext(node))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].severity).not.toBe("info")
+  })
+})
+
+describe("severityForEstimateError", () => {
+  const baseContext = { hasActualData: false, totalActualTimeMs: undefined }
+
+  it("caps at info when absolute row difference is below the materiality floor, regardless of ratio", () => {
+    const severity = severityForEstimateError({ operatorType: "seq_scan", actualTimeMs: undefined }, 1, 50, 50, baseContext)
+    expect(severity).toBe("info")
+  })
+
+  it("defaults to warning above the floor with no escalation signals", () => {
+    const severity = severityForEstimateError({ operatorType: "seq_scan", actualTimeMs: undefined }, 100, 60_000, 600, baseContext)
+    expect(severity).toBe("warning")
+  })
+
+  it("escalates to critical with two signals: a very large ratio + feeding a join", () => {
+    const severity = severityForEstimateError({ operatorType: "hash_join", actualTimeMs: undefined }, 10, 500_000, 50_000, baseContext)
+    expect(severity).toBe("critical")
+  })
+
+  it("escalates to critical with two signals: a very large ratio + a meaningful runtime share", () => {
+    const context = { hasActualData: true, totalActualTimeMs: 1000 }
+    const severity = severityForEstimateError({ operatorType: "seq_scan", actualTimeMs: 200 }, 10, 500_000, 50_000, context)
+    expect(severity).toBe("critical")
+  })
+
+  it("stays warning with only ONE escalation signal (large ratio alone)", () => {
+    const severity = severityForEstimateError({ operatorType: "seq_scan", actualTimeMs: undefined }, 10, 500_000, 50_000, baseContext)
+    expect(severity).toBe("warning")
+  })
+
+  it("treats the near-infinite-ratio case (factor undefined) as a very-large-ratio signal", () => {
+    const severity = severityForEstimateError({ operatorType: "hash_join", actualTimeMs: undefined }, 500, 0, undefined, baseContext)
+    expect(severity).toBe("critical")
+  })
+
+  it("does not treat a small runtime share as meaningful", () => {
+    const context = { hasActualData: true, totalActualTimeMs: 1000 }
+    const severity = severityForEstimateError({ operatorType: "seq_scan", actualTimeMs: 5 }, 10, 500_000, 50_000, context)
+    expect(severity).toBe("warning") // only the large-ratio signal fires; runtime share (0.5%) doesn't
   })
 })
 

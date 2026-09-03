@@ -91,6 +91,9 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     "jit-overhead",
     "materialize-repeated",
     "memoize-low-hit-rate",
+    // Episode 25 — Postgres-specific nested-loop pattern, same dimension
+    // as the generic high-loop-count it specializes.
+    "nested-loop-explosion",
   ],
   cardinality: [
     "bad-row-estimate",

@@ -51,6 +51,8 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "memoize-evictions": "Caching issues",
   "partition-fanout": "Partition issues",
   "wal-volume": "I/O issues",
+  // Episode 25 — Postgres cross-node reasoning.
+  "nested-loop-explosion": "Loop issues",
   "parameter-sensitivity-honesty-note": "General notes",
   "estimate-only-plan": "General notes",
 }
