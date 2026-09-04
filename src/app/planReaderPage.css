@@ -1334,22 +1334,37 @@
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 8px;
+  /* Episode 26, Story 26.2 — pill-shaped active/hover background, a
+     deliberate deviation from VS Code's own flat 2px activity-bar bar
+     (this episode's own intro names this exact contrast). A 40x40 square
+     button's own "pill" is a circle — 999px rounds it fully regardless of
+     the exact box size, so this keeps working if the button's own
+     dimensions ever change. */
+  border-radius: 999px;
   background: transparent;
   color: var(--pr-text-muted);
   font-size: 20px;
   cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
 }
 
 .icon-rail__button:hover,
 .icon-rail__button:focus-visible {
   background: var(--pr-item-hover-bg, rgba(255, 255, 255, 0.06));
+  color: var(--pr-text);
 }
 
 .icon-rail__button[aria-pressed="true"] {
-  color: var(--pr-text);
-  border-color: var(--pr-border);
-  background: var(--pr-item-hover-bg, rgba(255, 255, 255, 0.06));
+  /* `white`, not a token — the same solid-accent-background pairing this
+     app already uses everywhere else a pressed/active state fills with
+     `--color-accent` (search-palette chips, the walkthrough mode toggle). */
+  color: white;
+  background: var(--color-accent);
+}
+
+.icon-rail__button[aria-pressed="true"]:hover,
+.icon-rail__button[aria-pressed="true"]:focus-visible {
+  background: var(--color-accent);
 }
 
 .icon-rail__badge {
@@ -1384,14 +1399,21 @@
   background: var(--color-accent);
 }
 
-/* Same fixed-scrim-behind-a-fixed-panel mechanism as the detail panel's
-   own overlay (`.plan-shell__detail-scrim`) — one overlay pattern in this
-   app, not two independently-built ones. */
+/* Same fixed-dim-behind-a-fixed-panel visual as the detail panel's own
+   overlay (`.plan-shell__detail-scrim`) — one overlay pattern in this
+   app, not two independently-built ones. Episode 26, Story 26.2:
+   `pointer-events: none` — this used to also be the click-to-close
+   surface (Story 6.3), which meant it swallowed every click while a
+   panel was open; now it's purely the dim, and IconRail.tsx's own
+   document-level click listener handles closing, letting an outside
+   click reach its real target underneath (e.g. selecting a canvas node)
+   instead of being consumed here. */
 .icon-rail__scrim {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   z-index: 19;
+  pointer-events: none;
 }
 
 .icon-rail__panel {

@@ -37,18 +37,15 @@ test.describe("icon rail", () => {
     const railBoxDuring2 = await page.getByTestId("icon-rail").boundingBox()
     expect(railBoxDuring2?.width).toBeLessThan(80)
 
-    // Findings is independent of the New Plan/Recent Plans panel — it
-    // toggles the bottom drawer, not a rail-adjacent overlay, and doesn't
-    // require closing whatever's currently open first (the icon-rail
-    // buttons stay clickable above the scrim at all times, a real bug
-    // this story's own e2e run caught and fixed — see planReaderPage.css's
-    // own comment on `.icon-rail__button`'s z-index).
+    // Findings toggles the bottom drawer, not a rail-adjacent overlay —
+    // the icon-rail buttons stay clickable above the scrim at all times
+    // (a real bug this story's own e2e run caught and fixed — see
+    // planReaderPage.css's own comment on `.icon-rail__button`'s
+    // z-index). Episode 26, Story 26.2: opening Findings/Problems now
+    // explicitly closes Recent Plans first (still open from above) — the
+    // two would otherwise occupy the same left column.
     await page.getByTestId("icon-rail-findings").click()
     await expect(page.getByTestId("findings-drawer")).toHaveClass(/findings-drawer--open/)
-
-    // Closing Recent Plans (still open from above) confirms Findings
-    // itself never opened the rail-adjacent overlay.
-    await page.getByTestId("icon-rail-panel-close").click()
     await expect(page.getByTestId("icon-rail-panel")).not.toBeVisible()
   })
 
@@ -74,5 +71,61 @@ test.describe("icon rail", () => {
     await page.goto("/")
     await expect(page.getByTestId("icon-rail")).toHaveCount(0)
     await expect(page.getByTestId("paste-textarea")).toBeVisible()
+  })
+})
+
+// Episode 26, Story 26.2 — click-outside-close, real browser: a jsdom
+// component test can assert the listener fired, but not that the panel's
+// own scrim (now `pointer-events: none`) genuinely lets a real click
+// reach whatever's underneath rather than being intercepted by the
+// browser's own hit-testing, which only a real render can prove.
+//
+// The open panel itself is a real, OPAQUE, left-docked overlay up to
+// 360px wide and full viewport height — an element genuinely positioned
+// UNDER it (e.g. near the canvas's own top-left corner) is not reachable
+// by a real click at all while it's open, same as it wouldn't be for an
+// actual user. These tests click at a point past that footprint on a
+// wide viewport, exactly the "click outside" case the AC means.
+test.describe("icon rail — click-outside-close (Story 26.2)", () => {
+  test("clicking inside the Findings drawer closes an open rail panel, and the click's own effect (opening that node's detail panel) still happens", async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "rule-wal-volume.json"))
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+
+    await page.getByTestId("icon-rail-findings").click() // opens the drawer, already expanded
+    await expect(page.getByTestId("findings-drawer")).toHaveClass(/findings-drawer--open/)
+    await page.getByTestId("icon-rail-new-plan").click()
+    await expect(page.getByTestId("icon-rail-panel")).toBeVisible()
+
+    // The compact row spans nearly the full canvas width — click near its
+    // own right edge, well past the open panel's ~416px-wide footprint.
+    const row = page.locator('[data-testid="findings-drawer-body"] [data-testid="finding-item"]').first()
+    const box = (await row.boundingBox())!
+    await page.mouse.click(box.x + box.width - 10, box.y + box.height / 2)
+
+    await expect(page.getByTestId("icon-rail-panel")).not.toBeVisible()
+    await expect(page.getByTestId("detail-panel")).toBeVisible()
+  })
+
+  test("clicking the open, un-pinned detail panel's own scrim closes BOTH the detail panel and an open rail panel", async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+
+    await page.getByTestId("accessible-list-toggle").click()
+    await page.getByTestId("accessible-plan-list-item").first().click()
+    await expect(page.getByTestId("detail-panel")).toBeVisible()
+
+    await page.getByTestId("icon-rail-new-plan").click()
+    await expect(page.getByTestId("icon-rail-panel")).toBeVisible()
+
+    // Well past the open panel's own footprint, still on the scrim
+    // (a full-viewport fixed overlay).
+    await page.getByTestId("plan-shell-detail-scrim").click({ position: { x: 900, y: 400 } })
+
+    await expect(page.getByTestId("detail-panel")).not.toBeVisible()
+    await expect(page.getByTestId("icon-rail-panel")).not.toBeVisible()
   })
 })

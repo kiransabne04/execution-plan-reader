@@ -723,6 +723,96 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     expect(screen.queryByTestId("recent-plans-list")).not.toBeInTheDocument()
   })
 
+  describe("Episode 26, Story 26.2 — icon rail click-outside-close", () => {
+    it("clicking outside the rail and its panel closes it", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getByTestId("icon-rail-new-plan"))
+      expect(screen.getByTestId("icon-rail-panel")).not.toHaveAttribute("hidden")
+
+      fireEvent.click(screen.getByTestId("plan-summary"))
+      expect(screen.getByTestId("icon-rail-panel")).toHaveAttribute("hidden")
+    })
+
+    it("the outside click's OWN effect still fires — selecting a node both closes the rail panel AND opens its detail panel", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getByTestId("icon-rail-new-plan"))
+      expect(screen.getByTestId("icon-rail-panel")).not.toHaveAttribute("hidden")
+
+      clickNode()
+
+      expect(screen.getByTestId("icon-rail-panel")).toHaveAttribute("hidden")
+      expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+    })
+
+    it("clicking the same, already-open icon still closes it (Story 6.3's own toggle, unaffected by the new listener)", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getByTestId("icon-rail-new-plan"))
+      expect(screen.getByTestId("icon-rail-panel")).not.toHaveAttribute("hidden")
+      fireEvent.click(screen.getByTestId("icon-rail-new-plan"))
+      expect(screen.getByTestId("icon-rail-panel")).toHaveAttribute("hidden")
+    })
+
+    it("opening Findings/Problems closes the New Plan/Recent Plans overlay first", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      // jsdom's zero-width layout makes the mobile-default effect
+      // (PlanReaderPage.tsx's own `width < MOBILE_SHELL_BREAKPOINT_PX`
+      // layout effect) open the drawer by default here, unlike a real
+      // desktop-width browser — start from a known CLOSED state rather
+      // than assuming which way a fresh analyze left it.
+      if (screen.getByTestId("findings-drawer").className.includes("findings-drawer--open")) {
+        fireEvent.click(screen.getByTestId("icon-rail-findings"))
+      }
+      expect(screen.getByTestId("findings-drawer").className).not.toContain("findings-drawer--open")
+
+      fireEvent.click(screen.getByTestId("icon-rail-recent-plans"))
+      expect(screen.getByTestId("icon-rail-panel")).not.toHaveAttribute("hidden")
+
+      fireEvent.click(screen.getByTestId("icon-rail-findings"))
+      expect(screen.getByTestId("findings-drawer").className).toContain("findings-drawer--open")
+      expect(screen.getByTestId("icon-rail-panel")).toHaveAttribute("hidden")
+    })
+
+    // Real bug found via e2e (icon-rail.spec.ts originally, root-caused
+    // here): a click whose OWN target unmounts itself as a side effect
+    // (PasteBox's "pasted · N lines" summary button, which disappears the
+    // instant it's clicked) must never be misread as "outside" just
+    // because the target is detached from the document by the time the
+    // outside-click listener runs.
+    it("clicking a button inside the panel that unmounts itself as a side effect of its own click does not close the panel", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("icon-rail-new-plan")) // re-open; auto-collapsed after analyze
+      const expandButton = screen.getByTestId("paste-box-expand")
+
+      fireEvent.click(expandButton)
+
+      expect(screen.queryByTestId("paste-box-expand")).not.toBeInTheDocument() // it did unmount itself
+      expect(screen.getByTestId("icon-rail-panel")).not.toHaveAttribute("hidden") // but the panel itself is still open
+    })
+
+    it("a click on the open, un-pinned detail panel's own scrim closes BOTH the detail panel and the rail panel, each via its own mechanism", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      clickNode()
+      expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+      fireEvent.click(screen.getByTestId("icon-rail-new-plan"))
+      expect(screen.getByTestId("icon-rail-panel")).not.toHaveAttribute("hidden")
+
+      fireEvent.click(screen.getByTestId("plan-shell-detail-scrim"))
+
+      expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
+      expect(screen.getByTestId("icon-rail-panel")).toHaveAttribute("hidden")
+    })
+  })
+
   describe("Episode 14, Story 14.2 — comparison view", () => {
     function pasteAndCompare(text: string) {
       fireEvent.change(screen.getByTestId("compare-paste-textarea"), { target: { value: text } })
