@@ -166,4 +166,14 @@ describe("Postgres rule-trigger scenarios — end-to-end (user-requested)", () =
     const ids = allRuleIds(loadFixture("simple-seq-scan.json"))
     expect(ids).toEqual([])
   })
+
+  // Episode 25 — Postgres cross-node reasoning.
+  it("nested-loop-explosion fires on a Nested Loop with a large outer side and matching inner loop count", () => {
+    const ids = allRuleIds(loadFixture("rule-nested-loop-explosion.json"))
+    expect(ids).toContain("nested-loop-explosion")
+    // The existing high-loop-count fixture (2,000 outer/loops — below this
+    // new rule's own 10,000 floor) must not have its threshold accidentally
+    // lowered by adding this new, stricter Postgres-specific rule.
+    expect(allRuleIds(loadFixture("rule-high-loop-count.json"))).not.toContain("nested-loop-explosion")
+  })
 })

@@ -2,13 +2,13 @@
 
 exports[`summarizePlan > end-to-end regression snapshot: full multi-issue plan through applyRules -> summarizePlan 1`] = `
 {
-  "severity": "warning",
-  "text": "This plan works, but has room to improve: full scan of events (500,000 rows) — an index could avoid reading every row, which likely contributes to estimate off by 4,900x: expected 100 rows, got 490,000.",
+  "severity": "critical",
+  "text": "This plan has a serious issue worth fixing first: full scan of events (500,000 rows) — an index could avoid reading every row, which likely contributes to estimate off by 4,900x: expected 100 rows, got 490,000.",
   "topFindings": [
     {
-      "longText": "The planner estimated 100 rows for this Hash Join but 490,000 actually came out — 4,900x more than expected. Bad estimates like this often cascade into a worse plan shape further up the tree (e.g. the wrong join algorithm gets picked). Stale table statistics are the most common cause.",
+      "longText": "The planner estimated 100 rows for this Hash Join but 490,000 actually came out — 4,900x more than expected. Bad estimates like this often cascade into a worse plan shape further up the tree (e.g. the wrong join algorithm gets picked). This single plan can't confirm the cause — worth investigating statistics freshness, column correlation, whether extended statistics would help, the predicates involved, or the specific parameter values used for this run.",
       "ruleId": "bad-row-estimate",
-      "severity": "warning",
+      "severity": "critical",
       "shortText": "Estimate off by 4,900x: expected 100 rows, got 490,000.",
     },
     {
