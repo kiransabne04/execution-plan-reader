@@ -67,4 +67,35 @@ test.describe("combined open state", () => {
     await page.getByTestId("findings-drawer-summary").click()
     await expect(page.getByTestId("findings-drawer")).not.toHaveClass(/findings-drawer--inset/)
   })
+
+  // Episode 26, Story 26.3's own edge case: the `--inset` margin was
+  // computed against the drawer's own width, not its height — resizing
+  // the drawer taller/shorter while inset must not un-inset it or let it
+  // collide with the still-open detail panel.
+  test("resizing the drawer while inset (an open, un-pinned detail panel) keeps it inset at the new height too", async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "rule-wal-volume.json"))
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+
+    await openPlanNode(page)
+    await page.getByTestId("findings-drawer-summary").click()
+    await expect(page.getByTestId("findings-drawer")).toHaveClass(/findings-drawer--inset/)
+
+    const handle = page.getByTestId("findings-drawer-resize-handle")
+    const handleBox = (await handle.boundingBox())!
+    const startX = handleBox.x + handleBox.width / 2
+    const startY = handleBox.y + handleBox.height / 2
+    await page.mouse.move(startX, startY)
+    await page.mouse.down()
+    await page.mouse.move(startX, startY - 80, { steps: 5 })
+    await page.mouse.up()
+
+    await expect(page.getByTestId("findings-drawer")).toHaveClass(/findings-drawer--inset/)
+    const detailPanelBox = (await page.getByTestId("detail-panel").boundingBox())!
+    const drawerBox = (await page.getByTestId("findings-drawer").boundingBox())!
+    // Still visibly apart at the new height, same invariant the un-resized
+    // combined-open-state test above already checks.
+    expect(drawerBox.x + drawerBox.width).toBeLessThan(detailPanelBox.x + 5)
+  })
 })

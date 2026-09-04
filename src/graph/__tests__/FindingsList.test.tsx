@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, within } from "@testing-library/react"
 import { FindingsList } from "../findings/FindingsList"
 import { makeNode } from "../../rules/__tests__/testHelpers"
 import type { PlanNode, Warning } from "../../parsers/normalize"
@@ -39,7 +39,7 @@ describe("FindingsList", () => {
     const root = makeNode({ id: "root", children: nodes })
     render(<FindingsList sources={single(root)} activeStatementIndex={0} onSelectNode={vi.fn()} />)
 
-    expect(screen.getByTestId("findings-list")).toHaveTextContent("Findings")
+    expect(screen.getByTestId("findings-list")).toHaveTextContent("Problems")
     expect(screen.getByTestId("findings-list")).toHaveTextContent("5")
     expect(screen.getAllByTestId("finding-item")).toHaveLength(5)
   })
@@ -200,6 +200,72 @@ describe("FindingsList", () => {
       const secondSources = multi() // same shape, genuinely new root objects
       rerender(<FindingsList sources={secondSources} activeStatementIndex={0} onSelectNode={vi.fn()} />)
       expect(screen.getByTestId("findings-severity-filter")).toHaveValue("all")
+    })
+
+    // Episode 26, Story 26.3 — statement grouping, scoped to the compact
+    // (drawer) variant only. `multi()` above already has exactly the
+    // fixture this needs: 3 statements, one ("DECLARE @x INT") with zero
+    // findings at all.
+    describe("statement grouping (Story 26.3, compact variant)", () => {
+      it("groups findings by statement — one group per statement that actually has a finding, never an empty group for the clean one", () => {
+        render(<FindingsList sources={multi()} activeStatementIndex={0} onSelectNode={vi.fn()} variant="compact" />)
+
+        const headers = screen.getAllByTestId("findings-list-group-header")
+        expect(headers).toHaveLength(2) // not 3 — "DECLARE @x INT" has no findings
+        expect(headers.map((h) => h.textContent)).toEqual(
+          expect.arrayContaining([expect.stringContaining("SELECT * FROM Orders"), expect.stringContaining("SELECT * FROM Customers")]),
+        )
+        expect(screen.queryByText(/DECLARE @x INT/)).not.toBeInTheDocument()
+      })
+
+      it("nests each statement's own findings under its own group, not mixed together", () => {
+        render(<FindingsList sources={multi()} activeStatementIndex={0} onSelectNode={vi.fn()} variant="compact" />)
+
+        const groups = screen.getAllByTestId("findings-list-group")
+        const ordersGroup = groups.find((g) => g.textContent?.includes("SELECT * FROM Orders"))!
+        const customersGroup = groups.find((g) => g.textContent?.includes("SELECT * FROM Customers"))!
+        expect(within(ordersGroup).getAllByTestId("finding-item")).toHaveLength(1)
+        expect(within(customersGroup).getAllByTestId("finding-item")).toHaveLength(1)
+      })
+
+      it("falls back to a flat list, no groups, for a single-statement batch", () => {
+        const root = withWarnings(makeNode({ id: "n" }), [warning({ ruleId: "disk-spill", severity: "critical" })])
+        render(<FindingsList sources={single(root)} activeStatementIndex={0} onSelectNode={vi.fn()} variant="compact" />)
+
+        expect(screen.queryByTestId("findings-list-group")).not.toBeInTheDocument()
+        expect(screen.getAllByTestId("finding-item")).toHaveLength(1)
+      })
+
+      it("never groups the 'list' variant, even with multiple statements — grouping is scoped to the compact drawer", () => {
+        render(<FindingsList sources={multi()} activeStatementIndex={0} onSelectNode={vi.fn()} />)
+        expect(screen.queryByTestId("findings-list-group")).not.toBeInTheDocument()
+        expect(screen.getAllByTestId("finding-item")).toHaveLength(2)
+      })
+
+      it("collapsing a group hides its rows; expanding it again shows them", () => {
+        render(<FindingsList sources={multi()} activeStatementIndex={0} onSelectNode={vi.fn()} variant="compact" />)
+        const ordersHeader = screen.getAllByTestId("findings-list-group-header").find((h) => h.textContent?.includes("SELECT * FROM Orders"))!
+        expect(ordersHeader).toHaveAttribute("aria-expanded", "true")
+
+        fireEvent.click(ordersHeader)
+        expect(ordersHeader).toHaveAttribute("aria-expanded", "false")
+        // Only the OTHER group's row remains visible.
+        expect(screen.getAllByTestId("finding-item")).toHaveLength(1)
+
+        fireEvent.click(ordersHeader)
+        expect(ordersHeader).toHaveAttribute("aria-expanded", "true")
+        expect(screen.getAllByTestId("finding-item")).toHaveLength(2)
+      })
+
+      it("a statement whose findings are all filtered out shows no group header for it, same as the naturally-clean statement", () => {
+        render(<FindingsList sources={multi()} activeStatementIndex={0} onSelectNode={vi.fn()} variant="compact" />)
+        fireEvent.change(screen.getByTestId("findings-severity-filter"), { target: { value: "critical" } })
+
+        // Only the critical finding's own statement ("Orders") has a group now.
+        const headers = screen.getAllByTestId("findings-list-group-header")
+        expect(headers).toHaveLength(1)
+        expect(headers[0]).toHaveTextContent("SELECT * FROM Orders")
+      })
     })
   })
 })

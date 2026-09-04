@@ -1231,7 +1231,7 @@ export function PlanReaderPage() {
                           aria-pressed={isMaximizedFindingsOpen}
                           onClick={() => setIsMaximizedFindingsOpen((v) => !v)}
                         >
-                          Findings
+                          Problems
                         </button>
                       </div>
                     )}

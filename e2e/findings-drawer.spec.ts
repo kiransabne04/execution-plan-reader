@@ -118,3 +118,89 @@ test.describe("findings drawer", () => {
     await expect(page.getByTestId("detail-panel")).toBeVisible()
   })
 })
+
+// Episode 26, Story 26.3 — drag-resize height, statement grouping, and the
+// specific rail-overlap bug found during this episode's own mockup pass.
+test.describe("findings drawer — Story 26.3", () => {
+  test("dragging the resize handle down shrinks the panel; the new height survives switching statements but not a fresh analyze", async ({ page }) => {
+    // Shrinking (not growing) is the reliable direction to test here:
+    // raising the max-height cap only visibly grows the box if its
+    // CONTENT is already tall enough to be constrained by it — dragging
+    // the cap down below the content's own natural height always has a
+    // real, visible effect regardless of how much content there is.
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "multi-statement-batch.xml"))
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+    await page.getByTestId("findings-drawer-summary").click()
+
+    const body = page.getByTestId("findings-drawer-body")
+    const heightBefore = (await body.boundingBox())!.height
+
+    const handle = page.getByTestId("findings-drawer-resize-handle")
+    const handleBox = (await handle.boundingBox())!
+    const startX = handleBox.x + handleBox.width / 2
+    const startY = handleBox.y + handleBox.height / 2
+    await page.mouse.move(startX, startY)
+    await page.mouse.down()
+    await page.mouse.move(startX, startY + 200, { steps: 5 }) // drag down 200px
+    await page.mouse.up()
+
+    const heightAfterDrag = (await body.boundingBox())!.height
+    expect(heightAfterDrag).toBeLessThan(heightBefore - 50) // real shrink, not noise
+
+    // Switching statements (same plan) keeps the custom height.
+    const tabs = page.getByRole("tab")
+    await tabs.nth(1).click()
+    const heightAfterTabSwitch = (await body.boundingBox())!.height
+    expect(heightAfterTabSwitch).toBeCloseTo(heightAfterDrag, 0)
+
+    // A fresh analyze resets it back to the default cap.
+    await page.getByTestId("icon-rail-new-plan").click()
+    await page.getByTestId("paste-box-expand").click()
+    await page.getByTestId("paste-textarea").fill(MULTI_FINDING_PLAN)
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+    await page.getByTestId("findings-drawer-summary").click()
+    const heightAfterFreshAnalyze = (await page.getByTestId("findings-drawer-body").boundingBox())!.height
+    expect(heightAfterFreshAnalyze).toBeGreaterThan(heightAfterDrag + 50)
+  })
+
+  test("the drawer's own left edge aligns to the canvas column's own left edge, not spanning under the rail — the overlap bug found during the mockup pass", async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(MULTI_FINDING_PLAN)
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+
+    const railBox = (await page.getByTestId("icon-rail").boundingBox())!
+    const canvasBox = (await page.getByTestId("plan-shell-canvas").boundingBox())!
+    const drawerBox = (await page.getByTestId("findings-drawer").boundingBox())!
+
+    // The specific regression: the drawer must never start at or before
+    // the rail's own right edge (which would mean it's spanning under the
+    // rail) — and its left edge matches the rest of the canvas column,
+    // not some other, independently-computed position.
+    expect(drawerBox.x).toBeGreaterThanOrEqual(railBox.x + railBox.width)
+    expect(drawerBox.x).toBeCloseTo(canvasBox.x, 0)
+  })
+
+  test("groups findings by statement in a multi-statement batch, with collapsible group headers", async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "multi-statement-batch.xml"))
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+    await page.getByTestId("findings-drawer-summary").click()
+
+    const headers = page.getByTestId("findings-list-group-header")
+    const headerCount = await headers.count()
+    expect(headerCount).toBeGreaterThan(0)
+
+    const firstHeader = headers.first()
+    await expect(firstHeader).toHaveAttribute("aria-expanded", "true")
+    const rowsBefore = await page.locator('[data-testid="findings-drawer-body"] [data-testid="finding-item"]').count()
+
+    await firstHeader.click()
+    await expect(firstHeader).toHaveAttribute("aria-expanded", "false")
+    const rowsAfter = await page.locator('[data-testid="findings-drawer-body"] [data-testid="finding-item"]').count()
+    expect(rowsAfter).toBeLessThan(rowsBefore)
+  })
+})
