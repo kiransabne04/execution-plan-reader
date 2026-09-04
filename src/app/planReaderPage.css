@@ -1152,30 +1152,6 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-.plan-shell__tabs {
-  flex: none;
-  display: flex;
-  gap: 6px;
-  padding: 0 12px 8px;
-}
-
-.plan-shell__tab {
-  flex: 1 1 auto;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--pr-border);
-  background: transparent;
-  color: var(--pr-text);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.plan-shell__tab[aria-selected="true"] {
-  background: var(--pr-accent);
-  border-color: var(--pr-accent);
-  color: white;
-}
-
 /* Story 6.3 — always rendered as this when mounted; PlanReaderPage.tsx
    itself now controls WHETHER it's in the DOM at all (only when an
    un-pinned panel is open), so there's no separate "hidden by default,
@@ -1353,34 +1329,53 @@
   flex-wrap: wrap;
 }
 
+/* Episode 26, Story 26.5 — editor-tab-style active-underline treatment,
+   replacing the old filled-pill active state: a real deviation from the
+   icon-rail's own pill convention (Story 26.2) on purpose — these are
+   document/editor-style tabs (one open statement among several, like a
+   file tab), not rail navigation, and VS Code's own editor tabs use
+   exactly this underline language for that reason. Rounded TOP corners
+   only (matches a real tab's own shape — nothing sits below its own
+   baseline to round into). */
 .plan-reader-page__statement-tab {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--pr-border);
+  padding: 6px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
   background: transparent;
-  color: var(--pr-text);
+  color: var(--pr-text-muted);
   font-size: 12px;
   cursor: pointer;
+  transition: color 0.1s ease, background-color 0.1s ease;
+}
+
+.plan-reader-page__statement-tab:hover,
+.plan-reader-page__statement-tab:focus-visible {
+  background: var(--pr-item-hover-bg, rgba(255, 255, 255, 0.06));
+  color: var(--pr-text);
 }
 
 .plan-reader-page__statement-tab[aria-selected="true"] {
-  background: var(--pr-accent);
-  border-color: var(--pr-accent);
-  color: white;
+  border-bottom-color: var(--pr-accent);
+  color: var(--pr-text);
+  font-weight: 600;
 }
 
 /* Story 20.1 — a collapsed run of trivial control-flow statements. Italic
-   + dashed border (same "this represents several things, not one"
-   language AccessiblePlanList's own `--collapsed` row uses) rather than
-   `aria-selected`'s solid-fill treatment, since this row is never itself
-   "the active statement." */
+   + a permanent dashed underline (same "this represents several things,
+   not one" language AccessiblePlanList's own `--collapsed` row uses) —
+   this row is never itself "the active statement" (it toggles its own
+   `aria-expanded`, never `aria-selected`), so its own visual signal has
+   to stand on its own rather than reusing the solid accent underline
+   reserved for real tab selection. */
 .plan-reader-page__statement-tab--group {
   font-style: italic;
-  border-style: dashed;
   opacity: 0.85;
+  border-bottom-style: dashed;
+  border-bottom-color: var(--pr-border);
 }
 
 /* Story 18.11 — additive to the tab's own label, never replacing it. */
