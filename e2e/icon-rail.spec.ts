@@ -41,7 +41,7 @@ test.describe("icon rail", () => {
     // the icon-rail buttons stay clickable above the scrim at all times
     // (a real bug this story's own e2e run caught and fixed — see
     // planReaderPage.css's own comment on `.icon-rail__button`'s
-    // z-index). Episode 26, Story 26.2: opening Findings/Problems now
+    // z-index). Episode 26, Story 26.2: opening Findings/Issues now
     // explicitly closes Recent Plans first (still open from above) — the
     // two would otherwise occupy the same left column.
     await page.getByTestId("icon-rail-findings").click()

@@ -467,7 +467,7 @@ export function PlanReaderPage() {
     [activeStatementIndex, switchToStatement],
   )
 
-  // Episode 26, Story 26.2 — "opening the Problems panel explicitly closes
+  // Episode 26, Story 26.2 — "opening the Issues panel explicitly closes
   // [the New Plan/Recent Plans] overlay first if open": the two would
   // otherwise occupy the same left column. Wraps every path that can OPEN
   // the findings drawer (the icon rail's own Findings button, and
@@ -1231,7 +1231,7 @@ export function PlanReaderPage() {
                           aria-pressed={isMaximizedFindingsOpen}
                           onClick={() => setIsMaximizedFindingsOpen((v) => !v)}
                         >
-                          Problems
+                          Issues
                         </button>
                       </div>
                     )}

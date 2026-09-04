@@ -23,7 +23,7 @@ export interface FindingsDrawerProps {
   activeStatementIndex: number
   onSelectNode: (statementIndex: number, nodeId: string) => void
   /** Precomputed once by the caller (PlanReaderPage), the same
-   * `collectFindingsAcrossStatements` call `IconRail`'s own Problems badge
+   * `collectFindingsAcrossStatements` call `IconRail`'s own Issues badge
    * reads — one aggregate, read twice, never two independently-computed
    * counts that could drift from each other. */
   summary: FindingsSummaryCounts
@@ -154,7 +154,7 @@ export function FindingsDrawer({ sources, activeStatementIndex, onSelectNode, su
             className="findings-drawer__resize-handle"
             role="separator"
             aria-orientation="horizontal"
-            aria-label="Resize the Problems panel"
+            aria-label="Resize the Issues panel"
             aria-valuemin={MIN_HEIGHT_PX}
             aria-valuenow={Math.round(customHeightPx ?? getCurrentBodyHeight())}
             tabIndex={0}

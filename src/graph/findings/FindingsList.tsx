@@ -33,7 +33,7 @@ export interface FindingsListProps {
    * its own. */
   onSelectNode: (statementIndex: number, nodeId: string) => void
   /** Story 6.3 — "list" (default) is this component's original always-
-   * been-this-way rendering: a "Problems · N" header, and each finding as
+   * been-this-way rendering: an "Issues · N" header, and each finding as
    * its own full-card severity treatment (colored border/background,
    * shortText on its own line). "compact" reuses 100% of the same
    * filtering/data logic above — only the row markup changes, to a single
@@ -43,7 +43,7 @@ export interface FindingsListProps {
    * (so this component's own header would be redundant there) and needs
    * to stay usable at real-world counts (dozens of findings) that the
    * full-card treatment doesn't scale to. Every existing caller (the
-   * maximized-mode Problems toggle, Episode 22) omits this and keeps the
+   * maximized-mode Issues toggle, Episode 22) omits this and keeps the
    * original "list" rendering unchanged — including Episode 26, Story
    * 26.3's own statement-grouping below, which is scoped to the "compact"
    * drawer specifically (the AC's own wording), not this variant. */
@@ -204,7 +204,7 @@ export function FindingsList({ sources, activeStatementIndex, onSelectNode, vari
       {!isCompact && (
         <div className="findings-list__header">
           <h2 className="findings-list__title">
-            Problems <span className="findings-list__count">· {allFindings.length}</span>
+            Issues <span className="findings-list__count">· {allFindings.length}</span>
           </h2>
           <span className="findings-list__sort-label">By severity</span>
         </div>

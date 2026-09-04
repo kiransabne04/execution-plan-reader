@@ -39,7 +39,7 @@ describe("FindingsList", () => {
     const root = makeNode({ id: "root", children: nodes })
     render(<FindingsList sources={single(root)} activeStatementIndex={0} onSelectNode={vi.fn()} />)
 
-    expect(screen.getByTestId("findings-list")).toHaveTextContent("Problems")
+    expect(screen.getByTestId("findings-list")).toHaveTextContent("Issues")
     expect(screen.getByTestId("findings-list")).toHaveTextContent("5")
     expect(screen.getAllByTestId("finding-item")).toHaveLength(5)
   })
