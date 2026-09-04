@@ -109,36 +109,54 @@ export function QueryHealthCard({ health }: QueryHealthCardProps) {
           every render, never held in local state separately from it — a
           user with this expanded who then switches to a different (or
           insufficient-data) statement never sees a stale frame of the
-          PREVIOUS statement's numbers (this story's own edge-case table). */}
-      {isExpanded && (
-        <ul className="query-health-card__breakdown" data-testid="query-health-breakdown">
-          {QUERY_HEALTH_DIMENSIONS.map((dimension) => {
-            const result = health.dimensions[dimension]
-            return (
-              <li key={dimension} className="query-health-card__dimension" data-testid="query-health-dimension">
-                <span className="query-health-card__dimension-label">{DIMENSION_LABEL[dimension]}</span>
-                {result.status === "scored" ? (
-                  <span
-                    className={`query-health-card__dimension-score query-health-card__dimension-score--${scoreTier(result.score)}`}
-                    data-testid="query-health-dimension-score"
-                  >
-                    {result.score}
-                  </span>
-                ) : (
-                  // Visibly distinct from a real low score — never the same
-                  // muted number styling a genuine 20/100 would get, since
-                  // the two mean opposite things (a real problem vs. an
-                  // honest absence of signal). See this component's own
-                  // CSS for the actual visual treatment.
+          PREVIOUS statement's numbers (this story's own edge-case table).
+
+          Story 6.3 — scored dimensions still get one row each (unchanged);
+          insufficient-data ones are combined into a SINGLE row ("N metrics
+          unavailable for this plan") rather than each consuming its own
+          permanently-visible "not enough data" row — the exact clutter
+          this story removes. Omitted entirely when every dimension
+          scored, never a hollow "0 metrics unavailable" line. */}
+      {isExpanded &&
+        (() => {
+          const scored = QUERY_HEALTH_DIMENSIONS.filter((d) => health.dimensions[d].status === "scored")
+          const insufficient = QUERY_HEALTH_DIMENSIONS.filter((d) => health.dimensions[d].status !== "scored")
+          return (
+            <ul className="query-health-card__breakdown" data-testid="query-health-breakdown">
+              {scored.map((dimension) => {
+                const result = health.dimensions[dimension]
+                if (result.status !== "scored") return null // narrows for TS; `scored` already guarantees this
+                return (
+                  <li key={dimension} className="query-health-card__dimension" data-testid="query-health-dimension">
+                    <span className="query-health-card__dimension-label">{DIMENSION_LABEL[dimension]}</span>
+                    <span
+                      className={`query-health-card__dimension-score query-health-card__dimension-score--${scoreTier(result.score)}`}
+                      data-testid="query-health-dimension-score"
+                    >
+                      {result.score}
+                    </span>
+                  </li>
+                )
+              })}
+              {insufficient.length > 0 && (
+                // Visibly distinct from a real low score — never the same
+                // muted number styling a genuine 20/100 would get, since
+                // the two mean opposite things (a real problem vs. an
+                // honest absence of signal). See this component's own CSS
+                // for the actual visual treatment.
+                <li className="query-health-card__dimension query-health-card__dimension--unavailable" data-testid="query-health-dimension-unavailable">
                   <span className="query-health-card__dimension-insufficient" data-testid="query-health-dimension-insufficient">
-                    not enough data
+                    {insufficient.length} metric{insufficient.length === 1 ? "" : "s"} unavailable for this plan
+                    <span className="query-health-card__dimension-unavailable-names">
+                      {" "}
+                      ({insufficient.map((d) => DIMENSION_LABEL[d]).join(", ")})
+                    </span>
                   </span>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
+                </li>
+              )}
+            </ul>
+          )
+        })()}
     </section>
   )
 }

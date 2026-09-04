@@ -36,7 +36,7 @@ describe("QueryHealthCard", () => {
     expect(screen.queryByTestId("query-health-score")).not.toBeInTheDocument()
   })
 
-  it("the breakdown is collapsed by default and reveals all 5 dimensions on toggle", () => {
+  it("the breakdown is collapsed by default and reveals 3 scored rows + 1 combined unavailable row on toggle", () => {
     render(<QueryHealthCard health={health()} />)
     expect(screen.queryByTestId("query-health-breakdown")).not.toBeInTheDocument()
 
@@ -45,8 +45,12 @@ describe("QueryHealthCard", () => {
     fireEvent.click(toggle)
 
     expect(toggle).toHaveAttribute("aria-expanded", "true")
+    // Story 6.3 — 3 scored dimensions each get their own row (its own
+    // testid); the 2 insufficient-data ones (I/O, Parallelism) combine
+    // into ONE separately-testid'd row, not two separate scored-style rows.
     const items = screen.getAllByTestId("query-health-dimension")
-    expect(items).toHaveLength(5)
+    expect(items).toHaveLength(3)
+    expect(screen.getByTestId("query-health-dimension-unavailable")).toBeInTheDocument()
   })
 
   it("an insufficient-data dimension is visibly distinct from a real low score — different testid, not just different text", () => {
@@ -57,12 +61,16 @@ describe("QueryHealthCard", () => {
     const scored = screen.getAllByTestId("query-health-dimension-score")
     expect(scored.map((el) => el.textContent)).toEqual(expect.arrayContaining(["55"]))
 
-    // Insufficient-data dimensions (I/O, Parallelism) render via a
-    // COMPLETELY different testid/element, not the same score element with
-    // different text — a future refactor can't accidentally collapse the
-    // two into looking identical.
+    // Story 6.3 — insufficient-data dimensions (I/O, Parallelism) render
+    // via a COMPLETELY different testid/element, not the same score
+    // element with different text — a future refactor can't accidentally
+    // collapse the two into looking identical. Combined into ONE row now,
+    // not one per dimension, naming both in its own text.
     const insufficient = screen.getAllByTestId("query-health-dimension-insufficient")
-    expect(insufficient).toHaveLength(2)
+    expect(insufficient).toHaveLength(1)
+    expect(insufficient[0]).toHaveTextContent("2 metrics unavailable for this plan")
+    expect(insufficient[0]).toHaveTextContent("I/O")
+    expect(insufficient[0]).toHaveTextContent("Parallelism")
     expect(scored).toHaveLength(3)
   })
 
@@ -90,7 +98,8 @@ describe("QueryHealthCard", () => {
   it("stays expanded-content-correct after a health-prop change while the breakdown was already open", () => {
     const { rerender } = render(<QueryHealthCard health={health()} />)
     fireEvent.click(screen.getByTestId("query-health-breakdown-toggle"))
-    expect(screen.getAllByTestId("query-health-dimension")).toHaveLength(5)
+    expect(screen.getAllByTestId("query-health-dimension")).toHaveLength(3) // + 1 separately-testid'd combined unavailable row
+    expect(screen.getByTestId("query-health-dimension-unavailable")).toBeInTheDocument()
 
     // New health where every dimension is insufficient-data — the
     // breakdown must reflect THIS prop, not the previous statement's.
@@ -109,8 +118,35 @@ describe("QueryHealthCard", () => {
     }
     rerender(<QueryHealthCard health={allInsufficient} />)
     expect(screen.getByTestId("query-health-insufficient")).toBeInTheDocument()
-    expect(screen.getAllByTestId("query-health-dimension-insufficient")).toHaveLength(5)
+    // All 5 dimensions insufficient — no scored rows at all, still just
+    // ONE combined row, not 5.
+    expect(screen.queryAllByTestId("query-health-dimension")).toHaveLength(0)
+    expect(screen.getAllByTestId("query-health-dimension-insufficient")).toHaveLength(1)
+    expect(screen.getByTestId("query-health-dimension-insufficient")).toHaveTextContent("5 metrics unavailable for this plan")
     expect(screen.queryByTestId("query-health-dimension-score")).not.toBeInTheDocument()
+  })
+
+  // Story 6.3 — a plan with ZERO insufficient dimensions (every dimension
+  // scored) must never show a hollow "0 metrics unavailable" line.
+  it("omits the unavailable-metrics row entirely when every dimension scored", () => {
+    const allScored: QueryHealth = {
+      overall: { status: "scored", score: 90 },
+      dimensions: {
+        runtime: { status: "scored", score: 90 },
+        cardinality: { status: "scored", score: 90 },
+        memory: { status: "scored", score: 90 },
+        io: { status: "scored", score: 90 },
+        parallelism: { status: "scored", score: 90 },
+      },
+      critical: 0,
+      warning: 0,
+      healthy: 10,
+    }
+    render(<QueryHealthCard health={allScored} />)
+    fireEvent.click(screen.getByTestId("query-health-breakdown-toggle"))
+    expect(screen.getAllByTestId("query-health-dimension")).toHaveLength(5)
+    expect(screen.queryByTestId("query-health-dimension-insufficient")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("query-health-dimension-unavailable")).not.toBeInTheDocument()
   })
 
   // Story 23.3's own testing-approach bullet — the graph-visualization
@@ -129,6 +165,7 @@ describe("QueryHealthCard", () => {
     )
     expect(within(container).getByTestId("query-health-card")).toBeInTheDocument()
     fireEvent.click(screen.getByTestId("query-health-breakdown-toggle"))
-    expect(screen.getAllByTestId("query-health-dimension")).toHaveLength(5)
+    expect(screen.getAllByTestId("query-health-dimension")).toHaveLength(3)
+    expect(screen.getByTestId("query-health-dimension-unavailable")).toBeInTheDocument()
   })
 })

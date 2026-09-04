@@ -161,3 +161,18 @@
   font-size: 11.5px;
   font-style: italic;
 }
+
+/* Story 6.3 — the combined "N metrics unavailable" row: unlike the
+   per-dimension pill above (a small tag sitting beside a real dimension
+   label), this row's whole content IS this text, so it reads as a plain
+   line rather than a pill spanning the row. */
+.query-health-card__dimension--unavailable .query-health-card__dimension-insufficient {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  width: 100%;
+}
+
+.query-health-card__dimension-unavailable-names {
+  opacity: 0.75;
+}
