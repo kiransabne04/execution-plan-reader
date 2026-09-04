@@ -939,9 +939,21 @@ export function PlanReaderPage() {
                       />
                     )}
 
+                    {/* Story 6.3 — `rawText` (not just `initial?.rawText`,
+                        the one-time share-link-recovery value) so a
+                        PasteBox instance that remounts — the pre-analysis
+                        inline view giving way to this icon-rail-hosted
+                        one being the first and biggest such transition —
+                        starts pre-filled with whatever was JUST analyzed,
+                        not blank. A real bug this story's own e2e run
+                        caught: without this, the auto-collapsed New Plan
+                        panel came back empty on reopen, breaking the
+                        story's own explicit "re-openable, to edit and
+                        re-analyze" requirement the very first time it
+                        actually mattered. */}
                     <PasteBox
                       onAnalyze={handleAnalyze}
-                      initialText={initial?.rawText}
+                      initialText={rawText || initial?.rawText}
                       dontSave={dontSave}
                       onDontSaveChange={setDontSave}
                       hasSavedData={restoreCandidate !== null || recentPlans.length > 0}

@@ -100,20 +100,33 @@ export function IconRail({
         )}
       </button>
 
-      {activePanel && (
-        <>
-          {/* Same fixed-scrim-behind-a-fixed-panel mechanism as the detail
-              panel's own overlay (planReaderPage.css's
-              .plan-shell__detail-scrim) — one overlay pattern in this app. */}
-          <div className="icon-rail__scrim" data-testid="icon-rail-scrim" onClick={closePanel} />
-          <div className="icon-rail__panel" role="dialog" aria-label={activePanel === "new-plan" ? "Plan input" : "Recent plans"} data-testid="icon-rail-panel">
-            <button type="button" className="icon-rail__panel-close" aria-label="Close" data-testid="icon-rail-panel-close" onClick={closePanel}>
-              ×
-            </button>
-            {activePanel === "new-plan" ? newPlanContent : recentPlansContent}
-          </div>
-        </>
-      )}
+      {/* Same fixed-scrim-behind-a-fixed-panel mechanism as the detail
+          panel's own overlay (planReaderPage.css's
+          .plan-shell__detail-scrim) — one overlay pattern in this app.
+          `hidden` (a real bug this story's own e2e run caught), not
+          conditional unmounting: PasteBox owns its own pasted-text state
+          internally (`useState`, no controlled prop from here) — closing
+          this panel by UNMOUNTING it would wipe whatever was typed/
+          pasted, breaking the story's own explicit "re-openable, to edit
+          and re-analyze" requirement the moment a plan had already been
+          analyzed once. `hidden` keeps both content subtrees permanently
+          mounted (matching PasteBox's own established "CSS-only
+          visibility toggle, not a conditional unmount" pattern for its
+          internal collapse), only ever swapping which one is visible. */}
+      <div className="icon-rail__scrim" data-testid="icon-rail-scrim" onClick={closePanel} hidden={!activePanel} />
+      <div
+        className="icon-rail__panel"
+        role="dialog"
+        aria-label={activePanel === "recent-plans" ? "Recent plans" : "Plan input"}
+        data-testid="icon-rail-panel"
+        hidden={!activePanel}
+      >
+        <button type="button" className="icon-rail__panel-close" aria-label="Close" data-testid="icon-rail-panel-close" onClick={closePanel}>
+          ×
+        </button>
+        <div hidden={activePanel !== "new-plan"}>{newPlanContent}</div>
+        <div hidden={activePanel !== "recent-plans"}>{recentPlansContent}</div>
+      </div>
     </nav>
   )
 }

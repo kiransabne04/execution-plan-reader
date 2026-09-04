@@ -710,12 +710,21 @@
   /* Story 6.3 — `.plan-shell__body` now defines only 2 explicit column
      tracks by default (the 3rd exists only when pinned, see
      `--detail-pinned` below), but this aside is still always the 3rd DOM
-     child. Without this, grid auto-placement wraps it to an IMPLICIT
-     SECOND ROW instead of an implicit 3rd column (there's no room left in
-     row 1's 2 explicit tracks) — harmless when it's empty, but sloppy and
-     a real footgun for anything added here later. Forces it to stay in
-     row 1, letting auto-placement create the implicit 3rd column instead. */
+     child. `grid-row: 1` ALONE (a real bug this story's own required
+     canvas-area e2e measurement caught — see canvas-real-estate.spec.ts)
+     is NOT enough: the CSS Grid placement algorithm processes items with
+     a definite row but auto column BEFORE fully-auto items, so it grabbed
+     COLUMN 1 (the first available cell in row 1) — stealing the icon
+     rail's own spot, which cascaded into the icon rail displacing the
+     canvas into an entirely different, wrapped position. `grid-column:
+     -1` (the LAST column line, explicit or implicit, negative indices
+     count from the end) makes the placement fully definite in BOTH axes,
+     so it never competes with the icon-rail/canvas's own auto-placement
+     for column 1 or 2 — it creates its own implicit 3rd column instead,
+     computing to ~0 width when empty, exactly the original pre-Story-6.3
+     "0px 3rd column" behavior. */
   grid-row: 1;
+  grid-column: -1;
 }
 
 /* Design review: left rail only — tightest usable line-height (1 is the
@@ -1292,10 +1301,32 @@
   align-items: center;
   gap: 8px;
   padding-top: 4px;
+  /* Story 6.3 — a real bug this story's own e2e run caught: without this,
+     the scrim (z-index 19, below) sits ON TOP of the rail's own buttons
+     whenever a panel is open, blocking every other icon — including
+     Findings, which the story's own design intends to stay independently
+     clickable at all times (it's a completely different concern from the
+     New Plan/Recent Plans overlay panels). `position: relative` makes
+     this z-index meaningful (an unpositioned element's z-index is a
+     no-op). */
+  position: relative;
+  z-index: 21;
 }
 
 .icon-rail__button {
   position: relative;
+  /* Story 6.3 — a real bug this story's own e2e run caught: the scrim/
+     panel below (z-index 19/20) are DESCENDANTS of `.icon-rail`, not
+     siblings — `.icon-rail`'s own z-index (below) only controls its
+     stacking relative to elements OUTSIDE it, it does nothing to change
+     the scrim/panel's stacking relative to THESE buttons, their fellow
+     children within `.icon-rail`'s own local stacking context. Without
+     an explicit z-index here, the scrim/panel (both genuinely positioned,
+     z-index 19/20) painted OVER a plain `position: relative` button
+     (implicit z-index 0) regardless of DOM order — blocking every other
+     icon, including Findings, which the story's own design intends to
+     stay independently clickable at all times. */
+  z-index: 22;
   flex: none;
   width: 40px;
   height: 40px;

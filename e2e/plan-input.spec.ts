@@ -28,18 +28,23 @@ test("a real fixture per engine analyzes correctly and fires the specific rule i
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "bitmap-and-or-zero-rows.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("Postgres")
+  // Story 6.3 — Findings is a collapsed bottom drawer now; open it before
+  // its rows are reachable.
+  await page.getByTestId("findings-drawer-summary").click()
   await expect(
     page.getByTestId("finding-item").filter({ hasText: /bad.row.estimate|estimate/i }).first(),
   ).toBeVisible()
 
-  // The paste box collapses to a "pasted · N lines" summary once analyzed
-  // (design review) — expand it back to a real textarea before filling
-  // the next engine's fixture in.
+  // Story 6.3 — the New Plan panel auto-collapses to the icon rail after
+  // analyze; reopen it before PasteBox's own "pasted · N lines" summary
+  // (design review, unchanged by this story) is reachable to expand.
+  await page.getByTestId("icon-rail-new-plan").click()
   await page.getByTestId("paste-box-expand").click()
   await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "missing-index-recommendation.xml"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("SQL Server")
 
+  await page.getByTestId("icon-rail-new-plan").click()
   await page.getByTestId("paste-box-expand").click()
   await page.getByTestId("paste-textarea").fill(loadFixture("snowflake", "spill-to-remote-disk.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()

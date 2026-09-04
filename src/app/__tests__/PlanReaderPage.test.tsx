@@ -67,8 +67,16 @@ afterEach(async () => {
 // actually do — every existing call site that re-analyzes mid-test
 // (re-pasting a second plan on top of the first) keeps working unchanged.
 function pasteAndAnalyze(text: string) {
+  // Story 6.3 — the New Plan panel uses the native `hidden` attribute
+  // (kept mounted, never unmounted — see IconRail.tsx's own comment on
+  // why), not conditional rendering, so `queryByTestId("paste-textarea")`
+  // alone can't tell whether it's actually reachable: RTL's testid
+  // queries ignore visibility entirely, only `getByRole` (which excludes
+  // hidden subtrees from the accessibility tree) does. Check the panel's
+  // own `hidden` DOM property directly instead.
   const newPlanIcon = screen.queryByTestId("icon-rail-new-plan")
-  if (newPlanIcon && screen.queryByTestId("paste-textarea") === null) {
+  const panel = screen.queryByTestId("icon-rail-panel") as HTMLElement | null
+  if (newPlanIcon && panel?.hidden) {
     fireEvent.click(newPlanIcon)
   }
   fireEvent.change(screen.getByTestId("paste-textarea"), { target: { value: text } })
