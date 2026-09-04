@@ -887,12 +887,36 @@
   border-radius: 8px;
 }
 
+/* Episode 26, Story 26.6 — a real branded moment (icon + the honest
+   supported-engine line) instead of one plain line of muted text, still
+   inside Episode 19's own dashed placeholder box, not a full-page hero. */
 .plan-shell__empty-placeholder {
   margin: 0;
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   text-align: center;
+}
+
+.plan-shell__empty-placeholder-icon {
+  width: 36px;
+  height: 36px;
+  color: var(--pr-accent);
+  opacity: 0.7;
+}
+
+.plan-shell__empty-placeholder-text {
+  margin: 0;
+  color: var(--pr-text);
+  font-size: 15px;
+}
+
+.plan-shell__empty-placeholder-engines {
+  margin: 0;
   color: var(--pr-text-muted);
-  font-size: 14px;
+  font-size: 12px;
 }
 
 /* Episode 19 — Plan Input's permanent home in the left rail, above
