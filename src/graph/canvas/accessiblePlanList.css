@@ -1,7 +1,19 @@
+/* Episode 26, Story 26.1 — canvas is the only rendering path now, which
+   makes this list reachable at every plan size (not just the rare large-
+   plan case it used to be scoped to) — its own top rows can otherwise land
+   directly under PlanReaderPage's persistent top-left toolbar chrome
+   (`.plan-shell__graph-toolbar`'s search trigger + maximize toggle, and —
+   when maximized — its own second row), which absolutely-positions itself
+   OVER whatever this component renders underneath, the same "left column,
+   two stacked rows" zone `.plan-shell__maximized-findings`'s own top:104px
+   already clears in planReaderPage.css. Matching that established value
+   here keeps this list's own first rows genuinely clickable — this isn't
+   cosmetic, a real click landing on that chrome instead of a row underneath
+   it is exactly the bug a live e2e run caught. */
 .accessible-plan-list {
   list-style: none;
   margin: 0;
-  padding: 8px;
+  padding: 104px 8px 8px;
   max-height: 100%;
   overflow-y: auto;
   background: var(--pg-card-bg, #232532);

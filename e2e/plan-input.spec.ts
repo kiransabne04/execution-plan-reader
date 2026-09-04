@@ -19,7 +19,7 @@ test("picking a real fixture file via the file picker analyzes it, identically t
 
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("Postgres")
-  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 })
 
 test("a real fixture per engine analyzes correctly and fires the specific rule it was chosen for", async ({ page }) => {

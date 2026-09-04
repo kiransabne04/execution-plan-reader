@@ -23,9 +23,10 @@
 // illegibly-small text. `drawCollapsedGroupNode`'s "N hidden" label
 // follows the same rule.
 
-import type { PlanGraphEdge, PlanGraphNode } from "../buildGraphElements"
+import type { ComparisonOverlay, PlanGraphEdge, PlanGraphNode } from "../buildGraphElements"
 import { computeHandleOffsetPercent } from "../buildGraphElements"
 import type { OperatorIconKey } from "../operatorIcons"
+import type { PlanNode } from "../../parsers/normalize"
 import type { ViewportTransform } from "./viewportTransform"
 
 export interface DrawGraphParams {
@@ -93,6 +94,16 @@ const ICON_GLYPH: Record<OperatorIconKey, string> = {
 const ARROWHEAD_SIZE_PX = 11
 const TARGET_HANDLE_GAP_PX = 10
 
+// Design review (reference mock) — the top-right "N%" figure only appears
+// on the handful of nodes actually worth calling out at a glance; every
+// node showing it unconditionally would be noise. A judgment call, not a
+// value read off any spec — 20% draws the line at "a clearly dominant
+// contributor" without pretending false precision. Episode 26, Story 26.1:
+// this constant and its drawing both used to live in the now-deleted
+// PlanNodeCard.tsx (DOM/SVG mode) — this is the single implementation now,
+// not a second one re-derived here.
+const CONTRIBUTION_BADGE_THRESHOLD = 20
+
 // Story 18.10, spec §5 `1i` — the canvas path's own legible-zoom floor
 // (independent of the DOM/SVG path's MIN_LEGIBLE_ZOOM in PlanGraph.tsx,
 // which floors React Flow's own zoom prop; canvas mode has no such prop —
@@ -130,6 +141,26 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number):
   return `${truncated}…`
 }
 
+/** "Seq Scan -> Index Scan", plus a cost or time delta line when both sides
+ * report a comparable figure — never a fabricated delta when one side is
+ * missing the field (e.g. Snowflake's actualTimeMs, which is intentionally
+ * left undefined; see normalize.ts's TimeBreakdownInfo comment). Episode
+ * 26, Story 26.1: ported verbatim from the now-deleted PlanNodeCard.tsx —
+ * this is the single implementation now, not a second one re-derived here. */
+function formatComparisonDelta(planNode: PlanNode, counterpart: NonNullable<ComparisonOverlay["counterpart"]>): string {
+  const operatorDelta = `${planNode.rawOperatorLabel} → ${counterpart.rawOperatorLabel}`
+  const metricDelta = formatMetricDelta(planNode.estimatedCost, counterpart.estimatedCost, "cost") ?? formatMetricDelta(planNode.actualTimeMs, counterpart.actualTimeMs, "time")
+  return metricDelta ? `${operatorDelta} (${metricDelta})` : operatorDelta
+}
+
+function formatMetricDelta(before: number | undefined, after: number | undefined, label: string): string | undefined {
+  if (before === undefined || after === undefined || before <= 0) return undefined
+  const percentChange = Math.round(((after - before) / before) * 100)
+  if (percentChange === 0) return undefined
+  const direction = percentChange < 0 ? "↓" : "↑"
+  return `${label} ${direction}${Math.abs(percentChange)}%`
+}
+
 function formatMeta(node: PlanGraphNode): string {
   if (node.data.kind !== "plan") return ""
   const planNode = node.data.planNode
@@ -155,8 +186,20 @@ function drawPlanNode(
   const { x, y } = node.position
   const width = node.width ?? 160
   const height = node.height ?? 56
-  const { color, hasMismatch, mismatchFactor, spillBadgeText, loopCount, planNode, comparisonOverlay, severity, iconKey, subtitle, isDimmed } =
-    node.data
+  const {
+    color,
+    hasMismatch,
+    mismatchFactor,
+    spillBadgeText,
+    loopCount,
+    planNode,
+    comparisonOverlay,
+    severity,
+    iconKey,
+    subtitle,
+    isDimmed,
+    contributionPercent,
+  } = node.data
 
   // Story 18.8, spec §5 `1h` — canvas-mode equivalent of PlanNodeCard's
   // opacity dimming: globalAlpha applies to every fill/stroke below (the
@@ -245,7 +288,21 @@ function drawPlanNode(
   ctx.font = "600 12px system-ui, sans-serif"
   ctx.fillStyle = textColor
   const labelX = x + padding + iconWidth + 5
-  ctx.fillText(fitText(ctx, planNode.rawOperatorLabel, width - padding * 2 - iconWidth - 5), labelX, y + padding)
+  const labelMaxWidth = width - padding * 2 - iconWidth - 5 - (contributionPercent !== undefined && contributionPercent >= CONTRIBUTION_BADGE_THRESHOLD ? 28 : 0)
+  ctx.fillText(fitText(ctx, planNode.rawOperatorLabel, labelMaxWidth), labelX, y + padding)
+
+  // Design review — the top-right "N%" figure (see this file's own
+  // `CONTRIBUTION_BADGE_THRESHOLD` comment). Plain muted text, matching
+  // the DOM path's treatment — a measurement, not a finding, so it doesn't
+  // compete visually with the badges drawn below. Right-aligned against
+  // the card's own right edge, same row as the label.
+  if (contributionPercent !== undefined && contributionPercent >= CONTRIBUTION_BADGE_THRESHOLD) {
+    ctx.font = "11px system-ui, sans-serif"
+    ctx.fillStyle = colorWithAlpha(textColor, 0.75)
+    ctx.textAlign = "right"
+    ctx.fillText(`${Math.round(contributionPercent)}%`, x + width - padding, y + padding)
+    ctx.textAlign = "left"
+  }
 
   let nextLineY = y + padding + 16
   if (subtitle) {
@@ -260,6 +317,16 @@ function drawPlanNode(
     ctx.font = "11px system-ui, sans-serif"
     ctx.fillStyle = colorWithAlpha(textColor, 0.75)
     ctx.fillText(fitText(ctx, meta, width - padding * 2), x + padding, nextLineY)
+    nextLineY += 13
+  }
+
+  // Story 14.2's AC: a changed node shows "the specific delta ... e.g.
+  // Seq Scan -> Index Scan, cost/time delta" directly, not tucked behind a
+  // click — matching the DOM path's own visible, un-clicked placement.
+  if (comparisonOverlay?.status === "changed" && comparisonOverlay.counterpart) {
+    ctx.font = "600 11px system-ui, sans-serif"
+    ctx.fillStyle = textColor
+    ctx.fillText(fitText(ctx, formatComparisonDelta(planNode, comparisonOverlay.counterpart), width - padding * 2), x + padding, nextLineY)
   }
 
   let badgeY = y + height - padding - 12

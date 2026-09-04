@@ -1,6 +1,9 @@
-// Episode 6 — pure PlanNode-tree -> React Flow nodes/edges conversion,
-// deliberately framework-light (plain objects matching @xyflow/react's Node/
-// Edge shape) so this is fully unit-testable without mounting React Flow.
+// Episode 6 — pure PlanNode-tree -> graph nodes/edges conversion,
+// deliberately framework-light (plain objects, historically shaped to match
+// @xyflow/react's Node/Edge types — kept as the shared data model's own
+// shape after Episode 26, Story 26.1 removed React Flow as a RENDERING
+// path, since retyping the whole model was out of that story's scope) so
+// this is fully unit-testable without mounting any renderer.
 // See .claude/skills/graph-visualization/SKILL.md.
 //
 // Episode 18, Story 18.4 — layout direction and edge DIRECTION both flip
@@ -14,7 +17,7 @@
 // direction happened to share the same top-to-bottom shape with by
 // coincidence. Handles swap to match: `source` (outgoing, to this node's
 // OWN parent) on Top, `target` (incoming, from this node's children) on
-// Bottom — see PlanNodeCard.tsx.
+// Bottom — see canvasDraw.ts's own per-child offset math.
 
 import type { Edge, Node, SmoothStepPathOptions } from "@xyflow/react"
 import dagre from "@dagrejs/dagre"
@@ -76,9 +79,9 @@ export interface PlanNodeData extends Record<string, unknown> {
    * `AccessiblePlanList.tsx` already had — one implementation, not a
    * third independent reimplementation. */
   severity?: Warning["severity"]
-  /** Story 18.4 — the operator-icon CATEGORY (not the icon component
-   * itself — this stays framework-light per the module comment above;
-   * `PlanNodeCard` looks the component up from `operatorIcons.ts`). */
+  /** Story 18.4 — the operator-icon CATEGORY (not a drawable icon itself —
+   * this stays framework-light per the module comment above; canvasDraw.ts
+   * looks the actual glyph up from `operatorIcons.ts`). */
   iconKey: OperatorIconKey
   /** Story 18.4 — relation or index name, mono/ellipsised on the card.
    * `undefined` for operators with neither (Sort, Aggregate, …) — an
@@ -93,7 +96,7 @@ export interface PlanNodeData extends Record<string, unknown> {
    * computation from the detail panel's `computeContributionPercent`
    * (cumulative, includes children) — see `exclusiveContributionPercent`'s
    * own doc comment in this file for why a cumulative figure doesn't work
-   * for this particular badge. Threshold-gated in PlanNodeCard.tsx
+   * for this particular badge. Threshold-gated in canvasDraw.ts
    * (`CONTRIBUTION_BADGE_THRESHOLD`), not shown for every node
    * unconditionally. `undefined` when `context` wasn't supplied (e.g. a
    * standalone/test render) or the figure isn't computable. */

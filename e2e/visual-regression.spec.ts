@@ -9,14 +9,19 @@
 // on a genuinely unchanged UI.
 
 import { test, expect } from "@playwright/test"
-import { loadFixture } from "./testUtils.js"
+import { loadFixture, openPlanNode } from "./testUtils.js"
+
+// Episode 26, Story 26.1 — canvas is now the only rendering path, so these
+// baselines capture the canvas bitmap, not a React Flow DOM tree — they
+// were regenerated (`playwright test --update-snapshots`) against this
+// story's own rendering, superseding the pre-canvas-only baselines.
 
 test("small/simple plan graph renders consistently", async ({ page }) => {
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
-  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
-  // Let dagre's fitView animation settle before capturing.
+  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
+  // Let the canvas path's own fit-to-view settle before capturing.
   await page.waitForTimeout(300)
 
   await expect(page.getByTestId("plan-graph")).toHaveScreenshot("small-plan-graph.png")
@@ -26,7 +31,7 @@ test("larger/multi-branch plan graph renders consistently", async ({ page }) => 
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "seek-and-key-lookup.xml"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
-  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
   await page.waitForTimeout(300)
 
   await expect(page.getByTestId("plan-graph")).toHaveScreenshot("larger-plan-graph.png")
@@ -36,7 +41,7 @@ test("the node detail panel renders consistently", async ({ page }) => {
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
-  await page.getByTestId("plan-node-card").first().click()
+  await openPlanNode(page)
   await expect(page.getByTestId("detail-panel")).toBeVisible()
 
   await expect(page.getByTestId("detail-panel")).toHaveScreenshot("detail-panel.png")

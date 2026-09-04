@@ -23,29 +23,6 @@ function loadFixture(engine: string, filename: string): string {
   return readFileSync(path.join(dir, filename), "utf-8")
 }
 
-// Episode 22, Story 22.2 — a synthetic Postgres plan crossing
-// CANVAS_NODE_COUNT_THRESHOLD (300), so PlanGraph switches to canvas-
-// rendering mode: a plain chain of wrapping "Nested Loop" nodes over one
-// "Seq Scan" leaf, `nodeCount` nodes total. No fixture file in the repo is
-// this large, and this story specifically needs to distinguish
-// canvas-mode's own interim overlay fallback from DOM/SVG mode's real
-// node-anchored popup.
-function buildLargePostgresPlanText(nodeCount: number): string {
-  let plan: Record<string, unknown> = {
-    "Node Type": "Seq Scan",
-    "Relation Name": "t",
-    "Alias": "t",
-    "Startup Cost": 0,
-    "Total Cost": 1,
-    "Plan Rows": 1,
-    "Plan Width": 4,
-  }
-  for (let i = 1; i < nodeCount; i++) {
-    plan = { "Node Type": "Nested Loop", "Startup Cost": 0, "Total Cost": 1, "Plan Rows": 1, "Plan Width": 4, Plans: [plan] }
-  }
-  return JSON.stringify([{ Plan: plan }])
-}
-
 // Episode 17: PlanReaderPage now touches the local persistence layer
 // (IndexedDB, faked in tests — see src/__tests__/setup.ts) on every
 // successful analyze. Without this, one test's save could bleed into the
@@ -83,6 +60,22 @@ function pasteAndAnalyze(text: string) {
   fireEvent.click(screen.getByRole("button", { name: /analyze plan/i }))
 }
 
+/** Episode 26, Story 26.1 — canvas is now the only rendering path, so a
+ * plan node is never a real DOM element with its own testid the way React
+ * Flow's cards used to be. The accessible list (Story 15.2, now the
+ * universal keyboard/screen-reader path) is this file's deterministic way
+ * to select a specific node, exercising the exact same `openPanel`/
+ * `onDetailPanelChange` state a canvas click would. Opens the list first
+ * if it isn't already showing (idempotent — safe to call more than once
+ * per test, mirroring `pasteAndAnalyze`'s own idempotent panel-opening). */
+function clickNode(index = 0): HTMLElement {
+  const list = screen.queryByTestId("accessible-plan-list")
+  if (!list) fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+  const row = screen.getAllByTestId("accessible-plan-list-item")[index]
+  fireEvent.click(row)
+  return row
+}
+
 describe("PlanReaderPage", () => {
   // Episode 19: the hero (headline/subheadline/engine badges) these two
   // tests used to check is retired — the three-column shell is the app's
@@ -100,7 +93,7 @@ describe("PlanReaderPage", () => {
     render(<PlanReaderPage />)
     expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
     expect(screen.queryByTestId("detected-engine-badge")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("plan-node-card")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("canvas-plan-graph-surface")).not.toBeInTheDocument()
   })
 
   it("shows a footer connecting the tool to Kiran's existing content, for first-time-visitor credibility", () => {
@@ -115,7 +108,7 @@ describe("PlanReaderPage", () => {
     expect(screen.getByTestId("privacy-caveat")).toHaveTextContent(/browser extensions/i)
     // Episode 19: `plan-result` (the shell itself) is always present now —
     // what matters here is that no plan-specific content has rendered yet.
-    expect(screen.queryByTestId("plan-node-card")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("canvas-plan-graph-surface")).not.toBeInTheDocument()
   })
 
   it("analyzes a pasted Postgres plan and renders the summary + graph", () => {
@@ -125,7 +118,7 @@ describe("PlanReaderPage", () => {
     expect(screen.getByTestId("plan-result")).toBeInTheDocument()
     expect(screen.getByTestId("detected-engine-badge")).toHaveTextContent("Postgres")
     expect(screen.getByTestId("plan-summary")).toBeInTheDocument()
-    expect(screen.getAllByTestId("plan-node-card").length).toBeGreaterThan(0)
+    expect(screen.getByTestId("canvas-plan-graph-surface")).toBeInTheDocument()
     expect(screen.queryByTestId("parse-error")).not.toBeInTheDocument()
   })
 
@@ -874,7 +867,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      clickNode()
 
       const rightRail = screen.getByTestId("plan-shell-right-rail")
       const panel = within(rightRail).getByTestId("detail-panel")
@@ -892,7 +885,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      clickNode()
       const panel = screen.getByTestId("detail-panel")
       expect(panel).not.toHaveClass("detail-panel--in-shell")
 
@@ -911,24 +904,23 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      clickNode()
       expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
 
       fireEvent.click(screen.getByTestId("plan-shell-detail-scrim"))
       expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
     })
 
-    it("closing the shell-rendered panel (Escape) restores focus to the triggering card, same as the original internal panel did", () => {
+    it("closing the shell-rendered panel (Escape) restores focus to the triggering row, same as the original internal panel did", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
-      const card = screen.getAllByTestId("plan-node-card")[0]
-      fireEvent.click(card)
+      const row = clickNode()
       expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
 
       fireEvent.keyDown(document, { key: "Escape" })
       expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
-      expect(card).toHaveFocus()
+      expect(row).toHaveFocus()
     })
 
     it("switching to compare mode does not render the app-shell grid — Story 18.14 owns integrating it later", () => {
@@ -949,7 +941,12 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       const tabs = screen.getAllByRole("tab")
       fireEvent.click(tabs[1]) // switch off the default statement first, so we can assert it SURVIVES the toggle below
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0]) // open a detail panel too
+      clickNode() // open a detail panel too
+      // Back to the canvas view (the popup below has no anchor to render at
+      // through the accessible list — this episode's own edge-case table;
+      // covered on its own further down this file) — selection survives
+      // the toggle unaffected.
+      fireEvent.click(screen.getByTestId("accessible-list-toggle"))
 
       const graphPane = screen.getByTestId("plan-shell-graph")
       expect(graphPane).not.toHaveClass("plan-shell__graph--maximized")
@@ -957,10 +954,10 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
       expect(graphPane).toHaveClass("plan-shell__graph--maximized")
       expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true") // active statement preserved
-      // Story 22.2: this fixture stays in DOM/SVG mode, so the detail panel
-      // that was open moves into PlanGraph's own node-anchored popup, not
-      // Story 22.1's canvas-mode-only interim overlay fallback (see the
-      // dedicated Story 22.2 describe block below for that distinction).
+      // Story 22.3 — the detail panel that was open moves into PlanGraph's
+      // own canvas-mode node-anchored popup (`nodeDetailVariant="popup"`
+      // while maximized), the same for every plan size since Episode 26,
+      // Story 26.1 removed the separate DOM/SVG mode this used to branch on.
       expect(within(graphPane).getByTestId("detail-panel")).toHaveClass("detail-panel--popup")
 
       fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
@@ -984,7 +981,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
       fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      clickNode()
       expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
 
       fireEvent.keyDown(document, { key: "Escape" })
@@ -1064,13 +1061,25 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     })
   })
 
+  // Episode 26, Story 26.1 removed the DOM/SVG rendering path this
+  // describe block used to distinguish from canvas mode — canvas is the
+  // only mode now, at every plan size, so `nodeDetailVariant={isMaximized
+  // ? "popup" : "panel"}` no longer branches on rendering mode at all. The
+  // canvas path's own hit-testing/anchor-reporting wiring is covered
+  // precisely (via a mocked CanvasPlanGraph) by PlanGraph.canvasPopup.
+  // test.tsx — real canvas hit-testing pixel math isn't practical to drive
+  // from this page-level test, so these stay at PlanReaderPage's own level
+  // of concern: does `isMaximized` actually flip `nodeDetailVariant`.
   describe("Episode 22, Stories 22.2/22.3 — node-anchored detail popup", () => {
-    it("a small (DOM/SVG-mode) plan gets the real node-anchored popup while maximized, not Story 22.1's canvas-only interim overlay", () => {
+    it("a plan gets the real node-anchored popup while maximized", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
+      clickNode()
+      // Back to the canvas view — the popup has no anchor to render at
+      // through the accessible list (asserted directly further down).
+      fireEvent.click(screen.getByTestId("accessible-list-toggle"))
       fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
 
       const panel = screen.getByTestId("detail-panel")
       expect(panel).toHaveClass("detail-panel--popup")
@@ -1081,7 +1090,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      clickNode()
       const rightRail = screen.getByTestId("plan-shell-right-rail")
       // Story 6.3 — overlay by default (not `--in-shell` anymore), but
       // still not the popup variant either — normal-mode clicks open the
@@ -1091,24 +1100,16 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       expect(screen.queryByTestId("detail-panel")).not.toHaveClass("detail-panel--popup")
     })
 
-    // Episode 22, Story 22.3 gave canvas mode a real node-anchored popup
-    // too (PlanGraph.canvasPopup.test.tsx covers that wiring precisely,
-    // via a mocked CanvasPlanGraph — real canvas hit-testing pixel math
-    // for a 300+-node tree isn't practical to drive from this page-level
-    // test). `nodeDetailVariant={isMaximized ? "popup" : "panel"}` no
-    // longer branches on rendering mode at all, so the one PlanReaderPage-
-    // level edge case actually worth covering here is the accessible
-    // list's own explicit exception (this episode's own edge-case table):
-    // it keeps the plain panel/overlay behavior even while maximized,
-    // since it has no node-position concept to anchor a popup to.
-    it("the accessible list (canvas mode's keyboard/screen-reader path) keeps the plain panel — never a popup, even while maximized", () => {
+    // The accessible list's own explicit exception (this episode's own
+    // edge-case table): it keeps the plain panel/overlay behavior even
+    // while maximized, since it has no node-position concept to anchor a
+    // popup to.
+    it("the accessible list keeps the plain panel — never a popup, even while maximized", () => {
       render(<PlanReaderPage />)
-      pasteAndAnalyze(buildLargePostgresPlanText(320))
-      expect(screen.getByTestId("canvas-mode-banner")).toBeInTheDocument() // confirms this plan actually triggered canvas mode
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
       fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
-      fireEvent.click(screen.getByTestId("accessible-list-toggle"))
-      fireEvent.click(screen.getAllByTestId("accessible-plan-list-item")[0])
+      clickNode()
 
       const panel = screen.getByTestId("detail-panel")
       expect(panel).not.toHaveClass("detail-panel--popup")
@@ -1168,7 +1169,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     it("clicking Expert in the app bar switches the currently-open panel to Expert", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
-      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      clickNode()
       const rightRail = screen.getByTestId("plan-shell-right-rail")
       // Beginner (the default) shows the "In general" education section;
       // Expert collapses it away entirely — see OperatorEducation.tsx.
@@ -1182,14 +1183,15 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     it("the mode persists when a different node is opened — not reset per node", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
-      const cards = screen.getAllByTestId("plan-node-card")
-      expect(cards.length).toBeGreaterThan(1)
+      fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+      const rows = screen.getAllByTestId("accessible-plan-list-item")
+      expect(rows.length).toBeGreaterThan(1)
 
-      fireEvent.click(cards[0])
+      fireEvent.click(rows[0])
       fireEvent.click(screen.getByTestId("shell-mode-expert"))
       fireEvent.keyDown(document, { key: "Escape" })
 
-      fireEvent.click(cards[1])
+      fireEvent.click(rows[1])
       const rightRail = screen.getByTestId("plan-shell-right-rail")
       expect(within(rightRail).queryByTestId("operator-education-general")).not.toBeInTheDocument()
       expect(screen.getByTestId("shell-mode-expert")).toHaveAttribute("aria-pressed", "true")

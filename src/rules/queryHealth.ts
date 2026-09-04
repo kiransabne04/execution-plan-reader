@@ -52,10 +52,11 @@ export interface QueryHealth {
 /** A first defensible default, deliberately simple — NOT derived from
  * calibration against a corpus of real plans. Flagged explicitly as a
  * number to revisit once real usage exists, the same honesty this codebase
- * already applies to `CANVAS_NODE_COUNT_THRESHOLD`'s own "not yet
- * benchmarked" note (`PlanGraph.tsx`). An `info`-severity finding never
- * penalizes (no defect rule currently emits `info` — the two honesty-note
- * rules are excluded entirely below, not merely zero-penalized). */
+ * applies to its own similarly-provisional tunable constants elsewhere
+ * (e.g. `COLLAPSE_NODE_COUNT_THRESHOLD`, `src/graph/collapse.ts`). An
+ * `info`-severity finding never penalizes (no defect rule currently emits
+ * `info` — the two honesty-note rules are excluded entirely below, not
+ * merely zero-penalized). */
 // Exported so QueryHealthCard's own "how this is calculated" disclosure
 // (Story 23.3) can be tested against these exact numbers directly, rather
 // than the UI's prose text silently drifting out of sync with the real

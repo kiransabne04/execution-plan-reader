@@ -1,14 +1,20 @@
-// Episode 15, Story 15.2 — the accessible fallback required alongside the
-// canvas rendering path (CanvasPlanGraph.tsx), not a follow-up. Canvas
-// content is invisible to assistive technology by default; this is a plain
-// semantic list of the same plan, sharing the SAME selection/collapse
-// state as the canvas view (not a second, independently-drifting view —
-// see .claude/skills/canvas-rendering-performance/SKILL.md's accessibility
+// Episode 15, Story 15.2 — the accessible companion required alongside the
+// canvas rendering path (CanvasPlanGraph.tsx). Canvas content is invisible
+// to assistive technology by default; this is a plain semantic list of the
+// same plan, sharing the SAME selection/collapse state as the canvas view
+// (not a second, independently-drifting view — see
+// .claude/skills/canvas-rendering-performance/SKILL.md's accessibility
 // section). A native <ul> of <button>s gives Tab-order navigation and
-// Enter/Space activation for free — the same keyboard access DOM/SVG mode
-// (PlanNodeCard.tsx) actually provides today; this list intentionally
-// doesn't claim a richer arrow-key/search scheme neither mode has built yet.
+// Enter/Space activation for free.
+//
+// Episode 26, Story 26.1 — canvas is now the ONLY rendering path (the
+// DOM/SVG tree this list used to sit alongside as a large-plan fallback is
+// gone), which makes this list the universal keyboard/screen-reader path
+// for a plan of any size, not a fallback at all anymore. This list
+// intentionally doesn't claim a richer arrow-key/search scheme than plain
+// Tab order + Enter/Space — that was true before this story and stays true.
 
+import type { MouseEvent } from "react"
 import type { PlanNode } from "../../parsers/normalize"
 import { countDescendants, type ComparisonOverlay } from "../buildGraphElements"
 import { SEVERITY_LABEL, worstSeverity } from "../nodeSeverity"
@@ -20,11 +26,11 @@ export interface AccessiblePlanListProps {
   selectedNodeId?: string
   onSelectNode: (nodeId: string) => void
   onExpandCollapsedGroup: (parentPlanNodeId: string) => void
-  /** Episode 14, Story 14.2 — same overlay map PlanNodeCard/canvasDraw
-   * render, keyed by this tree's own PlanNode id. Canvas-rendering-
-   * performance skill: state (here, comparison status) is shared between
-   * the canvas view and this accessible list, not two independently-
-   * drifting presentations. */
+  /** Episode 14, Story 14.2 — same overlay map canvasDraw.ts renders,
+   * keyed by this tree's own PlanNode id. Canvas-rendering-performance
+   * skill: state (here, comparison status) is shared between the canvas
+   * view and this accessible list, not two independently-drifting
+   * presentations. */
   comparisonOverlays?: Map<string, ComparisonOverlay>
 }
 
@@ -85,6 +91,20 @@ export function AccessiblePlanList({
 }: AccessiblePlanListProps) {
   const rows = buildRows(root, collapsedIds)
 
+  // Episode 26, Story 26.1 — now that this list is the universal
+  // interactive path (not a large-plan-only fallback), the same explicit-
+  // focus-on-click PlanNodeCard.tsx (now deleted) used to do for exactly
+  // this reason: a mouse click doesn't reliably focus a button across
+  // every browser (notably Safari/Firefox on macOS without "Full Keyboard
+  // Access" on), and the detail panel restores focus to "whatever was
+  // focused when it opened" on close — that has to reliably be this row,
+  // not left ambient. Story 20.2's `{ preventScroll: true }`: the row is
+  // already on-screen (it was just clicked), focus shouldn't move anything.
+  const handleRowClick = (event: MouseEvent<HTMLButtonElement>, nodeId: string) => {
+    event.currentTarget.focus({ preventScroll: true })
+    onSelectNode(nodeId)
+  }
+
   return (
     <ul className="accessible-plan-list" data-testid="accessible-plan-list" aria-label="Plan nodes, as a list">
       {rows.map((row) => {
@@ -114,7 +134,7 @@ export function AccessiblePlanList({
               data-testid="accessible-plan-list-item"
               data-node-id={row.node.id}
               aria-current={isSelected ? "true" : undefined}
-              onClick={() => onSelectNode(row.node.id)}
+              onClick={(event) => handleRowClick(event, row.node.id)}
             >
               <span className="accessible-plan-list__label">{row.node.rawOperatorLabel}</span>
               {row.isSharedReference && <span className="accessible-plan-list__ref-note">(shared reference, see above)</span>}

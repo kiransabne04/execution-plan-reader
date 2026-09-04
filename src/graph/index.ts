@@ -1,4 +1,4 @@
-export { PlanGraph, type PlanGraphProps, type PlanGraphHandle, CANVAS_NODE_COUNT_THRESHOLD } from "./PlanGraph"
+export { PlanGraph, type PlanGraphProps, type PlanGraphHandle } from "./PlanGraph"
 export {
   buildGraphElements,
   type PlanGraphNode,

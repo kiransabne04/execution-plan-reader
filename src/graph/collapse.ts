@@ -15,14 +15,12 @@ import { pickMetricValue, type MetricKey } from "./encoding"
  * everything is the actual risk — small/medium plans always render fully
  * expanded regardless of how "small" any one subtree's cost share is.
  *
- * Episode 15 revision: originally 500 (the DOM/SVG freeze risk point this
- * threshold was built to protect against). Now set below
- * CANVAS_NODE_COUNT_THRESHOLD (PlanGraph.tsx) so DOM/SVG mode — which now
- * only ever renders plans up to that canvas threshold, never truly huge
- * ones — still gets real default-collapse protection for its own
- * mid-size/large range, rather than collapse's only-ever-reachable window
- * being entirely inside canvas mode (where it still applies, but for
- * legibility/clutter reasons more than a hard freeze risk). */
+ * Episode 15 revision: originally 500 (the DOM/SVG rendering path's freeze
+ * risk point this threshold was built to protect against). Episode 26,
+ * Story 26.1 removed that DOM/SVG path entirely — the canvas path
+ * (src/graph/canvas/) is now the only renderer, at every plan size — so
+ * this threshold's own job is purely legibility/clutter at mid-size/large
+ * plans now, not a hard freeze-risk mitigation. */
 export const COLLAPSE_NODE_COUNT_THRESHOLD = 150
 
 /** A subtree contributing less than this share of the plan's total metric
