@@ -1454,6 +1454,18 @@
   min-height: 0;
   border-top: 1px solid var(--fl-border, var(--pr-border));
   background: var(--pr-bg);
+  /* Story 6.3 — a real bug this story's own e2e run caught: without a
+     real stacking position, the un-pinned detail panel's own scrim
+     (`position: fixed`, z-index 19 — a full-viewport click-to-close
+     layer) painted ABOVE this plain, normal-flow element regardless of
+     DOM order, blocking every click on it (including the summary bar)
+     whenever the detail overlay was open. This story's own combined-
+     open-state requirement is that both stay independently usable —
+     matching detail-panel's own z-index (20) since the two never
+     actually overlap on screen (the `--inset` modifier below keeps them
+     visually apart), just both need to clear the scrim. */
+  position: relative;
+  z-index: 20;
 }
 
 .findings-drawer__summary {
