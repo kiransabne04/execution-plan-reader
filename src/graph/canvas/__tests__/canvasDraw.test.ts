@@ -63,7 +63,6 @@ function planGraphNode(
       planNode: makeNode({ id, rawOperatorLabel: "Seq Scan" }),
       width,
       height,
-      color: "hsl(0, 70%, 55%)",
       hasMismatch: false,
       loopCount: undefined,
       iconKey: "unknown",
@@ -80,6 +79,12 @@ const baseParams = {
   cssHeight: 600,
   textColor: "#111111",
   selectionColor: "#1a56db",
+  // Episode 26, Story 26.7 — flat, neutral node-card chrome (replacing the
+  // old per-node metric-color heatmap fill/border).
+  nodeSurfaceColor: "#232532",
+  nodeBorderColor: "#3f424d",
+  nodeAccentColor: "#9184d9",
+  badgeNeutralBg: "rgba(233, 233, 237, 0.12)",
   edgeColors: { hot: "#8d6a6a", muted: "#6b6f82" },
   severityColors: { critical: "#f97066", warning: "#f79009" },
 }
@@ -325,7 +330,7 @@ describe("drawGraph", () => {
       drawGraph(ctx, { ...baseParams, transform: { x: 0, y: 0, scale: 0.3 }, nodes: [node], edges: [] })
 
       expect(ctx.calls.some((c) => c.method === "fillText")).toBe(false)
-      expect(ctx.calls.some((c) => c.method === "fill")).toBe(true) // the card's own solid heat-colored fill
+      expect(ctx.calls.some((c) => c.method === "fill")).toBe(true) // the card's own flat neutral fill (Story 26.7)
       expect(ctx.calls.some((c) => c.method === "stroke")).toBe(true) // the border still draws
     })
 
@@ -431,6 +436,29 @@ describe("drawGraph", () => {
       const ctxBelow = makeFakeContext()
       drawGraph(ctxBelow, { ...baseParams, nodes: [planGraphNode({ id: "a", contributionPercent: 5 })], edges: [] })
       expect(ctxBelow.calls.some((c) => c.method === "fillText" && c.args[0] === "5%")).toBe(false)
+    })
+  })
+
+  describe("Episode 26, Story 26.7 — flat node-card chrome and badge pills", () => {
+    it("does not throw when a node is hovered, and still draws its border stroke", () => {
+      const ctx = makeFakeContext()
+      const node = planGraphNode({ id: "a" })
+      expect(() => drawGraph(ctx, { ...baseParams, nodes: [node], edges: [], hoveredNodeId: "a" })).not.toThrow()
+      expect(ctx.calls.some((c) => c.method === "stroke")).toBe(true)
+    })
+
+    it("draws an extra fill (the pill background) for each badge present, beyond the card's own fill", () => {
+      const ctxNoBadges = makeFakeContext()
+      drawGraph(ctxNoBadges, { ...baseParams, nodes: [planGraphNode({ id: "a" })], edges: [] })
+      const baselineFills = ctxNoBadges.calls.filter((c) => c.method === "fill").length
+
+      const ctxWithBadge = makeFakeContext()
+      drawGraph(ctxWithBadge, { ...baseParams, nodes: [planGraphNode({ id: "a", severity: "warning" })], edges: [] })
+      const withBadgeFills = ctxWithBadge.calls.filter((c) => c.method === "fill").length
+
+      // Card fill (1) either way, plus one pill-background fill for the
+      // severity badge that only the second render has.
+      expect(withBadgeFills).toBe(baselineFills + 1)
     })
   })
 

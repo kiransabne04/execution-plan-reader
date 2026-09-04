@@ -17,11 +17,18 @@
 // below.
 //
 // Episode 18, Story 18.10 — LEGIBLE_ZOOM_FLOOR: below it, `drawPlanNode`
-// skips ALL text (icon/label/subtitle/meta/badges) and fills the card
-// solid with its own metric color instead of the usual translucent tint —
-// spec §5 `1i`'s "solid heat-colored blocks with no text," never
-// illegibly-small text. `drawCollapsedGroupNode`'s "N hidden" label
-// follows the same rule.
+// skips ALL text (icon/label/subtitle/meta/badges), keeping only the
+// card's own fill/border/ring/selection outline — never illegibly-small
+// text. `drawCollapsedGroupNode`'s "N hidden" label follows the same rule.
+//
+// Episode 26, Story 26.7 — a mockup-driven restyle pass
+// (docs/08-episodes-and-stories.md) replaced the per-node metric-color
+// heatmap fill/border this file used to draw with flat, neutral node
+// cards (`nodeSurfaceColor`/`nodeBorderColor`/`nodeAccentColor` below) —
+// matching the reference mockup pixel-for-pixel. Severity/mismatch stay
+// exactly as speced: a distinct ring/dashed border and badge text, never
+// color alone. See encoding.ts's own Story 26.7 comment for why the
+// underlying metric-color function was removed rather than just unused.
 
 import type { ComparisonOverlay, PlanGraphEdge, PlanGraphNode } from "../buildGraphElements"
 import { computeHandleOffsetPercent } from "../buildGraphElements"
@@ -44,6 +51,32 @@ export interface DrawGraphParams {
    * CSS variables in every other stylesheet. */
   textColor: string
   selectionColor: string
+  /** Episode 26, Story 26.7 — the node card's own flat, neutral chrome,
+   * matching the reference mockup exactly: `nodeSurfaceColor` (the card's
+   * solid fill, `--color-surface`/`--pg-card-bg`), `nodeBorderColor` (the
+   * card's rest-state border, `--color-border-strong` — NOT the fainter
+   * `--pg-card-border`/`--color-border` used elsewhere for chrome
+   * dividers), and `nodeAccentColor` (the hovered-card border,
+   * `--color-accent`, matching the mockup's own `.node:hover{border-
+   * color:accent}`). Replaces the old per-node metric-color heatmap fill —
+   * see this file's own module comment. */
+  nodeSurfaceColor: string
+  nodeBorderColor: string
+  nodeAccentColor: string
+  /** Neutral pill background for the loop-count/mismatch/spill badges,
+   * which carry no severity/comparison color of their own — resolved from
+   * `--color-border` (already a translucent overlay tint, not a solid
+   * color), matching the mockup's own `.node .flag` chip treatment
+   * generalized to every badge kind it doesn't give an explicit example
+   * of. */
+  badgeNeutralBg: string
+  /** Episode 26, Story 26.7 — the currently-hovered node (from
+   * `CanvasPlanGraph`'s own tooltip-tracking state, reused rather than a
+   * second hover-tracking mechanism), so its border can pick up
+   * `nodeAccentColor` the same way a real `:hover` CSS rule would for the
+   * DOM path this canvas mode replaced. Optional — omitted entirely
+   * outside a live pointer-driven render (e.g. PNG export). */
+  hoveredNodeId?: string
   /** Episode 14, Story 14.2 — same `--pg-comparison-*` tokens PlanNodeCard
    * reads via CSS; resolved here instead since canvas has no cascade.
    * Undefined entries are fine (a plain single-plan render never passes
@@ -176,8 +209,13 @@ function drawPlanNode(
   ctx: CanvasRenderingContext2D,
   node: PlanGraphNode,
   isSelected: boolean,
+  isHovered: boolean,
   textColor: string,
   selectionColor: string,
+  nodeSurfaceColor: string,
+  nodeBorderColor: string,
+  nodeAccentColor: string,
+  badgeNeutralBg: string,
   comparisonColors: DrawGraphParams["comparisonColors"],
   severityColors: DrawGraphParams["severityColors"],
   belowLegibleFloor: boolean,
@@ -187,7 +225,6 @@ function drawPlanNode(
   const width = node.width ?? 160
   const height = node.height ?? 56
   const {
-    color,
     hasMismatch,
     mismatchFactor,
     spillBadgeText,
@@ -210,12 +247,13 @@ function drawPlanNode(
   ctx.globalAlpha = dimAlpha
 
   roundedRectPath(ctx, x, y, width, height, CORNER_RADIUS)
-  // Story 18.10, spec §5 `1i` — below the legible-zoom floor the whole
-  // card becomes a SOLID "heat block" in the node's own metric-encoded
-  // color (the same color the normal translucent fill already used, just
-  // opaque) rather than the usual faint 18%-alpha tint meant to sit behind
-  // legible text. At this zoom the color patch itself is the entire signal.
-  ctx.fillStyle = belowLegibleFloor ? color : colorWithAlpha(color, 0.18)
+  // Episode 26, Story 26.7 — a flat, solid neutral fill at every zoom
+  // level (matching the reference mockup's own uniform card background)
+  // rather than the old per-node metric-color tint. The legible-zoom
+  // floor no longer needs a separate "solid heat block" branch — the fill
+  // was already solid and already the one signal that survives to that
+  // zoom, it's just neutral now instead of heat-colored.
+  ctx.fillStyle = nodeSurfaceColor
   ctx.fill()
 
   // Comparison-view border wins over the plain mismatch encoding when both
@@ -234,11 +272,13 @@ function drawPlanNode(
   } else {
     // Estimate-vs-actual mismatch: a DASHED border, never color alone —
     // same colorblind-safe rule the DOM/SVG path follows (graph-
-    // visualization skill). Selection gets its own thicker solid outline
+    // visualization skill); the dash pattern alone carries that signal,
+    // so the border color itself stays the same neutral/hover treatment
+    // every other card gets. Selection gets its own thicker solid outline
     // drawn after, so the two states stay visually distinct from each other.
     ctx.setLineDash(hasMismatch ? [6, 4] : [])
-    ctx.strokeStyle = color
-    ctx.lineWidth = hasMismatch ? 2 : 1.5
+    ctx.strokeStyle = isHovered ? nodeAccentColor : nodeBorderColor
+    ctx.lineWidth = hasMismatch ? 2 : 1
     ctx.stroke()
     ctx.setLineDash([])
   }
@@ -329,37 +369,56 @@ function drawPlanNode(
     ctx.fillText(fitText(ctx, formatComparisonDelta(planNode, comparisonOverlay.counterpart), width - padding * 2), x + padding, nextLineY)
   }
 
-  let badgeY = y + height - padding - 12
+  // Episode 26, Story 26.7 — badges bottom-up as before, but each is now a
+  // rounded, tinted PILL (matching the reference mockup's own `.node
+  // .flag` chip), not plain stacked text — `bottomY` tracks the bottom
+  // edge of the NEXT pill to place, working upward from the card's own
+  // bottom padding.
+  let bottomY = y + height - padding
   if (loopCount !== undefined) {
-    badgeY = drawBadge(ctx, `×${loopCount.toLocaleString("en-US")}`, x + padding, badgeY, textColor, dimAlpha)
+    bottomY = drawBadge(ctx, `×${loopCount.toLocaleString("en-US")}`, x + padding, bottomY, textColor, badgeNeutralBg, dimAlpha)
   }
   if (hasMismatch) {
     const mismatchText = mismatchFactor !== undefined ? `${MISMATCH_BADGE_TEXT} ${mismatchFactor}×` : MISMATCH_BADGE_TEXT
-    badgeY = drawBadge(ctx, mismatchText, x + padding, badgeY, textColor, dimAlpha)
+    bottomY = drawBadge(ctx, mismatchText, x + padding, bottomY, textColor, badgeNeutralBg, dimAlpha)
   }
   if (severity && severityColor) {
-    badgeY = drawBadge(ctx, severity, x + padding, badgeY, severityColor, dimAlpha)
+    bottomY = drawBadge(ctx, severity, x + padding, bottomY, severityColor, colorWithAlpha(severityColor, 0.16), dimAlpha)
   }
   if (spillBadgeText) {
-    badgeY = drawBadge(ctx, spillBadgeText, x + padding, badgeY, textColor, dimAlpha)
+    bottomY = drawBadge(ctx, spillBadgeText, x + padding, bottomY, textColor, badgeNeutralBg, dimAlpha)
   }
   if (comparisonStatus && comparisonStatus !== "matched") {
-    drawBadge(ctx, COMPARISON_BADGE_TEXT[comparisonStatus], x + padding, badgeY, comparisonColor ?? textColor, dimAlpha)
+    const bg = comparisonColor ? colorWithAlpha(comparisonColor, 0.16) : badgeNeutralBg
+    drawBadge(ctx, COMPARISON_BADGE_TEXT[comparisonStatus], x + padding, bottomY, comparisonColor ?? textColor, bg, dimAlpha)
   }
   ctx.restore()
 }
 
-/** `dimAlpha` composes with the badge's own 0.65 translucency rather than
- * clobbering it — a hardcoded reset to 1 here would fight the dimmed node's
- * globalAlpha set by the caller (canvas globalAlpha is absolute, not a
- * stack that multiplies automatically the way nested opacity would in CSS). */
-function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, textColor: string, dimAlpha: number): number {
+/** Draws one rounded, tinted pill (mockup's own `.node .flag` chip
+ * language) and returns the bottom-y for the NEXT pill above it. `dimAlpha`
+ * composes with the pill's own fill/text rather than clobbering it — a
+ * hardcoded reset to 1 here would fight the dimmed node's globalAlpha set
+ * by the caller (canvas globalAlpha is absolute, not a stack that
+ * multiplies automatically the way nested opacity would in CSS). */
+function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, bottomY: number, textColor: string, bgColor: string, dimAlpha: number): number {
+  const paddingX = 6
+  const badgeHeight = 15
   ctx.font = "10px system-ui, sans-serif"
-  ctx.fillStyle = textColor
-  ctx.globalAlpha = 0.65 * dimAlpha
-  ctx.fillText(text, x, y)
+  const textWidth = ctx.measureText(text).width
+  const badgeWidth = textWidth + paddingX * 2
+  const topY = bottomY - badgeHeight
+
   ctx.globalAlpha = dimAlpha
-  return y - 14
+  roundedRectPath(ctx, x, topY, badgeWidth, badgeHeight, 5)
+  ctx.fillStyle = bgColor
+  ctx.fill()
+
+  ctx.fillStyle = textColor
+  ctx.fillText(text, x + paddingX, topY + 3)
+  ctx.globalAlpha = dimAlpha
+
+  return topY - 3
 }
 
 function drawCollapsedGroupNode(ctx: CanvasRenderingContext2D, node: PlanGraphNode, textColor: string, belowLegibleFloor: boolean) {
@@ -462,13 +521,21 @@ function drawEdges(
 }
 
 /** Canvas 2d has no `color-mix()` — this is the hand-rolled equivalent for
- * an hsl(...) or hex string, used everywhere this module wants a
- * translucent version of an already-computed encoding color. */
+ * an hsl(...) or `#rrggbb` hex string, used everywhere this module wants a
+ * translucent version of an already-computed encoding color (severity/
+ * comparison badge pill backgrounds — Story 26.7). */
 function colorWithAlpha(color: string, alpha: number): string {
   if (color.startsWith("hsl(")) {
     return color.replace(/^hsl\(/, "hsla(").replace(/\)$/, `, ${alpha})`)
   }
-  return color // already-opaque fallback colors (e.g. a resolved CSS variable) — used as-is
+  const hexMatch = /^#([0-9a-fA-F]{6})$/.exec(color)
+  if (hexMatch) {
+    const r = Number.parseInt(hexMatch[1].slice(0, 2), 16)
+    const g = Number.parseInt(hexMatch[1].slice(2, 4), 16)
+    const b = Number.parseInt(hexMatch[1].slice(4, 6), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+  return color // already-translucent/other resolved CSS values (e.g. an rgba() custom property) — used as-is
 }
 
 /** The one entry point the component calls per redraw. Draws in WORLD
@@ -482,10 +549,15 @@ export function drawGraph(ctx: CanvasRenderingContext2D, params: DrawGraphParams
     edges,
     transform,
     selectedNodeId,
+    hoveredNodeId,
     cssWidth,
     cssHeight,
     textColor,
     selectionColor,
+    nodeSurfaceColor,
+    nodeBorderColor,
+    nodeAccentColor,
+    badgeNeutralBg,
     comparisonColors,
     edgeColors,
     severityColors,
@@ -509,7 +581,21 @@ export function drawGraph(ctx: CanvasRenderingContext2D, params: DrawGraphParams
   drawEdges(ctx, nodes, edges, edgeColors)
   for (const node of nodes) {
     if (node.data.kind === "plan") {
-      drawPlanNode(ctx, node, node.id === selectedNodeId, textColor, selectionColor, comparisonColors, severityColors, belowLegibleFloor)
+      drawPlanNode(
+        ctx,
+        node,
+        node.id === selectedNodeId,
+        node.id === hoveredNodeId,
+        textColor,
+        selectionColor,
+        nodeSurfaceColor,
+        nodeBorderColor,
+        nodeAccentColor,
+        badgeNeutralBg,
+        comparisonColors,
+        severityColors,
+        belowLegibleFloor,
+      )
     } else {
       drawCollapsedGroupNode(ctx, node, textColor, belowLegibleFloor)
     }

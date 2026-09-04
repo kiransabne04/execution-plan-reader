@@ -78,6 +78,20 @@ export function CanvasPlanGraph({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [transform, setTransform] = useState<ViewportTransform>(IDENTITY_TRANSFORM)
+  // Episode 26, Story 26.1 — hover tooltip (predicate/seek/join condition),
+  // canvas mode's replacement for PlanNodeCard's CSS-only `:hover`/
+  // `:focus-within` reveal, which disappears along with the rest of DOM/SVG
+  // mode. `buildNodeTooltip` is the exact same content function DOM mode
+  // used — this only adds a hit-tested equivalent to hovering a real DOM
+  // element, not a second tooltip-content implementation. Suppressed once
+  // an actual drag (pan) is underway, so panning across nodes doesn't flash
+  // tooltips the user isn't asking for. Declared here (ahead of the draw
+  // effect below) rather than nearer its own pointer-move handler — Story
+  // 26.7 added it to that effect's own dependency array (hover now
+  // repaints the hovered card's border, matching the mockup's own
+  // `:hover`), and a dependency array is evaluated at the point the effect
+  // is declared, so the state it references has to exist by then.
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>(undefined)
 
   // Rule 4 — devicePixelRatio. Read once per render pass rather than
   // cached in state; a DPR change (dragging the window to a different
@@ -184,6 +198,16 @@ export function CanvasPlanGraph({
       // dark-only palette — this app has no light mode to fall back to.
       const textColor = container ? resolveCssVar(container, "--pg-card-text", "#e9e9ed") : "#e9e9ed"
       const selectionColor = container ? resolveCssVar(container, "--pg-canvas-selection", "#b5abfc") : "#b5abfc"
+      // Episode 26, Story 26.7 — flat, neutral node-card chrome matching
+      // the reference mockup: fill from `--pg-card-bg` (already an alias
+      // for `--color-surface`), border from the STRONGER `--color-border-
+      // strong` (not the fainter `--pg-card-border`/`--color-border` used
+      // for other chrome dividers — the mockup's own node border is
+      // visibly stronger than that), hover border from `--color-accent`.
+      const nodeSurfaceColor = container ? resolveCssVar(container, "--pg-card-bg", "#232532") : "#232532"
+      const nodeBorderColor = container ? resolveCssVar(container, "--color-border-strong", "#3f424d") : "#3f424d"
+      const nodeAccentColor = container ? resolveCssVar(container, "--color-accent", "#9184d9") : "#9184d9"
+      const badgeNeutralBg = container ? resolveCssVar(container, "--color-border", "rgba(233, 233, 237, 0.12)") : "rgba(233, 233, 237, 0.12)"
       // Episode 14, Story 14.2 — cheap to resolve unconditionally (same
       // handful of getComputedStyle reads as the two colors above); a plain
       // single-plan render simply never has any node carrying a
@@ -213,12 +237,17 @@ export function CanvasPlanGraph({
         edges,
         transform,
         selectedNodeId,
+        hoveredNodeId,
         edgeColors,
         severityColors,
         cssWidth: size.width,
         cssHeight: size.height,
         textColor,
         selectionColor,
+        nodeSurfaceColor,
+        nodeBorderColor,
+        nodeAccentColor,
+        badgeNeutralBg,
         comparisonColors,
       })
     })
@@ -226,7 +255,7 @@ export function CanvasPlanGraph({
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     }
-  }, [nodes, edges, transform, selectedNodeId, size, dpr, isVisible])
+  }, [nodes, edges, transform, selectedNodeId, hoveredNodeId, size, dpr, isVisible])
 
   // Episode 22, Story 22.3 — reports the selected node's live on-screen
   // anchor outward (see this prop's own doc comment). Deliberately its own
@@ -297,16 +326,6 @@ export function CanvasPlanGraph({
     },
     [transform, getCanvasRelativePoint],
   )
-
-  // Episode 26, Story 26.1 — hover tooltip (predicate/seek/join condition),
-  // canvas mode's replacement for PlanNodeCard's CSS-only `:hover`/
-  // `:focus-within` reveal, which disappears along with the rest of DOM/SVG
-  // mode. `buildNodeTooltip` is the exact same content function DOM mode
-  // used — this only adds a hit-tested equivalent to hovering a real DOM
-  // element, not a second tooltip-content implementation. Suppressed once
-  // an actual drag (pan) is underway, so panning across nodes doesn't flash
-  // tooltips the user isn't asking for.
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>(undefined)
 
   const handlePointerMove = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {

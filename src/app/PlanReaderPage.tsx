@@ -1103,22 +1103,21 @@ export function PlanReaderPage() {
                       "total, node count, collapsed count, colour legend,
                       Width = rows · Arrows = execution order". Node count
                       and the plain-language caption already shipped with
-                      the shell itself; total time, collapsed count, and
-                      the colour legend were deferred to Story 18.4's node-
-                      encoding work (a legend is meaningless without the
-                      encoding it explains) — that work (buildMetricScale's
-                      colorFor/sizeFor, wired into buildGraphElements.ts)
-                      shipped, but this strip was never circled back to.
-                      `collapsedCount` is reported outward by PlanGraph
-                      itself (see its own `onCollapsedCountChange` prop's
-                      doc comment) — this component never touches collapse
-                      state directly. */}
+                      the shell itself; total time and collapsed count were
+                      deferred to Story 18.4's node-encoding work. The
+                      colour legend named here was later removed outright
+                      (Episode 26, Story 26.7's mockup-driven restyle
+                      dropped the per-node metric-color heatmap fill it
+                      would have explained — see encoding.ts's own Story
+                      26.7 comment) rather than ever being built. `Width =`
+                      stays: node SIZE is still metric-scaled, unaffected
+                      by that story. `collapsedCount` is reported outward
+                      by PlanGraph itself (see its own
+                      `onCollapsedCountChange` prop's doc comment) — this
+                      component never touches collapse state directly. */}
                   {/* Design review — `metricLabel` names whatever
                       `buildGraphElements.ts`'s `pickMetricValue` actually
-                      fell back to for THIS plan (it drives both node
-                      colour and width together — one metric, two
-                      encodings, never two different ones despite the
-                      separate-sounding legend text): "actual time" when
+                      fell back to for THIS plan: "actual time" when
                       ANALYZE/runtime stats are present, else "estimated
                       cost" (an estimate-only Postgres/SQL Server plan),
                       else plain "rows" — Snowflake's own honest floor,
@@ -1126,20 +1125,15 @@ export function PlanReaderPage() {
                       cost unit at all (buildStatRows.ts's own `rowsCost`
                       comment). A hardcoded "actual time" here previously
                       named a metric that's literally always undefined for
-                      every Snowflake plan — the size/colour encoding was
-                      quietly running on rows the whole time with a label
-                      claiming otherwise. */}
+                      every Snowflake plan — the size encoding was quietly
+                      running on rows the whole time with a label claiming
+                      otherwise. */}
                   <div className="plan-shell__metrics-strip" data-testid="plan-shell-metrics">
                     {activeStatement.root.actualTimeMs !== undefined && (
                       <span>Total {formatNumber(Math.round(activeStatement.root.actualTimeMs))} ms</span>
                     )}
                     <span>{activeStatementNodes.length.toLocaleString("en-US")} nodes</span>
                     {collapsedCount > 0 && <span>{collapsedCount} collapsed</span>}
-                    <span className="plan-shell__colour-legend">
-                      Colour
-                      <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
-                      {metricLabel}
-                    </span>
                     <span>Width = {metricLabel} · Arrows = execution order</span>
                   </div>
 

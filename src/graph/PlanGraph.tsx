@@ -266,7 +266,15 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
         return exportGraphToPngBlob(nodes, edges, {
           textColor: resolveCssVar(el, "--pg-card-text", "#e9e9ed"),
           selectionColor: resolveCssVar(el, "--pg-canvas-selection", "#b5abfc"),
-          backgroundColor: resolveCssVar(el, "--pg-card-bg", "#232532"),
+          // Episode 26, Story 26.7 — the canvas background, not the card/
+          // surface color (see ExportPngColors's own doc comment: node
+          // cards are flat-filled with the surface color now, so the page
+          // background has to be visibly different from it).
+          backgroundColor: resolveCssVar(el, "--color-bg-canvas", "#12131d"),
+          nodeSurfaceColor: resolveCssVar(el, "--pg-card-bg", "#232532"),
+          nodeBorderColor: resolveCssVar(el, "--color-border-strong", "#3f424d"),
+          nodeAccentColor: resolveCssVar(el, "--color-accent", "#9184d9"),
+          badgeNeutralBg: resolveCssVar(el, "--color-border", "rgba(233, 233, 237, 0.12)"),
           comparisonColors: {
             changed: resolveCssVar(el, "--pg-comparison-changed", "#f79009"),
             addedInB: resolveCssVar(el, "--pg-comparison-added", "#47cd89"),

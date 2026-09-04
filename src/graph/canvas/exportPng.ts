@@ -71,8 +71,20 @@ export interface ExportPngColors {
   textColor: string
   selectionColor: string
   /** Story 18.11's own addition to DrawGraphParams — see that type's doc
-   * comment for why export needs an opaque fill the live canvas doesn't. */
+   * comment for why export needs an opaque fill the live canvas doesn't.
+   * Story 26.7: this MUST be the canvas background (`--color-bg-canvas`),
+   * not the card/surface color — node cards are now flat-filled with the
+   * surface color too (see `nodeSurfaceColor` below), so a surface-colored
+   * export background would make every node vanish into it. */
   backgroundColor: string
+  /** Story 26.7 — same flat node-card chrome the live canvas now draws
+   * (`CanvasPlanGraph.tsx`'s own doc comment on these three), resolved
+   * here from the export container's stylesheet the same way every other
+   * color in this object already is. */
+  nodeSurfaceColor: string
+  nodeBorderColor: string
+  nodeAccentColor: string
+  badgeNeutralBg: string
   comparisonColors?: DrawGraphParams["comparisonColors"]
   edgeColors: DrawGraphParams["edgeColors"]
   severityColors: DrawGraphParams["severityColors"]
@@ -109,6 +121,10 @@ export function exportGraphToPngBlob(nodes: PlanGraphNode[], edges: PlanGraphEdg
     textColor: colors.textColor,
     selectionColor: colors.selectionColor,
     backgroundColor: colors.backgroundColor,
+    nodeSurfaceColor: colors.nodeSurfaceColor,
+    nodeBorderColor: colors.nodeBorderColor,
+    nodeAccentColor: colors.nodeAccentColor,
+    badgeNeutralBg: colors.badgeNeutralBg,
     comparisonColors: colors.comparisonColors,
     edgeColors: colors.edgeColors,
     severityColors: colors.severityColors,

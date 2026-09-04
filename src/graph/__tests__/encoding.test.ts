@@ -24,14 +24,13 @@ describe("pickMetricValue", () => {
 })
 
 describe("buildMetricScale", () => {
-  it("assigns min size/a valid color to a zero-metric node without dividing by zero", () => {
+  it("assigns min size to a zero-metric node without dividing by zero", () => {
     const root = makeNode({ actualTimeMs: 0 })
     const scale = buildMetricScale(root, "actualTimeMs")
     expect(scale.maxValue).toBe(0)
     const size = scale.sizeFor(0)
     expect(size.width).toBe(NODE_WIDTH_RANGE.min)
     expect(size.height).toBe(NODE_HEIGHT_RANGE.min)
-    expect(scale.colorFor(0)).toMatch(/^hsl\(/)
   })
 
   it("scales the max-value node to the top of the range and a small node near the bottom", () => {

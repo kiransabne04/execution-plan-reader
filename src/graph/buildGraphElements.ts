@@ -49,7 +49,6 @@ export interface PlanNodeData extends Record<string, unknown> {
   planNode: PlanNode
   width: number
   height: number
-  color: string
   /** Estimate-vs-actual mismatch — reuses the rule engine's own bad-row-estimate
    * finding rather than recomputing a second, possibly-inconsistent threshold. */
   hasMismatch: boolean
@@ -337,7 +336,6 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
           planNode: node,
           width,
           height,
-          color: metricScale.colorFor(value),
           hasMismatch: node.warnings.some((w) => w.ruleId === "bad-row-estimate"),
           // `computeMismatchFactor` on its own doesn't know about the
           // "bad" threshold's already-fired-or-not state `hasMismatch`
@@ -440,12 +438,12 @@ const EDGE_MIN_WIDTH = 1.5
  * Story 18.4, spec §4: "two stroke colours only... thickness carries row
  * volume, colour carries hot-path membership." The hot path is the single
  * continuous root-to-leaf trail through whichever child has the highest
- * `metric` value at each branching point — the same basis node fill/size
- * already uses (`pickMetricValue`), so "hot-colored node" and "on the hot
+ * `metric` value at each branching point — the same basis node SIZE already
+ * uses (`pickMetricValue`), so "on the widest-scaled path" and "on the hot
  * path" never disagree. Only ONE path is ever hot: a non-hottest child's
  * entire subtree is muted regardless of internal variation within it —
  * this names the single dominant cost trail, not every locally-expensive
- * node (that's what node fill color is already for).
+ * node.
  */
 function computeHotPathEdgeIds(root: PlanNode, metric: MetricKey): Set<string> {
   const hot = new Set<string>()

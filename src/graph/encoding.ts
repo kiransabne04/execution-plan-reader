@@ -1,19 +1,27 @@
 // Episode 6 — visual encoding. Pure, framework-agnostic scaling functions so
-// the size scale, color scale, and edge-width scale are each one function
-// used everywhere they're needed (the legend-toggle requirement in the
-// technical spec: re-run the same function against a different metric field
-// rather than writing parallel rendering logic per encoding). See
+// the size scale and edge-width scale are each one function used everywhere
+// they're needed (the legend-toggle requirement in the technical spec:
+// re-run the same function against a different metric field rather than
+// writing parallel rendering logic per encoding). See
 // .claude/skills/graph-visualization/SKILL.md.
+//
+// Episode 26, Story 26.7 — this module used to export a matching `colorFor`
+// (a per-node heatmap fill, cool blue -> warm red by metric value) alongside
+// `sizeFor`, per the skill's original "size AND color both scale with the
+// active metric" requirement. Removed: a mockup-driven restyle pass
+// (docs/08-episodes-and-stories.md Story 26.7) replaced the whole-card
+// heatmap fill with flat, neutral node cards — matching the reference
+// mockup pixel-for-pixel — confirmed with the user as a deliberate,
+// explicit supersession of that requirement, not an oversight. Severity/
+// mismatch are still surfaced via border shape and badge text, never color
+// alone, unchanged. Size-by-metric (`sizeFor` below) is untouched — this
+// story only ever touched color.
 
 import { collectNodes, type PlanNode } from "../parsers/normalize"
 
 export const NODE_WIDTH_RANGE = { min: 150, max: 260 } as const
 export const NODE_HEIGHT_RANGE = { min: 56, max: 96 } as const
 export const EDGE_WIDTH_RANGE = { min: 1.5, max: 8 } as const
-
-/** Cool (low) -> warm (high) heatmap, as HSL hue: blue (210) down to red (0). */
-const HUE_COOL = 210
-const HUE_WARM = 0
 
 export type MetricKey = "actualTimeMs" | "estimatedCost" | "actualRows" | "estimatedRows"
 
@@ -41,7 +49,6 @@ export interface MetricScale {
   /** 0..1, already floored/clamped — never NaN. */
   normalize: (value: number) => number
   sizeFor: (value: number) => { width: number; height: number }
-  colorFor: (value: number) => string
 }
 
 function clamp01(n: number): number {
@@ -72,15 +79,7 @@ export function buildMetricScale(root: PlanNode, metric: MetricKey): MetricScale
     }
   }
 
-  const colorFor = (value: number) => {
-    const t = normalize(value)
-    const hue = HUE_COOL - t * (HUE_COOL - HUE_WARM)
-    // Fixed saturation/lightness — only hue carries the encoding, kept
-    // moderate so text stays legible at every point on the scale.
-    return `hsl(${hue.toFixed(0)}, 70%, 55%)`
-  }
-
-  return { metric, maxValue, normalize, sizeFor, colorFor }
+  return { metric, maxValue, normalize, sizeFor }
 }
 
 export interface EdgeWidthScale {

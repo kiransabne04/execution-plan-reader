@@ -667,6 +667,13 @@
   gap: clamp(6px, 1cqi, 12px);
   padding: 0 clamp(8px, 1cqi, 14px);
   border-top: 1px solid var(--pr-border);
+  /* Episode 26, Story 26.7 — the reference mockup's own subtle glowing
+     top edge (`inset 0 1px 0` in a translucent accent), additive to the
+     plain border-top above rather than replacing it — matches the
+     mockup's own dark-chrome-plus-accent-top-rule status bar exactly,
+     instead of the flatter plain-border treatment this bar shipped with
+     in Story 26.4. */
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-accent) 35%, transparent);
   background: var(--dp-bg);
   font-size: 11px;
   position: relative;
@@ -996,23 +1003,10 @@
   color: var(--pr-text-muted);
 }
 
-/* Design review — the colour legend spec §2/§3 calls for: a swatch of the
-   exact same cool -> warm hue ramp `encoding.ts`'s `colorFor()` computes
-   node fill from (blue 210° down to red 0°), so this is documentation of
-   the real encoding, not a decorative, independently-chosen gradient. */
-.plan-shell__colour-legend {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.plan-shell__colour-legend-swatch {
-  display: inline-block;
-  width: 56px;
-  height: 8px;
-  border-radius: 4px;
-  background: linear-gradient(to right, hsl(210, 70%, 55%), hsl(105, 70%, 55%), hsl(0, 70%, 55%));
-}
+/* Episode 26, Story 26.7 — `.plan-shell__colour-legend`/`-swatch` (the
+   cool -> warm hue-ramp swatch documenting the old per-node metric-color
+   fill) removed along with that fill itself — grep-confirmed zero
+   remaining references. See encoding.ts's own Story 26.7 comment. */
 
 .plan-shell__graph {
   position: relative;
@@ -1353,27 +1347,43 @@
   flex-wrap: wrap;
 }
 
-/* Episode 26, Story 26.5 — editor-tab-style active-underline treatment,
-   replacing the old filled-pill active state: a real deviation from the
-   icon-rail's own pill convention (Story 26.2) on purpose — these are
-   document/editor-style tabs (one open statement among several, like a
-   file tab), not rail navigation, and VS Code's own editor tabs use
-   exactly this underline language for that reason. Rounded TOP corners
-   only (matches a real tab's own shape — nothing sits below its own
-   baseline to round into). */
+/* Episode 26, Story 26.5 — editor-tab-style active treatment, replacing
+   the old filled-pill active state: a real deviation from the icon-rail's
+   own pill convention (Story 26.2) on purpose — these are document/
+   editor-style tabs (one open statement among several, like a file tab),
+   not rail navigation. Rounded TOP corners only (matches a real tab's own
+   shape — nothing sits below its own baseline to round into).
+   Episode 26, Story 26.7 — the active indicator moved from a bottom
+   border to a TOP accent bar (VS Code's own editor-tab language, and the
+   exact treatment in the reference mockup's own `.tab.active::after`),
+   with the active tab's background blending into the canvas below it
+   rather than staying transparent — matches the mockup pixel-for-pixel
+   rather than this story's own earlier, functionally-equivalent-but-
+   differently-placed bottom-underline choice. */
 .plan-reader-page__statement-tab {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
   border: none;
-  border-bottom: 2px solid transparent;
   border-radius: 6px 6px 0 0;
   background: transparent;
   color: var(--pr-text-muted);
   font-size: 12px;
   cursor: pointer;
   transition: color 0.1s ease, background-color 0.1s ease;
+}
+
+.plan-reader-page__statement-tab::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
 }
 
 .plan-reader-page__statement-tab:hover,
@@ -1383,23 +1393,33 @@
 }
 
 .plan-reader-page__statement-tab[aria-selected="true"] {
-  border-bottom-color: var(--pr-accent);
+  background: var(--color-bg-canvas);
   color: var(--pr-text);
   font-weight: 600;
 }
 
+.plan-reader-page__statement-tab[aria-selected="true"]::after {
+  background: var(--pr-accent);
+}
+
 /* Story 20.1 — a collapsed run of trivial control-flow statements. Italic
-   + a permanent dashed underline (same "this represents several things,
-   not one" language AccessiblePlanList's own `--collapsed` row uses) —
-   this row is never itself "the active statement" (it toggles its own
-   `aria-expanded`, never `aria-selected`), so its own visual signal has
-   to stand on its own rather than reusing the solid accent underline
-   reserved for real tab selection. */
+   + a permanent dashed top bar (same "this represents several things, not
+   one" language AccessiblePlanList's own `--collapsed` row uses) — this
+   row is never itself "the active statement" (it toggles its own
+   `aria-expanded`, never `aria-selected`), so its own visual signal has to
+   stand on its own rather than reusing the solid accent bar reserved for
+   real tab selection. */
 .plan-reader-page__statement-tab--group {
   font-style: italic;
   opacity: 0.85;
-  border-bottom-style: dashed;
-  border-bottom-color: var(--pr-border);
+}
+
+.plan-reader-page__statement-tab--group::after {
+  border-top: none;
+  border-bottom: 2px dashed var(--pr-border);
+  height: 0;
+  top: auto;
+  bottom: 0;
 }
 
 /* Story 18.11 — additive to the tab's own label, never replacing it. */
@@ -1486,13 +1506,15 @@
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  /* Episode 26, Story 26.2 — pill-shaped active/hover background, a
-     deliberate deviation from VS Code's own flat 2px activity-bar bar
-     (this episode's own intro names this exact contrast). A 40x40 square
-     button's own "pill" is a circle — 999px rounds it fully regardless of
-     the exact box size, so this keeps working if the button's own
-     dimensions ever change. */
-  border-radius: 999px;
+  /* Episode 26, Story 26.2 originally shipped a fully solid-accent pill
+     (999px radius, white text) here — a deliberate deviation from VS
+     Code's own flat activity-bar treatment. Episode 26, Story 26.7:
+     restyled to match the reference mockup's own activity-btn exactly —
+     an 8px-radius square button with a soft TINTED active background
+     (`color-mix`, 22% accent over the surface color), not a fully solid
+     fill. Less heavy, closer to VS Code's actual activity-bar language
+     than the original pill was. */
+  border-radius: 8px;
   background: transparent;
   color: var(--pr-text-muted);
   font-size: 20px;
@@ -1507,16 +1529,13 @@
 }
 
 .icon-rail__button[aria-pressed="true"] {
-  /* `white`, not a token — the same solid-accent-background pairing this
-     app already uses everywhere else a pressed/active state fills with
-     `--color-accent` (search-palette chips, the walkthrough mode toggle). */
-  color: white;
-  background: var(--color-accent);
+  color: var(--color-accent-on-tint);
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
 }
 
 .icon-rail__button[aria-pressed="true"]:hover,
 .icon-rail__button[aria-pressed="true"]:focus-visible {
-  background: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
 }
 
 .icon-rail__badge {
