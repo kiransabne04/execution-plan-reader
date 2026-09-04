@@ -96,8 +96,10 @@ describe("PlanReaderPage", () => {
     expect(screen.queryByTestId("canvas-plan-graph-surface")).not.toBeInTheDocument()
   })
 
-  it("shows a footer connecting the tool to Kiran's existing content, for first-time-visitor credibility", () => {
+  it("connects the tool to Kiran's existing content, for first-time-visitor credibility — the old footer's content, now behind the status bar's own branding chip", () => {
     render(<PlanReaderPage />)
+    expect(screen.queryByText(/scalingbackend/i)).not.toBeInTheDocument() // on demand now, not always visible
+    fireEvent.click(screen.getByTestId("status-bar-brand"))
     expect(screen.getByText(/scalingbackend/i)).toBeInTheDocument()
   })
 
@@ -810,6 +812,87 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
       expect(screen.getByTestId("icon-rail-panel")).toHaveAttribute("hidden")
+    })
+  })
+
+  describe("Episode 26, Story 26.4 — status bar", () => {
+    it("renders before any plan is analyzed, with just the branding chip — no fabricated engine/node/severity data", () => {
+      render(<PlanReaderPage />)
+      expect(screen.getByTestId("plan-shell-status-bar")).toBeInTheDocument()
+      expect(screen.getByTestId("status-bar-brand")).toBeInTheDocument()
+      expect(screen.queryByTestId("status-bar-engine")).not.toBeInTheDocument()
+      expect(screen.queryByTestId("status-bar-node-count")).not.toBeInTheDocument()
+      expect(screen.queryByTestId("status-bar-severity-counts")).not.toBeInTheDocument()
+    })
+
+    it("shows engine, node count, and severity counts once a plan is analyzed", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      expect(screen.getByTestId("status-bar-engine")).toHaveTextContent("Postgres")
+      expect(screen.getByTestId("status-bar-node-count")).toBeInTheDocument()
+      expect(screen.getByTestId("status-bar-severity-counts")).toBeInTheDocument()
+    })
+
+    it("clicking the branding chip reveals the attribution text; clicking again hides it", () => {
+      render(<PlanReaderPage />)
+      const chip = screen.getByTestId("status-bar-brand")
+      expect(screen.queryByTestId("status-bar-about")).not.toBeInTheDocument()
+
+      fireEvent.click(chip)
+      expect(screen.getByTestId("status-bar-about")).toHaveTextContent(/scalingbackend/i)
+      expect(chip).toHaveAttribute("aria-expanded", "true")
+
+      fireEvent.click(chip)
+      expect(screen.queryByTestId("status-bar-about")).not.toBeInTheDocument()
+    })
+
+    it("the severity-counts button drives the SAME Issues-drawer state as the icon rail's own toggle, not a second one", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "rule-wal-volume.json"))
+      // jsdom's zero-width layout makes the mobile-default effect open the
+      // drawer by default here, unlike a real desktop-width browser (see
+      // this same quirk's own comment on Story 26.2's tests above) — start
+      // from a known CLOSED state rather than assuming which way a fresh
+      // analyze left it.
+      if (screen.getByTestId("findings-drawer").className.includes("findings-drawer--open")) {
+        fireEvent.click(screen.getByTestId("icon-rail-findings"))
+      }
+      expect(screen.getByTestId("findings-drawer")).not.toHaveClass(/findings-drawer--open/)
+      fireEvent.click(screen.getByTestId("status-bar-severity-counts"))
+      expect(screen.getByTestId("findings-drawer")).toHaveClass(/findings-drawer--open/)
+      expect(screen.getByTestId("icon-rail-findings")).toHaveAttribute("aria-pressed", "true")
+
+      // And the reverse: the icon rail's own toggle closes it, reflected
+      // back in the status bar's own pressed state.
+      fireEvent.click(screen.getByTestId("icon-rail-findings"))
+      expect(screen.getByTestId("status-bar-severity-counts")).toHaveAttribute("aria-pressed", "false")
+    })
+
+    it("the Beginner/Expert toggle drives the SAME lifted expertMode state as the app bar's own toggle", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+
+      fireEvent.click(screen.getByTestId("status-bar-mode-expert"))
+      expect(screen.getByTestId("shell-mode-expert")).toHaveAttribute("aria-pressed", "true")
+
+      fireEvent.click(screen.getByTestId("shell-mode-beginner"))
+      expect(screen.getByTestId("status-bar-mode-beginner")).toHaveAttribute("aria-pressed", "true")
+      expect(screen.getByTestId("status-bar-mode-expert")).toHaveAttribute("aria-pressed", "false")
+    })
+
+    it("stays present (still in the DOM) while the graph is maximized — intentionally covered by the maximized overlay, same as the app bar already is, not conditionally unmounted", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("graph-maximize-toggle"))
+      expect(screen.getByTestId("plan-shell-status-bar")).toBeInTheDocument()
+    })
+
+    it("does not render during compare mode — comparison isn't part of the shell grid yet (Story 18.14's own follow-up)", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      fireEvent.click(screen.getByTestId("compare-toggle"))
+      expect(screen.queryByTestId("plan-shell-status-bar")).not.toBeInTheDocument()
     })
   })
 
