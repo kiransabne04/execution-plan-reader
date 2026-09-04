@@ -172,6 +172,18 @@ Test coverage: rule-level unit tests for all three rule files (including both of
 
 
 
+## Episode 26 — IDE-style shell (activity bar, Problems panel, status bar, canvas-only)
+| Story | Status | Notes |
+|---|---|---|
+| 26.1 — Canvas-only visualizer, with a real pan-to-node mechanism | not started | Removes `PlanGraph.tsx`'s DOM/SVG (React Flow) path entirely — every plan renders via `CanvasPlanGraph`. Requires building `panToNode` first (real gap found and disclosed before implementation: canvas mode has no pan-to-node today, which the walkthrough/Findings-jump/search-select/comparison-sync all depend on) — reuses the existing `fitTransform` with a single node's bounds + the current scale as `maxScale`, not new logic |
+| 26.2 — Activity bar, sidebar restyle, click-outside-close | not started | `IconRail.tsx` pill active-state, no minimize control (prototyped and explicitly rejected during the mockup pass). New click-outside-closes-sidebar listener |
+| 26.3 — Problems panel: statement grouping, drag-resize, rail-width alignment | not started | Renames Findings -> "Problems" in UI copy only (rule engine vocabulary untouched). Groups by statement using existing `statementLabel`/`statementIndex`; drag-resizable height replacing the fixed cap; fixes the rail-overlap bug found during the mockup pass |
+| 26.4 — Status bar and branding | not started | New permanent bottom strip: engine/nodes/severity counts (clickable -> Problems), Beginner/Expert (same lifted state), branding chip. Removes the old page footer once superseded |
+| 26.5 — Detail panel, statement tabs, search palette restyle | not started | Cosmetic only, zero behavior change. `FunnelCallout` (Episode 9) untouched beyond the restyle |
+| 26.6 — Branded empty-canvas state | not started | The old footer's attribution line moves here (biggest unclaimed real estate, first impression) — honest per Episode 19's own "no fabricated hero" precedent |
+
+Decided through an iterative live mockup (Artifact), not written up front — every decision confirmed against a clickable preview before being locked. Builds on Story 6.3 (icon rail, overlay panels, canvas-first space) rather than reopening its overlay-vs-persistent decision. Full detail in `docs/08-episodes-and-stories.md` Episode 26.
+
 **`docs/11-manual-testing-gaps-episode8.md` is fully closed** — all 4 original gaps resolved (one real fix, two confirmed data-source limitations rather than bugs, one confirmed already-correct), plus a real Snowflake time-breakdown gap and a real SQL Server composite-seek-predicate bug found during re-verification, both fixed. Nothing outstanding there.
 
 Keep this file current going forward — update the relevant row the moment a story starts or finishes, as part of the same PR/commit, not as a separate cleanup pass later.

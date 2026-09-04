@@ -1532,3 +1532,126 @@ Where Episode 24 moved from node-level symptoms toward single-node Postgres reas
 | 25.7 — Root cause grouping | `cardinalityPropagation.ts`'s `linkPropagatedFindings` (25.1) feeds a new `groupByRootCause(root): RootCauseGroup[]`, `RootCauseGroup = { primary: Finding, consequences: Finding[] }` | A finding with no `causedBy` edge but at least one `contributesTo` edge becomes a group's `primary`; everything it transitively `contributesTo` becomes `consequences`, deduped by family (reuses `dedupeByFamily` again) so an equivalent recommendation never appears twice across primary and consequence text | Purely a data-layer story — no UI surface specified here. Findings-panel/summary rendering of `RootCauseGroup[]` is a natural follow-up but out of this story's scope, same as Episode 24's disclosed `buildStatRows.ts` follow-up: named explicitly rather than silently assumed |
 
 **Testing**: every new/changed rule gets the same positive/negative fixture pair `rule-engine-authoring` requires, plus a dedicated multi-hop fixture (scan → nested loop → aggregate, the story's own worked example) exercising `linkPropagatedFindings` end-to-end — asserting the exact edge list, not just that "some relationship" was found. 25.4's materiality rework needs both worked examples from the story (est 1→50 non-material, est 10→500,000 material) as explicit regression tests, since this replaces existing binary-severity behavior other tests may currently assert against.
+
+---
+
+## Episode 26 — IDE-style shell (activity bar, Problems panel, status bar, canvas-only)
+
+Source: user-directed visual/structural redesign, decided through an iterative live mockup (Artifact) rather than written up front — every decision below was confirmed against a clickable preview before being locked, not assumed from a one-line request. Builds on Story 6.3's shell (icon rail, overlay panels, canvas-first space) rather than replacing it — this episode restyles and extends that shell, it does not reopen the overlay-vs-persistent decision 6.3 already settled (Hybrid: panels stay overlay/on-demand).
+
+**Decisions locked during the mockup discussion, in order, each confirmable against the mockup session:**
+- Visual language borrows VS Code's STRUCTURE (activity bar, overlay side panel, bottom Problems panel, status bar, editor-style tabs, command-palette-style search) — but **not its literal color palette**. Every color in the new shell comes from PlanReader's own existing tokens (`src/styles/tokens.css`'s `--color-*`/`--pr-*` family), not VS Code's Dark+ hex values. Deliberate visual deviations from literal VS Code on top of that: rounded corners throughout (VS Code is sharp-edged), pill-style active states (VS Code uses a flat 2px bar), severity dots instead of glyph icons in the Problems list.
+- The icon rail (Story 6.3's `IconRail.tsx`) gets NO minimize/collapse control of its own — it stays exactly as narrow as Story 6.3 already made it, permanently. (An activity-bar minimize toggle was prototyped in the mockup and explicitly rejected — removed again immediately.)
+- The New Plan/Recent Plans overlay panel now closes on a click ANYWHERE outside itself and the icon rail — canvas, a node, the Problems panel, the detail panel, statement tabs, the status bar — not only via its own close button or a same-icon re-click (Story 6.3's original behavior). Opening the Problems panel also explicitly closes it first (the two would otherwise occupy the same left column).
+- Findings is renamed, in its UI copy and visual treatment, to "Problems" (matching the icon rail's own icon/tooltip and the panel's own header) — the underlying rule-engine vocabulary (`ruleId`, `severity`, `FindingCategory`) is UNCHANGED; this is a UI-copy/grouping change on top of Story 6.3's `FindingsDrawer.tsx`, not a rules-layer rename.
+- Problems panel: stays overlay/collapsible by default (Story 6.3's Hybrid decision, not reopened) — but gains statement-grouping (each statement in a multi-statement batch is its own collapsible group header, falling back to a flat list for the single-statement case, which is most real input) and becomes drag-resizable in height while open, replacing Story 6.3's fixed `min(38vh, 420px)` cap. Left-aligns to the icon rail's own (fixed, unchanging) width — the overlap bug hit during the mockup pass (the panel spanning full width including under the rail) is the reason this story explicitly re-tests that alignment.
+- A new, permanent status bar at the very bottom of the shell: engine badge, node count, critical/warning/info counts (clickable — opens the Problems panel), Beginner/Expert toggle, and a small branding chip (see below). Always visible, thin (~22–24px), costs near-zero canvas height.
+- Detail panel keeps 100% of its existing content (`DetailPanel.tsx`'s education section, stats table, warnings, query correlation, raw attributes, Beginner/Expert toggle, pin control, and Episode 9's own `FunnelCallout` product-callout section) — restyled only, nothing removed or restructured. Statement tabs and the search palette (⌘K) also get a restyle pass only — no behavior change.
+- **Visualizer becomes canvas-only.** `PlanGraph.tsx`'s DOM/SVG (React Flow) rendering path — and its `CANVAS_NODE_COUNT_THRESHOLD` mode switch — is removed entirely; every plan, at every size, renders through `CanvasPlanGraph.tsx`. Confirmed explicitly with the user after disclosing the real cost: canvas mode already has its own pan/zoom/hit-testing (Episode 15) and its own accessible-list fallback for keyboard/screen-reader access (`AccessiblePlanList.tsx`, Story 15.2) — nothing becomes unreachable — but a real, previously-undiscovered gap was found and must be fixed as PART of this migration, not after: canvas mode has no "pan to node" mechanism today (`PlanGraph.tsx` explicitly skips its `pendingPanNodeId`/`setCenter` logic when `useCanvas` is true, and `CanvasPlanGraph.tsx` never built a replacement), which the guided walkthrough, Findings/Problems "jump to node," the search palette's "select a result," and the comparison view's synced-selection pan all depend on today. Currently this only affects 300+-node plans (rare); canvas-only makes it affect every plan, every time, unless fixed. The fix is bounded, not open-ended: `viewportTransform.ts`'s existing `fitTransform(bounds, viewport, options)` already computes "center the viewport on this bounding box," and already backs the initial fit-to-view — calling it with a single node's own bounds (instead of the whole plan's) and a `maxScale` capped at the CURRENT zoom (not the fit-computed one, which would also change zoom level unexpectedly) is the same function, not new logic.
+- Branding: the old sticky page footer ("Built by Kiran…") has nowhere to live once the shell is a full-viewport app surface with no page scroll below it — confirmed with the user this is a real, not cosmetic, placement gap. Resolved as two pieces: a small clickable status-bar chip (permanent, low-friction, matches how real IDEs pin a brand/version chip in their own status bar) and a properly branded empty-canvas state (before any plan is analyzed — the biggest unclaimed real estate and a new visitor's actual first impression, currently just a plain "Paste a plan…" placeholder). Episode 9's existing `FunnelCallout` (the "want full DB diagnostics" pitch already living in the detail panel) is untouched — it already covers the contextual-callout half of this ask; nothing new needed there beyond the restyle every other detail-panel section also gets.
+
+As a user, I want PlanReader's shell to read as one coherent, information-dense workspace — an activity rail, a Problems panel, a status bar, all in PlanReader's own visual language — so it feels like a real diagnostic tool rather than a page with some panels on it, without losing anything Story 6.3 already made reachable.
+
+### Story 26.1 — Canvas-only visualizer, with a real pan-to-node mechanism
+
+**Acceptance criteria**
+- `PlanGraph.tsx`'s `useCanvas` branch and `CANVAS_NODE_COUNT_THRESHOLD` are removed; `CanvasPlanGraph` (or its accessible-list fallback) is the only rendering path, at every node count including a 1-node plan.
+- New `panToNode(nodeId)` capability in the canvas path: reuses `fitTransform` with a single node's world-space bounding box and the CURRENT scale (not a freshly fit-computed one) as `maxScale`, so panning to a node never also changes zoom level out from under the user.
+- All four existing features that depend on pan-to-node keep working, verified individually, not assumed from one passing case: guided walkthrough step advance, Findings/Problems "jump to node," search palette "select a result," comparison view's synced-selection pan.
+- `AccessiblePlanList.tsx` (Story 15.2) becomes the universal accessible path for every plan size, not just 300+-node ones — audited for anything that assumed it was only ever a fallback for huge plans (e.g., a "this list may be slow for very large plans" caveat that no longer makes sense once it's also the primary a11y path for a 5-node plan).
+- Every DOM/SVG-specific file/branch this removes is actually deleted (`PlanNodeCard.tsx`'s React Flow node-type wiring, the `nodeDetailVariant="panel"` DOM path if it was DOM-specific, any test that only ever exercised DOM mode) — not left as dead code "just in case."
+
+**Testing approach**
+- Unit: `panToNode`/its underlying `fitTransform` call, including the "never changes zoom" requirement, with a dedicated test asserting the returned transform's `scale` equals the input scale exactly.
+- Component/e2e: re-run (not assume) every existing walkthrough, findings-jump, search-palette, and comparison-view test against canvas-only rendering — several of these currently only exercise DOM mode via small fixtures and will need to either switch fixtures or confirm they now exercise canvas mode by construction.
+- Regression: the full existing canvas-mode test suite (`CanvasPlanGraph.test.tsx`, `canvasDraw.test.ts`, `hitTest.test.ts`, `viewportTransform.test.ts`, `AccessiblePlanList.test.tsx`) re-run against the now-universal code path.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A node currently scrolled/panned off-screen when `panToNode` is called | The whole point of this story | Assert the node's world-space center lands at the viewport's center after the call, for a node placed far from the current viewport |
+| Panning to a node while already zoomed in tight (e.g. after a manual wheel-zoom) | A naive re-fit would zoom back out, disorienting — this story's own explicit "never changes zoom" requirement | `maxScale` argument uses the CURRENT transform's scale, not a recomputed fit-to-bounds one |
+| A 1-node or otherwise trivial plan, now rendered via canvas for the first time | Canvas mode was built and tested against 300+-node plans; a degenerate small case might hit an edge in hit-testing or layout no one exercised | Explicit test fixture at the small end, not just large ones |
+| A keyboard-only or screen-reader user on a small plan | `AccessiblePlanList` used to be an edge-case fallback for huge plans; it's now everyone's only non-canvas path at every size | Confirm its own existing keyboard/ARIA behavior (click/Enter/Space, Story 15.2's own documented parity level) still holds when it's the DEFAULT a11y path, not a rare one |
+
+### Story 26.2 — Activity bar, sidebar restyle, and click-outside-close
+
+**Acceptance criteria**
+- Icon rail (`IconRail.tsx`) restyled: pill-shaped active-state background (not a flat left bar), hover states, tooltips — using PlanReader's own token palette. No minimize/collapse control.
+- The New Plan/Recent Plans overlay panel closes on a click anywhere outside itself and the icon rail (a new document-level click listener scoped to exactly that pair of elements — not `stopPropagation`-guarded in a way that would block the click from ALSO doing whatever it landed on, e.g. opening a node's detail panel).
+- Opening the Problems panel (Story 26.3) explicitly closes this overlay first if open.
+
+**Testing approach**
+- Component: click-outside-closes behavior, verifying the underlying click's OWN effect (e.g., selecting a node) still fires — not just that the sidebar closed.
+- e2e: real-browser click-outside test, including clicking the Problems panel and the detail panel specifically (the two surfaces most likely to have their own click handling that could accidentally swallow the outside-click).
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Clicking the icon that's currently open's own icon again | Existing Story 6.3 toggle-closed behavior must survive this addition | Confirm both the existing same-icon-click-closes AND the new click-outside-closes paths lead to the identical closed state, not two subtly different ones |
+| A click that lands on the scrim behind an open, un-pinned DETAIL panel while the sidebar is ALSO open | Two different overlay-closing mechanisms (detail panel's own scrim, this story's new click-outside listener) active on the same click | Confirm both close correctly and neither interferes with the other — the detail panel's own scrim-click-to-close (Story 6.3) is unmodified by this story |
+
+### Story 26.3 — Problems panel: statement grouping, drag-resize, rail-width alignment
+
+**Acceptance criteria**
+- `FindingsDrawer.tsx`'s expanded body groups findings by statement (collapsible group headers, using each finding's existing `statementLabel`/`statementIndex` from `collectFindingsAcrossStatements` — no new data plumbing needed) for a multi-statement batch; renders as today's flat list for the single-statement case (most real input), never an empty single group header wrapping everything.
+- The panel's expanded height becomes user-drag-resizable (a drag handle on its top edge), replacing the fixed `min(38vh, 420px)` cap — persisted only for the current session (component state), not across reloads, same scope discipline Story 6.3 used for its own pin preference.
+- The panel's left edge aligns exactly to the icon rail's own width at every width/state — the specific overlap bug found during this episode's own mockup pass (the panel spanning under the rail) gets a dedicated regression test, not just a visual check.
+- UI copy says "Problems," matching the icon rail's own relabeled icon/tooltip; `ruleId`/`FindingCategory`/severity vocabulary in the rule engine is untouched.
+
+**Testing approach**
+- Component: statement-grouping renders one group per statement with the right findings nested under each, collapses to a flat list for single-statement sources.
+- e2e: drag-resize the panel's height and assert the new height persists across a re-render (e.g., switching statements) but not across a fresh analyze; the rail-alignment regression test itself (assert the panel's `left` matches the rail's own measured width, not just "roughly doesn't overlap").
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Dragging the resize handle past the available canvas height, or to zero | A naive implementation could let the panel swallow the whole canvas, or collapse to something unusably thin | Clamp to a sane min (e.g. the collapsed-summary height) and max (e.g. 80% of canvas height) |
+| A statement group with zero findings (a clean statement in an otherwise-flagged batch) | Shouldn't render an empty, pointless group header | Only render a group header for a statement that actually has at least one finding, matching the existing "zero findings" empty-state copy when the WHOLE batch is clean |
+| Resizing while the detail panel's own `--inset` modifier (Story 6.3) is active | The inset margin was computed against the OLD fixed height's own layout; a resized panel changes where the canvas below it ends | Confirm the inset still correctly keeps the two from colliding at an arbitrary, user-chosen height, not just the old fixed one |
+
+### Story 26.4 — Status bar and branding
+
+**Acceptance criteria**
+- New, permanent status bar at the shell's bottom edge (below the canvas/Problems panel, above nothing — it's the last element): engine badge, node count, critical/warning/info counts (clickable, opens the Problems panel — the SAME toggle Story 6.3's icon-rail Problems button and this bar's own click both drive, not two independently-drifting toggles), Beginner/Expert toggle (the SAME lifted `expertMode` state Story 18.3 already established, not a second control with its own state).
+- A small, clickable branding chip in the status bar (e.g. "PlanReader" or an attribution mark) — permanent, low-friction, using PlanReader's own accent token.
+- The old page footer (`plan-reader-page__footer`, "Built by Kiran…") is removed once its content has a real new home; grep-confirmed zero remaining references before deleting, matching Episode 19's own precedent for removing superseded chrome.
+
+**Testing approach**
+- Component: status-bar counts/toggle drive the SAME state as their icon-rail/app-bar counterparts (a test that flips one and asserts the other reflects it, not two separate assertions that happen to both be true by coincidence).
+- e2e: status bar renders and stays visible in every layout state (Problems open, sidebar open, detail panel open, maximized mode) — it's meant to be permanent, so this is worth checking against every overlay combination, not just the default state.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Maximized graph mode (Episode 22) | That mode already has its own toolbar competing for bottom-of-viewport space | Confirm the status bar's own relationship to maximized mode explicitly (stays visible underneath, or is intentionally covered by the maximized overlay like the app bar already is) rather than leaving it to CSS accident |
+| No plan analyzed yet | Nothing to show for engine/node count/severity counts | Render the bar with just the branding chip, or hide the data-dependent items — decide and document, don't show fabricated zeros |
+| A very narrow shell width (mobile) | The status bar's own items could overflow a 390px-wide shell the same way the app bar once did (Story 6.3's own real bug) | Explicit narrow-width test from the start, given that exact class of bug already bit this app once this session |
+
+### Story 26.5 — Detail panel, statement tabs, and search palette restyle
+
+**Acceptance criteria**
+- `DetailPanel.tsx` (including `FunnelCallout`), the statement tab strip, and `SearchPalette.tsx` are restyled to the new visual language (rounded corners, PlanReader's own tokens, tab-strip active-underline treatment) — zero behavior change, zero content change.
+- Every existing test for these three surfaces passes unmodified except where it asserted a CSS class/style value this restyle deliberately changes (and those get updated, not deleted).
+
+**Testing approach**
+- Regression only: re-run every existing `DetailPanel`/statement-tab/`SearchPalette` test; this story adds no new behavioral tests of its own since it changes no behavior.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| `FunnelCallout`'s own dismiss-state styling | A restyle touching its container could accidentally affect its own already-tested dismiss persistence/visual treatment | Confirm Episode 9's own funnel-callout tests still pass unmodified |
+
+### Story 26.6 — Branded empty-canvas state
+
+**Acceptance criteria**
+- Before any plan is analyzed, the canvas placeholder (`plan-shell__canvas--empty`) becomes a real branded moment — not just larger text — including the attribution line the old footer used to carry, in a location that reads as intentional rather than leftover.
+- Stays honest per Episode 19's own precedent for this exact element: no fabricated preview of the graph, no marketing hero reintroduced — an upgrade to the plain placeholder's presentation, not a scope reversal of Episode 19's own "no separate hero page" decision.
+
+**Testing approach**
+- Component: renders the new empty-state content and the attribution line; unaffected by (and disappears correctly on) a real analyze.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A restored session/share-link landing directly on an analyzed plan (no empty state ever shown) | This state is easy to under-test since most manual testing pastes a plan immediately | Explicit test rendering `PlanReaderPage` with no `analyzed` state at all, not just checking it inline while testing something else |
