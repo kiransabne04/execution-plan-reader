@@ -198,6 +198,11 @@ export function PlanReaderPage() {
   // having it stay Expert while browsing. Shared with Story 18.9's
   // walkthrough once that exists, per spec §2.
   const [expertMode, setExpertMode] = useState(false)
+  // Episode 26, Story 26.4 — the status bar's own branding-chip disclosure
+  // (the old page footer's attribution sentence, relocated on-demand).
+  // Local UI state, not persisted or reset on a fresh analyze — there's no
+  // per-plan meaning to "was this open," unlike e.g. `activeStatementIndex`.
+  const [isAboutOpen, setIsAboutOpen] = useState(false)
 
   // Episode 18, Story 18.12 — spec §2b's breakpoint table names 620px as
   // the "mobile layout" step ("Detail becomes a bottom sheet"). Note this
@@ -1331,6 +1336,127 @@ export function PlanReaderPage() {
               )}
             </div>
           )}
+
+          {/* Episode 26, Story 26.4 — a new, permanent status bar at the
+              shell's own bottom edge (the last element in the grid, not
+              page-level like the old footer this replaces). "Permanent"
+              means it renders even before any plan is analyzed — with
+              just the branding chip, per this story's own edge case
+              ("don't show fabricated zeros" for data that doesn't exist
+              yet) — not gated behind `analyzed` the way every app-bar
+              control above it is.
+              Excluded from compare mode: Episode 14's comparison view is
+              deliberately NOT part of the shell grid (see this file's own
+              comment on `plan-reader-page__compare` above, Story 18.14's
+              own follow-up) — a shell-grid element integrating with it is
+              equally out of scope here, not a new decision.
+              Maximized mode (Episode 22): deliberately NOT given special
+              treatment to "stay visible above" the maximized overlay —
+              `.plan-shell__graph--maximized`'s own `position: fixed;
+              inset: 0` already covers the app-bar the exact same way
+              (see that class's own comment); this stays consistent with
+              that established, already-shipped precedent rather than
+              inventing a second convention for one more element. */}
+          {!compareMode && (
+            <footer className="plan-shell__status-bar" data-testid="plan-shell-status-bar">
+              <button
+                type="button"
+                className="plan-shell__status-bar-brand"
+                aria-expanded={isAboutOpen}
+                aria-label="About PlanReader"
+                data-testid="status-bar-brand"
+                onClick={() => setIsAboutOpen((v) => !v)}
+              >
+                <TreeStructure className="plan-shell__status-bar-brand-icon" weight="fill" aria-hidden="true" />
+                PlanReader
+              </button>
+              {isAboutOpen && (
+                // The old page footer's exact attribution sentence,
+                // relocated here rather than discarded — an on-demand
+                // disclosure now instead of an always-visible line, which
+                // is what makes the chip itself meaningfully "clickable"
+                // (this story's own AC) without a real destination URL to
+                // link to (same disclosed gap the old footer's own
+                // comment already named — a fabricated link would still
+                // be worse than none).
+                <p className="plan-shell__status-bar-about" role="status" data-testid="status-bar-about">
+                  Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.
+                </p>
+              )}
+
+              {analyzed && (
+                // REAL BUG found via live verification (not just the AC's
+                // own narrow-width checklist item): this sub-container is
+                // where `overflow-x: auto` actually lives now — putting it
+                // on the OUTER bar directly silently forced `overflow-y`
+                // to `auto` too (never `visible`, per the CSS spec for a
+                // single non-`visible` axis), clipping the brand chip's
+                // own `bottom: 100%` popover above even though it was
+                // genuinely in the DOM and toggling correctly. The brand
+                // button (and its popover) stays in the outer bar's own
+                // unclipped flex row; only the data items that actually
+                // need to scroll at a narrow width live in here.
+                <div className="plan-shell__status-bar-scroll">
+                  <span className="plan-shell__status-bar-divider" aria-hidden="true" />
+                  <span className="plan-shell__status-bar-item" data-testid="status-bar-engine">
+                    {ENGINE_LABEL[analyzed.engine]}
+                  </span>
+                  <span className="plan-shell__status-bar-item" data-testid="status-bar-node-count">
+                    {activeStatementNodes.length.toLocaleString("en-US")} nodes
+                  </span>
+                  {/* The SAME toggle the icon rail's own Issues button and
+                      FindingsDrawer's own summary bar both drive
+                      (`isFindingsDrawerOpen`/`handleFindingsOpenChange`)
+                      — not a second, independently-drifting control. */}
+                  <button
+                    type="button"
+                    className="plan-shell__status-bar-item plan-shell__status-bar-severity"
+                    aria-pressed={isFindingsDrawerOpen}
+                    aria-label={`${findingsSummary.total} issue${findingsSummary.total === 1 ? "" : "s"}: ${findingsSummary.critical} critical, ${findingsSummary.warning} warning${findingsSummary.warning === 1 ? "" : "s"}, ${findingsSummary.info} info — toggle the Issues panel`}
+                    data-testid="status-bar-severity-counts"
+                    onClick={() => handleFindingsOpenChange(!isFindingsDrawerOpen)}
+                  >
+                    <span className="plan-shell__status-bar-severity-count plan-shell__status-bar-severity-count--critical">
+                      {findingsSummary.critical}
+                    </span>
+                    <span className="plan-shell__status-bar-severity-count plan-shell__status-bar-severity-count--warning">
+                      {findingsSummary.warning}
+                    </span>
+                    <span className="plan-shell__status-bar-severity-count plan-shell__status-bar-severity-count--info">{findingsSummary.info}</span>
+                  </button>
+                  <span className="plan-shell__spacer" />
+                  {/* The SAME lifted `expertMode` state as the app bar's
+                      own toggle (Story 18.3) and the maximized-mode
+                      toolbar's copy — a third reachable control, not a
+                      third independent state. Reuses the app bar's own
+                      `.plan-shell__mode-toggle` classes directly (not a
+                      parallel copy) — matching that control's own
+                      comment: the same lifted state should read as the
+                      same kind of control everywhere it appears. */}
+                  <div className="plan-shell__mode-toggle" role="group" aria-label="Detail level">
+                    <button
+                      type="button"
+                      className="plan-shell__mode-toggle-button"
+                      aria-pressed={!expertMode}
+                      data-testid="status-bar-mode-beginner"
+                      onClick={() => setExpertMode(false)}
+                    >
+                      Beginner
+                    </button>
+                    <button
+                      type="button"
+                      className="plan-shell__mode-toggle-button"
+                      aria-pressed={expertMode}
+                      data-testid="status-bar-mode-expert"
+                      onClick={() => setExpertMode(true)}
+                    >
+                      Expert
+                    </button>
+                  </div>
+                </div>
+              )}
+            </footer>
+          )}
         </section>
 
       {/* Episode 18, Story 18.8 — a global overlay, deliberately rendered
@@ -1375,15 +1501,6 @@ export function PlanReaderPage() {
         />
       )}
 
-      {/* Brief's on-page checklist: connect the tool to Kiran's existing
-          execution-plan content for credibility with a first-time,
-          skeptical visitor. No hyperlink here — there's no real URL for the
-          video series/blog post in this project's docs yet (a known,
-          tracked gap; see Episode 12's content-linking story), and a
-          fabricated link would be worse than none. */}
-      <footer className="plan-reader-page__footer">
-        <p>Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.</p>
-      </footer>
     </main>
   )
 }
