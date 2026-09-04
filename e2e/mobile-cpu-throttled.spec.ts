@@ -27,10 +27,8 @@ test("the core paste -> analyze -> open detail panel flow stays usable on a thro
 
   const start = Date.now()
   await page.getByRole("button", { name: /analyze plan/i }).click()
-  // Episode 18, Story 18.12: Findings leads on true mobile (spec §5 `1k`)
-  // — the result screen opens on the Findings tab, not the graph, so the
-  // graph has to be switched to explicitly here, same as a real user would.
-  await page.getByTestId("shell-tab-graph").click()
+  // Story 6.3 — the graph is always visible now (the retired narrow-shell
+  // tab switch used to require an explicit tab click here).
   await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
   const analyzeElapsed = Date.now() - start
   // Generous — this is a throttled CPU on a small, real fixture, not a

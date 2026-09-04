@@ -29,9 +29,10 @@ test("the graph renders visibly and without horizontal page overflow at a mobile
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
 
-  // Episode 18, Story 18.12: Findings leads on true mobile (spec §5 `1k`)
-  // — the result screen opens on the Findings tab, not the graph.
-  await page.getByTestId("shell-tab-graph").click()
+  // Story 6.3 — the graph is always visible now (the retired narrow-shell
+  // tab switch used to gate it behind a "Graph" tab); Findings leads on
+  // true mobile (spec §5 `1k`) through the findings drawer defaulting to
+  // open instead — see mobile-breakpoints.spec.ts.
   await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
@@ -42,9 +43,7 @@ test("a node's detail panel is still usable (visible, closable) at a mobile view
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
-  // Episode 18, Story 18.12: Findings leads on true mobile — switch to the
-  // Graph tab to reach a node card, same as a real user would.
-  await page.getByTestId("shell-tab-graph").click()
+  // Story 6.3 — the graph is always visible now, no tab switch needed.
   await page.getByTestId("plan-node-card").first().click()
 
   await expect(page.getByTestId("detail-panel")).toBeVisible()

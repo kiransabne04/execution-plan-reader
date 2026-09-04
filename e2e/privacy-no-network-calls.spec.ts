@@ -151,8 +151,12 @@ test("Story 17.1/17.2: zero outbound requests across the full local-persistence 
   await page.getByTestId("restore-session-button").click()
   await expect(page.getByTestId("plan-result")).toBeVisible()
 
-  await page.getByTestId("recent-plans-toggle").click()
+  // Story 6.3 — Recent Plans/PasteBox now live inside the icon rail's
+  // on-demand panels, not a permanent left rail.
+  await page.getByTestId("icon-rail-recent-plans").click()
   await expect(page.getByTestId("recent-plan-item").first()).toBeVisible()
+  await page.getByTestId("icon-rail-recent-plans").click() // close before opening New Plan
+  await page.getByTestId("icon-rail-new-plan").click()
   await page.getByTestId("privacy-details-toggle").click()
   await page.getByTestId("clear-saved-data-button").click()
 
@@ -204,9 +208,12 @@ test("Story 18.5: zero outbound requests when picking a file or pasting a second
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await page.waitForTimeout(300)
 
-  // The paste box collapses to a "pasted · N lines" summary once analyzed
-  // (design review) — expand it back to a real textarea before pasting a
-  // second plan in.
+  // Story 6.3 — the New Plan panel auto-collapses to the icon rail after
+  // analyze; reopen it. The paste box ALSO collapses to a "pasted · N
+  // lines" summary once analyzed (design review, unchanged by this
+  // story) — expand that back to a real textarea before pasting a second
+  // plan in.
+  await page.getByTestId("icon-rail-new-plan").click()
   await page.getByTestId("paste-box-expand").click()
   await page.getByTestId("paste-textarea").fill(loadFixture("snowflake", "spill-to-remote-disk.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
