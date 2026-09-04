@@ -52,18 +52,15 @@ test("an analyzed plan appears in the recent plans list and can be reopened", as
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("plan-result")).toBeVisible()
 
-  // Story 6.3 — Recent Plans lives inside the icon rail's own on-demand
-  // panel now, not a permanent left-rail toggle.
-  await page.getByTestId("icon-rail-recent-plans").click()
+  await page.getByTestId("recent-plans-toggle").click()
   await expect(page.getByTestId("recent-plan-item").first()).toBeVisible()
-  await page.getByTestId("icon-rail-recent-plans").click() // close it before reopening New Plan
 
-  await page.getByTestId("icon-rail-new-plan").click()
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("Postgres")
 
-  await page.getByTestId("icon-rail-recent-plans").click()
+  // Already expanded from the toggle click above — the list just gained a
+  // second entry, no need to toggle again.
   const items = page.getByTestId("recent-plan-item")
   await expect(items).toHaveCount(2)
   // Reopen the first-added one (now the older of the two).
@@ -93,9 +90,6 @@ test("'Clear saved data' removes both the saved session and the recent plans lis
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await page.waitForTimeout(700)
 
-  // Story 6.3 — PasteBox (and its privacy-details disclosure) lives
-  // inside the icon rail's "New plan" panel, auto-collapsed after analyze.
-  await page.getByTestId("icon-rail-new-plan").click()
   await page.getByTestId("privacy-details-toggle").click()
   await expect(page.getByTestId("clear-saved-data-button")).toBeVisible()
   await page.getByTestId("clear-saved-data-button").click()

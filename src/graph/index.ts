@@ -1,4 +1,4 @@
-export { PlanGraph, type PlanGraphProps, type PlanGraphHandle } from "./PlanGraph"
+export { PlanGraph, type PlanGraphProps, type PlanGraphHandle, CANVAS_NODE_COUNT_THRESHOLD } from "./PlanGraph"
 export {
   buildGraphElements,
   type PlanGraphNode,
@@ -10,7 +10,6 @@ export { buildMetricScale, buildEdgeWidthScale, pickMetricValue, type MetricKey 
 export { computeDefaultCollapsedIds, COLLAPSE_NODE_COUNT_THRESHOLD, COLLAPSE_SUBTREE_PERCENT_THRESHOLD } from "./collapse"
 export { getGlossaryEntry, getGlossaryFallback, coveredOperatorTypes, type OperatorGlossaryEntry } from "./glossary"
 export { FindingsList, type FindingsListProps } from "./findings/FindingsList"
-export { FindingsDrawer, type FindingsDrawerProps, type FindingsSummaryCounts } from "./findings/FindingsDrawer"
 export { PlanComparisonView, type PlanComparisonViewProps } from "./comparison/PlanComparisonView"
 export { DetailPanel, type DetailPanelProps } from "./detailPanel/DetailPanel"
 export { SearchPalette, type SearchPaletteProps } from "./search/SearchPalette"

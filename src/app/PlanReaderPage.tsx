@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { ArrowsLeftRight, Compass, DownloadSimple, MagnifyingGlass, TreeStructure } from "@phosphor-icons/react"
+import { DownloadSimple, MagnifyingGlass, TreeStructure } from "@phosphor-icons/react"
 import { PasteBox } from "./PasteBox"
 import { Notice } from "./Notice"
 import { ComparePasteBox } from "./ComparePasteBox"
 import { ShareLinkButton } from "./ShareLinkButton"
 import { RestoreSessionBanner } from "./RestoreSessionBanner"
 import { RecentPlansList } from "./RecentPlansList"
-import { IconRail, type IconRailPanel } from "./IconRail"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { formatStatementDuration, statementSeverity, buildStatementTabRows, findDefaultStatementIndex } from "./statementTabSummary"
 import { decodeShareLink } from "./shareLink"
@@ -15,17 +14,11 @@ import { decodeShareLink } from "./shareLink"
 // user-supplied mockup screenshot. positioningCopy.ts's exports stay in
 // place (Story 8.1's brief-matching requirement is still true of the
 // source file itself) for a future first-time-visitor-credibility pass to
-// start from. See docs/08-episodes-and-stories.md's Episode 19 header for
-// the full account of what this supersedes. Episode 26, Story 26.6 is that
-// pass, in part: `SUPPORTED_ENGINES` is now used below, in the empty-canvas
-// state — `HERO_HEADLINE`/`HERO_SUBHEADLINE` stay unused (still the
-// retired full-page marketing copy, not this story's own smaller, honest
-// upgrade to the placeholder).
-import { SUPPORTED_ENGINES } from "./positioningCopy"
+// start from, just unused here today. See docs/08-episodes-and-stories.md's
+// Episode 19 header for the full account of what this supersedes.
 import {
   PlanGraph,
   FindingsList,
-  FindingsDrawer,
   PlanComparisonView,
   DetailPanel,
   SearchPalette,
@@ -177,16 +170,6 @@ export function PlanReaderPage() {
   // mounts elsewhere in the tree.
   const [detailPanel, setDetailPanel] = useState<{ node: PlanNode; context: PlanContext; onClose: () => void } | undefined>(undefined)
 
-  // Story 6.3 — the detail panel is an overlay by default (never a
-  // reflow — see DetailPanel's own `variant="overlay"`, already the
-  // always-fixed behavior every OTHER caller in this app already uses);
-  // pinning switches this SAME right-rail instance to `variant="shell"`,
-  // restoring the pre-existing grid-track-above-1180px behavior for as
-  // long as it's on. Session-only state, not persisted across reloads —
-  // a deliberate, disclosed scope limit, the same shape `dontSave` above
-  // already has.
-  const [isDetailPinned, setIsDetailPinned] = useState(false)
-
   // Design review (docs/12-ui-redesign-spec.md §2's metrics strip:
   // "total, node count, collapsed count, colour legend...") — collapsed
   // count for display only, reported outward by PlanGraph itself; see
@@ -203,44 +186,43 @@ export function PlanReaderPage() {
   // having it stay Expert while browsing. Shared with Story 18.9's
   // walkthrough once that exists, per spec §2.
   const [expertMode, setExpertMode] = useState(false)
-  // Episode 26, Story 26.4 — the status bar's own branding-chip disclosure
-  // (the old page footer's attribution sentence, relocated on-demand).
-  // Local UI state, not persisted or reset on a fresh analyze — there's no
-  // per-plan meaning to "was this open," unlike e.g. `activeStatementIndex`.
-  const [isAboutOpen, setIsAboutOpen] = useState(false)
 
+  // Episode 18, Story 18.2 — spec §2's breakpoint table: below 860px of
+  // the SHELL's own width (not the viewport — this is exactly why
+  // `.plan-shell` is a `container-type: inline-size` context), Findings
+  // and the graph become tabs instead of a side-by-side rail+canvas.
+  // jsdom's ResizeObserver is a no-op stub (src/__tests__/setup.ts) — this
+  // only ever fires in a real browser, so component tests exercise the
+  // "wide" branch and e2e tests exercise the narrow one, matching this
+  // story's own testing approach.
+  const NARROW_SHELL_BREAKPOINT_PX = 860
   // Episode 18, Story 18.12 — spec §2b's breakpoint table names 620px as
   // the "mobile layout" step ("Detail becomes a bottom sheet"). Note this
   // conflicts with §5 `1k`'s own prose ("Below 900px..."/"below 480px
   // specifically") — a genuine spec-internal inconsistency, not resolved
   // by picking whichever number sounded closest. Resolved in favor of the
   // structured §2b table: it's the single source of truth for every OTHER
-  // structural breakpoint (1180, 860 — now retired, see below) this app
-  // already implements against. See BACKLOG-STATUS.md's Story 18.12 row
-  // for the full account.
+  // structural breakpoint (1180, 860) this app already implements against,
+  // including this exact `isNarrowShell` state one breakpoint up, and this
+  // file's own Story 18.2 comment already reserved "the true-mobile
+  // (620px, Story 18.12) rule" — i.e. this was already the intended target
+  // before this story even started. See BACKLOG-STATUS.md's Story 18.12
+  // row for the full account.
   const MOBILE_SHELL_BREAKPOINT_PX = 620
   const shellRef = useRef<HTMLElement>(null)
+  const [isNarrowShell, setIsNarrowShell] = useState(false)
   const [isMobileShell, setIsMobileShell] = useState(false)
-
-  // Story 6.3 — RETIRES the Story 18.2/18.12 "Findings and the graph
-  // become tabs below 860px" mechanism (`isNarrowShell`/`activeShellTab`,
-  // both removed). Its entire premise was Findings and the graph
-  // competing for the SAME side-by-side space as two full-height rail/
-  // canvas regions — once Findings moves into a bottom drawer INSIDE the
-  // canvas pane (see the icon rail / FindingsDrawer below), the two tabs
-  // would show near-identical content (both include the graph; only the
-  // drawer's own open/closed state would differ), which stopped being a
-  // meaningful choice. The underlying INTENT the tabs served on true
-  // mobile — spec §5 `1k`'s "Findings leads, not the graph" — is
-  // preserved through the SAME layout-effect mechanism below, just
-  // driving the findings drawer's default open state instead of which
-  // tab is active.
-  // Starts open when a plan arrives pre-loaded on first paint (a restored
-  // share link, Story 11.2) — that feature's whole point is showing the
-  // recovered text immediately, without an extra click to reveal it;
-  // otherwise closed, the ordinary "fresh visit, then paste" case.
-  const [activeRailPanel, setActiveRailPanel] = useState<IconRailPanel>(initial?.analyzed ? "new-plan" : null)
-  const [isFindingsDrawerOpen, setIsFindingsDrawerOpen] = useState(false)
+  // Which tab shows at narrow widths. Defaults to "graph" at the 860px
+  // (tablet) breakpoint, which can still usefully show a graph — "Findings
+  // lead, not the graph" (spec §5 `1k`) is specifically the true-mobile
+  // rule, applied by the dedicated layout effect below (keyed on `analyzed`
+  // itself, not a resize) every time a genuinely NEW plan is analyzed —
+  // see that effect's own comment for why a resize-driven approach doesn't
+  // work here (a same-size re-analysis fires no new ResizeObserver
+  // callback at all) and why re-deriving it only on a fresh `analyzed`
+  // (not on every statement-tab switch, or on window resize/rotation)
+  // still respects a user's own manual tab choice in both of those cases.
+  const [activeShellTab, setActiveShellTab] = useState<"findings" | "graph">("graph")
 
   // Episode 14, Story 14.2 — comparison view. Deliberately independent of
   // every persistence/share-link concern above: the comparison plan is
@@ -354,13 +336,8 @@ export function PlanReaderPage() {
         setIsWalkthroughOpen(false) // same reasoning — a walkthrough's step list is built from a specific tree too
         setIsMaximized(false) // Story 22.1 — a fresh "result screen" starts un-maximized, same reasoning as isWalkthroughOpen above
         setIsMaximizedFindingsOpen(false)
-        // Story 6.3 — the New Plan icon-rail panel auto-collapses right
-        // after a successful analyze (the story's own explicit AC): the
-        // raw pasted text isn't needed once results are showing, and
-        // stays re-openable via the same icon to edit and re-analyze.
-        setActiveRailPanel(null)
-        // Story 18.12: the mobile-default-open layout effect below (keyed
-        // on `analyzed`) re-derives `isFindingsDrawerOpen` for THIS fresh
+        // Story 18.12: the mobile-default-tab layout effect below (keyed
+        // on `analyzed`) re-derives `activeShellTab` for THIS fresh
         // "result screen" — nothing to do here directly; see that effect.
 
         if (!dontSave) {
@@ -477,36 +454,6 @@ export function PlanReaderPage() {
     [activeStatementIndex, switchToStatement],
   )
 
-  // Episode 26, Story 26.2 — "opening the Issues panel explicitly closes
-  // [the New Plan/Recent Plans] overlay first if open": the two would
-  // otherwise occupy the same left column. Wraps every path that can OPEN
-  // the findings drawer (the icon rail's own Findings button, and
-  // FindingsDrawer's own internal summary-row toggle) — only closes
-  // `activeRailPanel` on the OPEN transition, never on close, so collapsing
-  // Findings doesn't fight a panel the user separately opened afterward.
-  const handleFindingsOpenChange = useCallback((open: boolean) => {
-    setIsFindingsDrawerOpen(open)
-    if (open) setActiveRailPanel(null)
-  }, [])
-
-  // Story 6.3 — whole-batch severity counts, read TWICE from the same
-  // underlying `collectFindingsAcrossStatements` computation: once here
-  // (feeding both the icon rail's Findings badge and the drawer's
-  // collapsed summary line) and once more inside `FindingsList` itself
-  // (its own filtered/expanded rendering, `variant="compact"`). Calling
-  // this pure, deterministic function twice over identical inputs is not
-  // a "two sources of truth" risk — there's exactly one formula, computed
-  // twice — and threading `allFindings` through as a prop would be a
-  // bigger, riskier signature change touching every existing caller.
-  const findingsSummary = useMemo(() => {
-    const all = collectFindingsAcrossStatements(findingsSources)
-    const critical = all.filter((f) => f.warning.severity === "critical").length
-    const warning = all.filter((f) => f.warning.severity === "warning").length
-    const info = all.filter((f) => f.warning.severity === "info").length
-    const worstSeverity = critical > 0 ? "critical" : warning > 0 ? "warning" : info > 0 ? "info" : undefined
-    return { total: all.length, critical, warning, info, worstSeverity } as const
-  }, [findingsSources])
-
   // Design review — the metrics strip's colour/width legend needs to name
   // whatever `buildGraphElements.ts`'s `pickMetricValue` actually fell
   // back to for THIS plan (its own priority order:
@@ -553,35 +500,36 @@ export function PlanReaderPage() {
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0]
       if (!entry) return
-      setIsMobileShell(entry.contentRect.width < MOBILE_SHELL_BREAKPOINT_PX)
+      const width = entry.contentRect.width
+      setIsNarrowShell(width < NARROW_SHELL_BREAKPOINT_PX)
+      setIsMobileShell(width < MOBILE_SHELL_BREAKPOINT_PX)
     })
     observer.observe(el)
     return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Story 6.3 — preserves spec §5 `1k`'s "Findings leads, not the graph"
-  // intent on true mobile through the findings drawer's own default open
-  // state, now that the retired tab mechanism no longer carries it (see
-  // this file's own `activeRailPanel`/`isFindingsDrawerOpen` comment
-  // above). Deliberately NOT folded into the ResizeObserver effect above,
-  // for the exact same reason Story 18.12's own original version of this
-  // effect wasn't: ResizeObserver only fires when the observed box's size
-  // actually CHANGES, so re-analyzing a different plan at the SAME
-  // container width (the common case) would never re-fire it, silently
-  // keeping the PREVIOUS plan's drawer state. A fresh `analyzed` is a
-  // fresh "result screen" and re-derives the default every time — but
-  // ONLY then, not on every statement-tab switch or a later resize/
-  // rotation, both of which must leave a user's own manual open/close
-  // choice alone. `useLayoutEffect` (not `useEffect`) so the real
-  // `getBoundingClientRect` measurement happens synchronously right after
-  // the shell's first mount for THIS plan, before paint.
+  // Episode 18, Story 18.12 — the mobile default-tab rule, deliberately
+  // NOT folded into the ResizeObserver effect above: ResizeObserver only
+  // calls back when the observed box's size actually CHANGES, so
+  // re-analyzing a different plan at the SAME container width (the most
+  // common case — the browser window didn't move) would never re-fire it,
+  // silently keeping whatever tab was active from the PREVIOUS plan. A
+  // fresh `analyzed` is a fresh "result screen" (spec §5 `1k`'s own
+  // "input screen -> result screen" framing) and re-derives the default
+  // every time — but ONLY then, not on every statement-tab switch (a
+  // different `analyzed.statements[i]`, same `analyzed` object) and not on
+  // a later resize/rotation, both of which must leave a user's own manual
+  // tab choice alone (this story's own edge cases). `useLayoutEffect`
+  // (not `useEffect`) so the real `getBoundingClientRect` measurement
+  // happens synchronously right after the shell's first mount for THIS
+  // plan, before paint — no flash of the wrong default tab.
   useLayoutEffect(() => {
     if (!analyzed) return
     const el = shellRef.current
     if (!el) return
     const width = el.getBoundingClientRect().width
-    setIsFindingsDrawerOpen(width < MOBILE_SHELL_BREAKPOINT_PX)
+    setActiveShellTab(width < MOBILE_SHELL_BREAKPOINT_PX ? "findings" : "graph")
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyzed])
 
@@ -629,14 +577,6 @@ export function PlanReaderPage() {
     setComparePlan(null)
     setCompareError(null)
     setExportError(null)
-    // Story 6.3 — a genuinely fresh empty state: `analyzed` becoming null
-    // already reverts the left side to the pre-analysis inline input
-    // layout (the icon rail only applies once a plan exists), but these
-    // two reset explicitly anyway so nothing stale carries over if the
-    // user pastes and analyzes again without a full page reload.
-    setActiveRailPanel(null)
-    setIsFindingsDrawerOpen(false)
-    setIsDetailPinned(false)
   }, [])
 
   return (
@@ -716,34 +656,17 @@ export function PlanReaderPage() {
                     Expert
                   </button>
                 </div>
-                {/* Story 6.3 — icon-only unconditionally now (not just
-                    below a breakpoint), matching Export's own established
-                    icon+visually-hidden-label+aria-label shape below. The
-                    aria-label text is identical to the old visible text —
-                    the accessible name is unchanged, only its visual
-                    presentation is. */}
                 <button
                   type="button"
                   className="plan-shell__app-bar-button"
                   data-testid="walkthrough-open"
                   onClick={() => setIsWalkthroughOpen(true)}
-                  aria-label="Walk me through it"
-                  title="Walk me through it"
                 >
-                  <Compass className="plan-shell__app-bar-button-icon" weight="regular" aria-hidden="true" />
-                  <span className="plan-shell__app-bar-button-label">Walk me through it</span>
+                  Walk me through it
                 </button>
                 {!compareMode && (
-                  <button
-                    type="button"
-                    className="plan-shell__app-bar-button"
-                    data-testid="compare-toggle"
-                    onClick={handleEnterCompareMode}
-                    aria-label="Compare with another plan"
-                    title="Compare with another plan"
-                  >
-                    <ArrowsLeftRight className="plan-shell__app-bar-button-icon" weight="regular" aria-hidden="true" />
-                    <span className="plan-shell__app-bar-button-label">Compare with another plan</span>
+                  <button type="button" className="compare-toggle" data-testid="compare-toggle" onClick={handleEnterCompareMode}>
+                    Compare with another plan
                   </button>
                 )}
                 <ShareLinkButton rawText={rawText} />
@@ -758,7 +681,6 @@ export function PlanReaderPage() {
                   data-testid="export-png-button"
                   onClick={handleExportPng}
                   aria-label="Export as PNG"
-                  title="Export as PNG"
                 >
                   <DownloadSimple className="plan-shell__app-bar-button-icon" weight="regular" aria-hidden="true" />
                   <span className="plan-shell__app-bar-button-label">Export</span>
@@ -913,154 +835,111 @@ export function PlanReaderPage() {
               )}
             </div>
           ) : (
-            <div
-              // Story 6.3 — `--icon-rail` narrows the left column once a
-              // plan is analyzed (the icon rail replaces the wide
-              // pre-analysis input rail); `--detail-pinned` restores the
-              // 3rd (right) grid track only while the detail panel is
-              // pinned open — see planReaderPage.css's matching rules.
-              // Un-pinned by default drops that track entirely: the
-              // overlay panel is `position: fixed` and exerts no
-              // influence on it either way.
-              className={`plan-shell__body${analyzed ? " plan-shell__body--icon-rail" : ""}${isDetailPinned ? " plan-shell__body--detail-pinned" : ""}`}
-              data-testid="plan-shell-body"
-            >
-              {/* Story 6.3 — same content as the old always-open left rail
-                  (Episode 19), now shared between two rendering modes via
-                  these two consts: rendered inline, stacked, before any
-                  plan is analyzed (unchanged from before this story — a
-                  first-time visitor needs the paste box immediately, not
-                  behind an icon), and rendered inside the icon rail's
-                  on-demand overlay panels once one is. `newPlanContent`'s
-                  own `{analyzed && ...}` guard around the "New plan" clear
-                  button already does the right thing in both places (no
-                  button pre-analysis, shown once there's something to
-                  clear) without a second conditional here. */}
-              {(() => {
-                const newPlanContent = (
-                  <div className="plan-shell__input-section" data-testid="plan-shell-input-section">
-                    <div className="plan-shell__input-section-header">
-                      <h2 className="plan-shell__input-section-title">Plan input</h2>
-                      {analyzed && (
-                        <button
-                          type="button"
-                          className="plan-shell__new-plan-button"
-                          data-testid="new-plan-button"
-                          onClick={handleNewPlan}
-                        >
-                          New plan
-                        </button>
-                      )}
-                    </div>
-
-                    {restoreCandidate && (
-                      <RestoreSessionBanner
-                        savedAt={restoreCandidate.savedAt}
-                        onRestore={() => handleAnalyze(restoreCandidate.text)}
-                        onDismiss={handleDismissRestore}
-                      />
-                    )}
-
-                    {/* Story 6.3 — `rawText` (not just `initial?.rawText`,
-                        the one-time share-link-recovery value) so a
-                        PasteBox instance that remounts — the pre-analysis
-                        inline view giving way to this icon-rail-hosted
-                        one being the first and biggest such transition —
-                        starts pre-filled with whatever was JUST analyzed,
-                        not blank. A real bug this story's own e2e run
-                        caught: without this, the auto-collapsed New Plan
-                        panel came back empty on reopen, breaking the
-                        story's own explicit "re-openable, to edit and
-                        re-analyze" requirement the very first time it
-                        actually mattered. */}
-                    <PasteBox
-                      onAnalyze={handleAnalyze}
-                      initialText={rawText || initial?.rawText}
-                      dontSave={dontSave}
-                      onDontSaveChange={setDontSave}
-                      hasSavedData={restoreCandidate !== null || recentPlans.length > 0}
-                      onClearSavedData={handleClearSavedData}
-                    />
-
-                    {persistenceNotice && (
-                      <p className="plan-reader-page__note" data-testid="persistence-notice">
-                        {persistenceNotice}
-                      </p>
-                    )}
-
-                    {error && (
-                      <Notice severity="critical" data-testid="parse-error">
-                        {error}
-                      </Notice>
+            <div className="plan-shell__body" data-testid="plan-shell-body">
+              {/* Left rail (spec §2): "Plan input ... over Findings." Episode
+                  19: Plan Input now lives here permanently, above Findings,
+                  from the very first load — not in its old pre-shell
+                  position, and never hidden by the narrow-shell tab switch
+                  below (a plan must be reachable at every breakpoint, per
+                  the user's own explicit edge case for this change).
+                  Findings itself still respects that tab switch below
+                  860px — it's what actually competes with the graph for
+                  space, not Plan Input. */}
+              <aside className="plan-shell__rail plan-shell__rail--left" data-testid="plan-shell-left-rail">
+                <div className="plan-shell__input-section" data-testid="plan-shell-input-section">
+                  <div className="plan-shell__input-section-header">
+                    <h2 className="plan-shell__input-section-title">Plan input</h2>
+                    {analyzed && (
+                      <button
+                        type="button"
+                        className="plan-shell__new-plan-button"
+                        data-testid="new-plan-button"
+                        onClick={handleNewPlan}
+                      >
+                        New plan
+                      </button>
                     )}
                   </div>
-                )
 
-                if (!analyzed) {
-                  // Pre-analysis: unchanged from before this story — the
-                  // icon rail doesn't apply yet, there's nothing else
-                  // competing for this space.
-                  return (
-                    <aside className="plan-shell__rail plan-shell__rail--left" data-testid="plan-shell-left-rail">
-                      {newPlanContent}
-                      <RecentPlansList plans={recentPlans} onSelect={handleAnalyze} onDelete={handleDeleteRecentPlan} onClearAll={handleClearAllRecentPlans} />
-                    </aside>
-                  )
-                }
+                  {restoreCandidate && (
+                    <RestoreSessionBanner
+                      savedAt={restoreCandidate.savedAt}
+                      onRestore={() => handleAnalyze(restoreCandidate.text)}
+                      onDismiss={handleDismissRestore}
+                    />
+                  )}
 
-                return (
-                  <IconRail
-                    activePanel={activeRailPanel}
-                    onSelectPanel={setActiveRailPanel}
-                    newPlanContent={newPlanContent}
-                    recentPlansContent={
-                      <RecentPlansList
-                        plans={recentPlans}
-                        onSelect={handleAnalyze}
-                        onDelete={handleDeleteRecentPlan}
-                        onClearAll={handleClearAllRecentPlans}
-                        hideOwnToggle
-                      />
-                    }
-                    recentPlansCount={recentPlans.length}
-                    findingsCount={findingsSummary.total}
-                    findingsWorstSeverity={findingsSummary.worstSeverity}
-                    isFindingsOpen={isFindingsDrawerOpen}
-                    onToggleFindings={() => handleFindingsOpenChange(!isFindingsDrawerOpen)}
+                  <PasteBox
+                    onAnalyze={handleAnalyze}
+                    initialText={initial?.rawText}
+                    dontSave={dontSave}
+                    onDontSaveChange={setDontSave}
+                    hasSavedData={restoreCandidate !== null || recentPlans.length > 0}
+                    onClearSavedData={handleClearSavedData}
                   />
-                )
-              })()}
+
+                  {persistenceNotice && (
+                    <p className="plan-reader-page__note" data-testid="persistence-notice">
+                      {persistenceNotice}
+                    </p>
+                  )}
+
+                  <RecentPlansList
+                    plans={recentPlans}
+                    onSelect={handleAnalyze}
+                    onDelete={handleDeleteRecentPlan}
+                    onClearAll={handleClearAllRecentPlans}
+                  />
+
+                  {error && (
+                    <Notice severity="critical" data-testid="parse-error">
+                      {error}
+                    </Notice>
+                  )}
+                </div>
+
+                {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "findings") && (
+                  <FindingsList sources={findingsSources} activeStatementIndex={activeStatementIndex} onSelectNode={handleSelectFinding} />
+                )}
+              </aside>
+
+              {analyzed && isNarrowShell && (
+                <div className="plan-shell__tabs" role="tablist" aria-label="Findings and graph">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeShellTab === "findings"}
+                    className="plan-shell__tab"
+                    data-testid="shell-tab-findings"
+                    onClick={() => setActiveShellTab("findings")}
+                  >
+                    Findings
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeShellTab === "graph"}
+                    className="plan-shell__tab"
+                    data-testid="shell-tab-graph"
+                    onClick={() => setActiveShellTab("graph")}
+                  >
+                    Graph
+                  </button>
+                </div>
+              )}
 
               {!analyzed && (
-                // Episode 19's own honest-placeholder decision stands — no
-                // fabricated preview of the graph, no marketing hero
-                // reintroduced. Episode 26, Story 26.6 upgrades its
-                // PRESENTATION only: a brand icon and the real supported-
-                // engine list (`SUPPORTED_ENGINES`, the same reviewed
-                // source `positioningCopy.ts`'s retired hero once read
-                // from) make this read as an intentional branded moment
-                // rather than a leftover dashed box, without adding any
-                // new copy of its own. The old footer's attribution
-                // sentence is deliberately NOT duplicated here — confirmed
-                // with the user — it already has one home, the status
-                // bar's own brand chip below.
+                // Episode 19's chosen empty state (confirmed with the user):
+                // a plain, honest placeholder — not the retired marketing
+                // hero, not a fabricated preview of the graph.
                 <main className="plan-shell__canvas plan-shell__canvas--empty" data-testid="plan-shell-canvas">
-                  <div className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
-                    <TreeStructure className="plan-shell__empty-placeholder-icon" weight="fill" aria-hidden="true" />
-                    <p className="plan-shell__empty-placeholder-text">Paste a plan on the left to see it visualized here.</p>
-                    <p className="plan-shell__empty-placeholder-engines">
-                      Works with {SUPPORTED_ENGINES.slice(0, -1).join(", ")}, and {SUPPORTED_ENGINES.at(-1)}.
-                    </p>
-                  </div>
+                  <p className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
+                    Paste a plan on the left to see it visualized here.
+                  </p>
                 </main>
               )}
 
-              {/* Story 6.3 — always renders once a plan is analyzed, at
-                  every width (the retired narrow-shell tab switch used to
-                  gate this on `activeShellTab === "graph"`; see this
-                  file's own `activeRailPanel` comment for why that
-                  mechanism no longer applies). */}
-              {analyzed && activeStatement && (
+              {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "graph") && (
                 <main className="plan-shell__canvas" data-testid="plan-shell-canvas">
                   {/* Design review — the lead-in clause up to the colon
                       (`OPENERS[severity]`, summarize.ts) gets a severity
@@ -1103,21 +982,22 @@ export function PlanReaderPage() {
                       "total, node count, collapsed count, colour legend,
                       Width = rows · Arrows = execution order". Node count
                       and the plain-language caption already shipped with
-                      the shell itself; total time and collapsed count were
-                      deferred to Story 18.4's node-encoding work. The
-                      colour legend named here was later removed outright
-                      (Episode 26, Story 26.7's mockup-driven restyle
-                      dropped the per-node metric-color heatmap fill it
-                      would have explained — see encoding.ts's own Story
-                      26.7 comment) rather than ever being built. `Width =`
-                      stays: node SIZE is still metric-scaled, unaffected
-                      by that story. `collapsedCount` is reported outward
-                      by PlanGraph itself (see its own
-                      `onCollapsedCountChange` prop's doc comment) — this
-                      component never touches collapse state directly. */}
+                      the shell itself; total time, collapsed count, and
+                      the colour legend were deferred to Story 18.4's node-
+                      encoding work (a legend is meaningless without the
+                      encoding it explains) — that work (buildMetricScale's
+                      colorFor/sizeFor, wired into buildGraphElements.ts)
+                      shipped, but this strip was never circled back to.
+                      `collapsedCount` is reported outward by PlanGraph
+                      itself (see its own `onCollapsedCountChange` prop's
+                      doc comment) — this component never touches collapse
+                      state directly. */}
                   {/* Design review — `metricLabel` names whatever
                       `buildGraphElements.ts`'s `pickMetricValue` actually
-                      fell back to for THIS plan: "actual time" when
+                      fell back to for THIS plan (it drives both node
+                      colour and width together — one metric, two
+                      encodings, never two different ones despite the
+                      separate-sounding legend text): "actual time" when
                       ANALYZE/runtime stats are present, else "estimated
                       cost" (an estimate-only Postgres/SQL Server plan),
                       else plain "rows" — Snowflake's own honest floor,
@@ -1125,15 +1005,20 @@ export function PlanReaderPage() {
                       cost unit at all (buildStatRows.ts's own `rowsCost`
                       comment). A hardcoded "actual time" here previously
                       named a metric that's literally always undefined for
-                      every Snowflake plan — the size encoding was quietly
-                      running on rows the whole time with a label claiming
-                      otherwise. */}
+                      every Snowflake plan — the size/colour encoding was
+                      quietly running on rows the whole time with a label
+                      claiming otherwise. */}
                   <div className="plan-shell__metrics-strip" data-testid="plan-shell-metrics">
                     {activeStatement.root.actualTimeMs !== undefined && (
                       <span>Total {formatNumber(Math.round(activeStatement.root.actualTimeMs))} ms</span>
                     )}
                     <span>{activeStatementNodes.length.toLocaleString("en-US")} nodes</span>
                     {collapsedCount > 0 && <span>{collapsedCount} collapsed</span>}
+                    <span className="plan-shell__colour-legend">
+                      Colour
+                      <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
+                      {metricLabel}
+                    </span>
                     <span>Width = {metricLabel} · Arrows = execution order</span>
                   </div>
 
@@ -1248,7 +1133,7 @@ export function PlanReaderPage() {
                           aria-pressed={isMaximizedFindingsOpen}
                           onClick={() => setIsMaximizedFindingsOpen((v) => !v)}
                         >
-                          Issues
+                          Findings
                         </button>
                       </div>
                     )}
@@ -1279,27 +1164,6 @@ export function PlanReaderPage() {
                       nodeDetailVariant={isMaximized ? "popup" : "panel"}
                     />
                   </div>
-
-                  {/* Story 6.3 — the findings drawer, docked at the bottom
-                      of the canvas column (not the old permanent left
-                      rail). Suppressed while maximized — Episode 22's own
-                      separate maximized-mode Findings toggle/panel
-                      (above, `isMaximizedFindingsOpen`) is untouched by
-                      this story. Insets away from an open, un-pinned
-                      detail panel (a fixed overlay anchored to the
-                      viewport's right edge) so the two never clip or hide
-                      each other in the bottom-right corner. */}
-                  {!isMaximized && (
-                    <FindingsDrawer
-                      sources={findingsSources}
-                      activeStatementIndex={activeStatementIndex}
-                      onSelectNode={handleSelectFinding}
-                      summary={findingsSummary}
-                      isOpen={isFindingsDrawerOpen}
-                      onOpenChange={handleFindingsOpenChange}
-                      detailPanelOpen={Boolean(detailPanel) && !isDetailPinned}
-                    />
-                  )}
                 </main>
               )}
 
@@ -1314,160 +1178,21 @@ export function PlanReaderPage() {
                   this rail would otherwise show a second, redundant copy of
                   the exact same panel underneath the maximized overlay. */}
               <aside className="plan-shell__rail plan-shell__rail--right" data-testid="plan-shell-right-rail">
-                {/* Story 6.3 — overlay by default (`variant="overlay"`,
-                    the always-`position: fixed` behavior every other
-                    caller in this app already uses — never a reflow of
-                    the canvas beside it), `variant="shell"` (the
-                    pre-existing grid-track-above-1180px behavior) only
-                    while pinned. `isPinned`/`onPinnedChange` are passed
-                    unconditionally here since this IS the shell-context
-                    caller the pin control is built for (see DetailPanel's
-                    own doc comment for the other callers that omit both). */}
                 {detailPanel && !isMaximized && (
                   <DetailPanel
                     node={detailPanel.node}
                     context={detailPanel.context}
                     onClose={detailPanel.onClose}
-                    variant={isDetailPinned ? "shell" : "overlay"}
+                    variant="shell"
                     expertMode={expertMode}
                     onExpertModeChange={setExpertMode}
-                    isPinned={isDetailPinned}
-                    onPinnedChange={setIsDetailPinned}
                   />
                 )}
               </aside>
-              {/* Story 6.3 — the scrim now renders (and closes the panel
-                  on click) whenever an UN-PINNED panel is open, at every
-                  shell width — not gated to <1180px anymore, since
-                  overlay-by-default is no longer a narrow-width-only
-                  state. A pinned panel gets no scrim: it's a normal grid
-                  track the user asked to keep visible, not something a
-                  stray click on the canvas should dismiss. */}
-              {detailPanel && !isMaximized && !isDetailPinned && (
+              {detailPanel && !isMaximized && (
                 <div className="plan-shell__detail-scrim" data-testid="plan-shell-detail-scrim" onClick={detailPanel.onClose} />
               )}
             </div>
-          )}
-
-          {/* Episode 26, Story 26.4 — a new, permanent status bar at the
-              shell's own bottom edge (the last element in the grid, not
-              page-level like the old footer this replaces). "Permanent"
-              means it renders even before any plan is analyzed — with
-              just the branding chip, per this story's own edge case
-              ("don't show fabricated zeros" for data that doesn't exist
-              yet) — not gated behind `analyzed` the way every app-bar
-              control above it is.
-              Excluded from compare mode: Episode 14's comparison view is
-              deliberately NOT part of the shell grid (see this file's own
-              comment on `plan-reader-page__compare` above, Story 18.14's
-              own follow-up) — a shell-grid element integrating with it is
-              equally out of scope here, not a new decision.
-              Maximized mode (Episode 22): deliberately NOT given special
-              treatment to "stay visible above" the maximized overlay —
-              `.plan-shell__graph--maximized`'s own `position: fixed;
-              inset: 0` already covers the app-bar the exact same way
-              (see that class's own comment); this stays consistent with
-              that established, already-shipped precedent rather than
-              inventing a second convention for one more element. */}
-          {!compareMode && (
-            <footer className="plan-shell__status-bar" data-testid="plan-shell-status-bar">
-              <button
-                type="button"
-                className="plan-shell__status-bar-brand"
-                aria-expanded={isAboutOpen}
-                aria-label="About PlanReader"
-                data-testid="status-bar-brand"
-                onClick={() => setIsAboutOpen((v) => !v)}
-              >
-                <TreeStructure className="plan-shell__status-bar-brand-icon" weight="fill" aria-hidden="true" />
-                PlanReader
-              </button>
-              {isAboutOpen && (
-                // The old page footer's exact attribution sentence,
-                // relocated here rather than discarded — an on-demand
-                // disclosure now instead of an always-visible line, which
-                // is what makes the chip itself meaningfully "clickable"
-                // (this story's own AC) without a real destination URL to
-                // link to (same disclosed gap the old footer's own
-                // comment already named — a fabricated link would still
-                // be worse than none).
-                <p className="plan-shell__status-bar-about" role="status" data-testid="status-bar-about">
-                  Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.
-                </p>
-              )}
-
-              {analyzed && (
-                // REAL BUG found via live verification (not just the AC's
-                // own narrow-width checklist item): this sub-container is
-                // where `overflow-x: auto` actually lives now — putting it
-                // on the OUTER bar directly silently forced `overflow-y`
-                // to `auto` too (never `visible`, per the CSS spec for a
-                // single non-`visible` axis), clipping the brand chip's
-                // own `bottom: 100%` popover above even though it was
-                // genuinely in the DOM and toggling correctly. The brand
-                // button (and its popover) stays in the outer bar's own
-                // unclipped flex row; only the data items that actually
-                // need to scroll at a narrow width live in here.
-                <div className="plan-shell__status-bar-scroll">
-                  <span className="plan-shell__status-bar-divider" aria-hidden="true" />
-                  <span className="plan-shell__status-bar-item" data-testid="status-bar-engine">
-                    {ENGINE_LABEL[analyzed.engine]}
-                  </span>
-                  <span className="plan-shell__status-bar-item" data-testid="status-bar-node-count">
-                    {activeStatementNodes.length.toLocaleString("en-US")} nodes
-                  </span>
-                  {/* The SAME toggle the icon rail's own Issues button and
-                      FindingsDrawer's own summary bar both drive
-                      (`isFindingsDrawerOpen`/`handleFindingsOpenChange`)
-                      — not a second, independently-drifting control. */}
-                  <button
-                    type="button"
-                    className="plan-shell__status-bar-item plan-shell__status-bar-severity"
-                    aria-pressed={isFindingsDrawerOpen}
-                    aria-label={`${findingsSummary.total} issue${findingsSummary.total === 1 ? "" : "s"}: ${findingsSummary.critical} critical, ${findingsSummary.warning} warning${findingsSummary.warning === 1 ? "" : "s"}, ${findingsSummary.info} info — toggle the Issues panel`}
-                    data-testid="status-bar-severity-counts"
-                    onClick={() => handleFindingsOpenChange(!isFindingsDrawerOpen)}
-                  >
-                    <span className="plan-shell__status-bar-severity-count plan-shell__status-bar-severity-count--critical">
-                      {findingsSummary.critical}
-                    </span>
-                    <span className="plan-shell__status-bar-severity-count plan-shell__status-bar-severity-count--warning">
-                      {findingsSummary.warning}
-                    </span>
-                    <span className="plan-shell__status-bar-severity-count plan-shell__status-bar-severity-count--info">{findingsSummary.info}</span>
-                  </button>
-                  <span className="plan-shell__spacer" />
-                  {/* The SAME lifted `expertMode` state as the app bar's
-                      own toggle (Story 18.3) and the maximized-mode
-                      toolbar's copy — a third reachable control, not a
-                      third independent state. Reuses the app bar's own
-                      `.plan-shell__mode-toggle` classes directly (not a
-                      parallel copy) — matching that control's own
-                      comment: the same lifted state should read as the
-                      same kind of control everywhere it appears. */}
-                  <div className="plan-shell__mode-toggle" role="group" aria-label="Detail level">
-                    <button
-                      type="button"
-                      className="plan-shell__mode-toggle-button"
-                      aria-pressed={!expertMode}
-                      data-testid="status-bar-mode-beginner"
-                      onClick={() => setExpertMode(false)}
-                    >
-                      Beginner
-                    </button>
-                    <button
-                      type="button"
-                      className="plan-shell__mode-toggle-button"
-                      aria-pressed={expertMode}
-                      data-testid="status-bar-mode-expert"
-                      onClick={() => setExpertMode(true)}
-                    >
-                      Expert
-                    </button>
-                  </div>
-                </div>
-              )}
-            </footer>
           )}
         </section>
 
@@ -1513,6 +1238,15 @@ export function PlanReaderPage() {
         />
       )}
 
+      {/* Brief's on-page checklist: connect the tool to Kiran's existing
+          execution-plan content for credibility with a first-time,
+          skeptical visitor. No hyperlink here — there's no real URL for the
+          video series/blog post in this project's docs yet (a known,
+          tracked gap; see Episode 12's content-linking story), and a
+          fabricated link would be worse than none. */}
+      <footer className="plan-reader-page__footer">
+        <p>Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.</p>
+      </footer>
     </main>
   )
 }

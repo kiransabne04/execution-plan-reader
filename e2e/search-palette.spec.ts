@@ -22,7 +22,7 @@ async function analyzePlan(page: import("@playwright/test").Page) {
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
+  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
 }
 
 test.describe("search palette (spec §5 `1h`)", () => {
@@ -72,13 +72,8 @@ test.describe("search palette (spec §5 `1h`)", () => {
     await expect(results).toHaveCount(1)
     await expect(results.first()).toContainText("Seq Scan")
 
-    // Episode 26, Story 26.1 — canvas is the only rendering path, so a
-    // node is never a real DOM element to count directly here anymore.
-    // The exact "still drawn, just at 32% opacity — never skipped" dimming
-    // behavior is verified precisely (a real 2D context, real fillText/
-    // fill/stroke calls) by canvasDraw.test.ts's own "search/filter
-    // dimming (canvas mode)" suite; this test's remaining job is the
-    // click-through below, not re-deriving that coverage here.
+    // Every card still exists in the DOM — dimming, not unmounting.
+    await expect(page.getByTestId("plan-node-card")).toHaveCount(4)
 
     await results.first().click()
     await expect(page.getByTestId("search-palette")).toHaveCount(0)

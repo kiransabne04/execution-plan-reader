@@ -63,6 +63,7 @@ function planGraphNode(
       planNode: makeNode({ id, rawOperatorLabel: "Seq Scan" }),
       width,
       height,
+      color: "hsl(0, 70%, 55%)",
       hasMismatch: false,
       loopCount: undefined,
       iconKey: "unknown",
@@ -79,12 +80,6 @@ const baseParams = {
   cssHeight: 600,
   textColor: "#111111",
   selectionColor: "#1a56db",
-  // Episode 26, Story 26.7 — flat, neutral node-card chrome (replacing the
-  // old per-node metric-color heatmap fill/border).
-  nodeSurfaceColor: "#232532",
-  nodeBorderColor: "#3f424d",
-  nodeAccentColor: "#9184d9",
-  badgeNeutralBg: "rgba(233, 233, 237, 0.12)",
   edgeColors: { hot: "#8d6a6a", muted: "#6b6f82" },
   severityColors: { critical: "#f97066", warning: "#f79009" },
 }
@@ -330,7 +325,7 @@ describe("drawGraph", () => {
       drawGraph(ctx, { ...baseParams, transform: { x: 0, y: 0, scale: 0.3 }, nodes: [node], edges: [] })
 
       expect(ctx.calls.some((c) => c.method === "fillText")).toBe(false)
-      expect(ctx.calls.some((c) => c.method === "fill")).toBe(true) // the card's own flat neutral fill (Story 26.7)
+      expect(ctx.calls.some((c) => c.method === "fill")).toBe(true) // the card's own solid heat-colored fill
       expect(ctx.calls.some((c) => c.method === "stroke")).toBe(true) // the border still draws
     })
 
@@ -386,79 +381,6 @@ describe("drawGraph", () => {
       const ctx = makeFakeContext()
       drawGraph(ctx, { ...baseParams, nodes: [planGraphNode({ id: "a" })], edges: [] })
       expect(ctx.calls.some((c) => c.method === "fillRect")).toBe(false)
-    })
-  })
-
-  describe("Episode 26, Story 26.1 — comparison delta line and contribution-% badge (canvas mode)", () => {
-    const comparisonColors = { changed: "#f79009", addedInB: "#47cd89", removedFromB: "#b692f6" }
-
-    it("draws the comparison badge text for changed/added/removed, using the matching token color", () => {
-      const ctx = makeFakeContext()
-      drawGraph(ctx, {
-        ...baseParams,
-        comparisonColors,
-        nodes: [planGraphNode({ id: "a", comparisonOverlay: { status: "changed" } })],
-        edges: [],
-      })
-      expect(ctx.calls.some((c) => c.method === "fillText" && c.args[0] === "changed")).toBe(true)
-    })
-
-    it("draws the operator-delta line ('A → B') for a changed node with a counterpart, matching the DOM path's old formatting", () => {
-      const ctx = makeFakeContext()
-      const node = planGraphNode({
-        id: "a",
-        width: 400, // wide enough that fitText's truncation doesn't eat the delta suffix being asserted on below
-        comparisonOverlay: {
-          status: "changed",
-          counterpart: { rawOperatorLabel: "Index Scan", estimatedCost: 80, actualTimeMs: undefined },
-        },
-      })
-      node.data = { ...node.data, planNode: makeNode({ id: "a", rawOperatorLabel: "Seq Scan", estimatedCost: 100 }) }
-      drawGraph(ctx, { ...baseParams, comparisonColors, nodes: [node], edges: [] })
-
-      const deltaCall = ctx.calls.find((c) => c.method === "fillText" && String(c.args[0]).includes("Seq Scan → Index Scan"))
-      expect(deltaCall).toBeDefined()
-      expect(deltaCall!.args[0]).toContain("cost ↓20%")
-    })
-
-    it("never draws a delta line for an added/removed node — there's no counterpart to describe a delta against", () => {
-      const ctx = makeFakeContext()
-      const node = planGraphNode({ id: "a", comparisonOverlay: { status: "addedInB" } })
-      drawGraph(ctx, { ...baseParams, comparisonColors, nodes: [node], edges: [] })
-      expect(ctx.calls.some((c) => c.method === "fillText" && String(c.args[0]).includes("→"))).toBe(false)
-    })
-
-    it("draws the top-right contribution-% figure once it reaches the 20% threshold, not below it", () => {
-      const ctxAbove = makeFakeContext()
-      drawGraph(ctxAbove, { ...baseParams, nodes: [planGraphNode({ id: "a", contributionPercent: 45 })], edges: [] })
-      expect(ctxAbove.calls.some((c) => c.method === "fillText" && c.args[0] === "45%")).toBe(true)
-
-      const ctxBelow = makeFakeContext()
-      drawGraph(ctxBelow, { ...baseParams, nodes: [planGraphNode({ id: "a", contributionPercent: 5 })], edges: [] })
-      expect(ctxBelow.calls.some((c) => c.method === "fillText" && c.args[0] === "5%")).toBe(false)
-    })
-  })
-
-  describe("Episode 26, Story 26.7 — flat node-card chrome and badge pills", () => {
-    it("does not throw when a node is hovered, and still draws its border stroke", () => {
-      const ctx = makeFakeContext()
-      const node = planGraphNode({ id: "a" })
-      expect(() => drawGraph(ctx, { ...baseParams, nodes: [node], edges: [], hoveredNodeId: "a" })).not.toThrow()
-      expect(ctx.calls.some((c) => c.method === "stroke")).toBe(true)
-    })
-
-    it("draws an extra fill (the pill background) for each badge present, beyond the card's own fill", () => {
-      const ctxNoBadges = makeFakeContext()
-      drawGraph(ctxNoBadges, { ...baseParams, nodes: [planGraphNode({ id: "a" })], edges: [] })
-      const baselineFills = ctxNoBadges.calls.filter((c) => c.method === "fill").length
-
-      const ctxWithBadge = makeFakeContext()
-      drawGraph(ctxWithBadge, { ...baseParams, nodes: [planGraphNode({ id: "a", severity: "warning" })], edges: [] })
-      const withBadgeFills = ctxWithBadge.calls.filter((c) => c.method === "fill").length
-
-      // Card fill (1) either way, plus one pill-background fill for the
-      // severity badge that only the second render has.
-      expect(withBadgeFills).toBe(baselineFills + 1)
     })
   })
 

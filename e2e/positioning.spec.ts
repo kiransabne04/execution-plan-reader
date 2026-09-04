@@ -41,8 +41,5 @@ test("no separate hero/landing page precedes the shell — it's the only page, f
   // analyzed yet — no intermediate hero screen ever renders in front of it.
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await expect(page.getByTestId("plan-shell-empty-placeholder")).toBeVisible()
-  // Episode 26, Story 26.4's own status-bar branding chip also reads
-  // "PlanReader" now — scoped to the app bar's own brand mark specifically,
-  // not a bare text match (which would now resolve to both).
-  await expect(page.locator(".plan-shell__app-bar").getByText("PlanReader", { exact: true })).toBeVisible()
+  await expect(page.getByText("PlanReader", { exact: true })).toBeVisible()
 })

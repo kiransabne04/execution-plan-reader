@@ -37,11 +37,23 @@
    grep-confirmed zero remaining references before deleting. positioningCopy.ts
    itself is untouched; see PlanReaderPage.tsx's own Episode 19 comment. */
 
-/* Episode 26, Story 26.4 — `.plan-reader-page__footer` (the old sticky
-   page footer) is removed — grep-confirmed zero remaining references —
-   its content relocated to `.plan-shell__status-bar`'s own branding-chip
-   disclosure below (see PlanReaderPage.tsx's own Story 26.4 comment),
-   matching Episode 19's precedent for removing superseded chrome. */
+.plan-reader-page__footer {
+  /* Sticky rather than static: pins to the bottom of the viewport so it
+     stays visible instead of scrolling out of sight below a tall shell. */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 40px;
+  padding: 12px 16px;
+  background: var(--pr-bg);
+  border-top: 1px solid var(--pr-border);
+  color: var(--pr-text-muted);
+  font-size: 13px;
+}
+
+.plan-reader-page__footer p {
+  margin: 0;
+}
 
 .restore-session-banner {
   display: flex;
@@ -601,219 +613,53 @@
   height: 14px;
 }
 
-/* Story 6.3 — every app-bar action button (Walk me through it, Compare,
-   Share, Export) is icon-only UNCONDITIONALLY now, not just "before
-   wrapping" below a breakpoint (this rule's own pre-6.3 version, and
-   spec §2's original wording, both scoped this to Share/Export only —
-   superseded by this story's own explicit "collapse the top-bar action
-   buttons to icon-only" requirement, applied to all four for consistency
-   rather than three of four staying full-text). The label stays in the
-   DOM (a real accessible name via `aria-label`, matching each button's
-   former visible text exactly — see the JSX — plus a `title` attribute
-   for a hover tooltip), just visually hidden, same visually-hidden
-   pattern `findings-list__sr-only` already uses.
+/* Spec §2: "Share and Export drop to icon-only before wrapping." Below
+   this SHELL width (`@container`, not `@media` — same "measures against
+   the shell's own width" rule every other breakpoint in this file
+   follows), the app bar's natural content (brand, engine badge, mode
+   toggle, walkthrough/compare buttons, Share, Export) needs more space
+   than it has and would otherwise force horizontal scroll —
+   `.plan-shell__app-bar`'s own `overflow-x: auto` was silently absorbing
+   that instead of ever actually wrapping, which is why this went
+   unnoticed: nothing looked visibly broken, it just meant scrolling to
+   reach Export at these widths.
 
-   REAL BUG this story's own e2e run caught: without `position: relative`
-   on the button below, this absolutely-positioned label has no positioned
-   ancestor to anchor to, so its "static position" fallback (no top/left/
-   right/bottom set) is calculated in UNCLIPPED page-flow coordinates —
-   for a button deep in the app bar's own `overflow-x: auto` scroll region,
-   that placed the label's (invisible, 1x1px) box hundreds of pixels to
-   the right, past the visible app bar entirely. `overflow-x: auto` on the
-   app bar only contains descendants whose CONTAINING BLOCK is inside it;
-   an absolutely-positioned element with no closer positioned ancestor
-   escapes that containment and counts toward `document.documentElement`'s
-   own scrollWidth instead — silently growing the page's real horizontal
-   extent (invisible on desktop, since nothing scrolls there in practice,
-   but genuinely broke `window.innerWidth` under Chromium's mobile-
-   viewport emulation, which auto-grows the reported viewport to fit
-   otherwise-overflowing content). Fixed by making the button itself the
-   positioned containing block, below. */
-.plan-shell__app-bar-button-label,
-.share-link__button-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
+   859px, matching `NARROW_SHELL_BREAKPOINT_PX`'s own already-established
+   860px threshold (`.plan-shell__body`'s own breakpoint just below): a
+   measured, not assumed, choice — re-measured with a throwaway Playwright
+   script against the real built app (including the brand-mark icon added
+   in the same design-mockup-review pass, which widened the app bar's
+   natural content enough to invalidate an earlier, narrower 759px
+   threshold this rule used before that icon existed) found the full-text
+   app bar stops fitting somewhere between 786px and 816px of shell width.
+   Reusing 860 rather than picking a new bespoke number keeps one
+   breakpoint value doing double duty at a width that's already a real,
+   meaningful structural change (input rail collapse, Story 18.2) instead
+   of accumulating a third close-but-different magic number. Scoped to
+   Share and Export specifically, per the spec's own wording — the mode
+   toggle/walkthrough/compare buttons keep their full text at every width,
+   unchanged. */
+@container (max-width: 859px) {
+  .plan-shell__app-bar-button-label,
+  .share-link__button-label {
+    display: none;
+  }
 
-/* Symmetric padding once only the icon remains — the asymmetric 4px/12px
-   padding was sized for icon+text, not a bare square icon button.
-   `position: relative` is load-bearing — see the label rule's own comment
-   above for the real overflow bug this fixes. */
-.plan-shell__app-bar-button,
-.share-link__button {
-  position: relative;
-  padding: 6px;
-}
-
-/* Episode 26, Story 26.4 — the permanent status bar. A thin strip (matches
-   this story's own "~22-24px, costs near-zero canvas height" AC), same
-   `overflow-x: auto`/never-wrap approach as the app bar above it (its own
-   comment explains why: several independent controls competing for one
-   row). `border-top` (not `border-bottom`, unlike the app bar) — this is
-   the LAST row in the shell's own column, nothing sits below it to
-   separate from. */
-.plan-shell__status-bar {
-  flex: none;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  gap: clamp(6px, 1cqi, 12px);
-  padding: 0 clamp(8px, 1cqi, 14px);
-  border-top: 1px solid var(--pr-border);
-  /* Episode 26, Story 26.7 — the reference mockup's own subtle glowing
-     top edge (`inset 0 1px 0` in a translucent accent), additive to the
-     plain border-top above rather than replacing it — matches the
-     mockup's own dark-chrome-plus-accent-top-rule status bar exactly,
-     instead of the flatter plain-border treatment this bar shipped with
-     in Story 26.4. */
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-accent) 35%, transparent);
-  background: var(--dp-bg);
-  font-size: 11px;
-  position: relative;
-}
-
-/* REAL BUG found via live verification, not just the AC's own checklist:
-   setting `overflow-x: auto` alone forces the OTHER axis to compute as
-   `auto` too (never `visible`) per the CSS spec — the brand chip's own
-   `bottom: 100%` popover was silently clipped by that, invisible even
-   though it was genuinely in the DOM (confirmed via the accessibility
-   tree) and toggling correctly. Fix: only the data items that actually
-   need to scroll horizontally at a narrow width live inside THIS
-   sub-container; the brand button (and its popover) sits outside it, in
-   the outer bar's own unclipped flex row. */
-.plan-shell__status-bar-scroll {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: clamp(6px, 1cqi, 12px);
-  overflow-x: auto;
-}
-
-.plan-shell__status-bar-brand {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  border: none;
-  background: transparent;
-  padding: 0;
-  color: var(--pr-text-muted);
-  font-weight: 700;
-  font-size: 11px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.plan-shell__status-bar-brand:hover,
-.plan-shell__status-bar-brand:focus-visible,
-.plan-shell__status-bar-brand[aria-expanded="true"] {
-  color: var(--pr-text);
-}
-
-.plan-shell__status-bar-brand-icon {
-  width: 12px;
-  height: 12px;
-  color: var(--pr-accent);
-}
-
-/* A small popover ABOVE the bar (there's nothing below it to push into —
-   this is the shell's last row) — same fixed-panel-on-a-relative-parent
-   shape this app already uses for other small disclosures, sized to wrap
-   the one attribution sentence rather than spanning edge to edge. */
-.plan-shell__status-bar-about {
-  position: absolute;
-  left: clamp(8px, 1cqi, 14px);
-  bottom: 100%;
-  margin-bottom: 6px;
-  max-width: min(320px, calc(100% - 28px));
-  padding: 8px 10px;
-  border: 1px solid var(--pr-border);
-  border-radius: 8px;
-  background: var(--pr-bg);
-  color: var(--pr-text-muted);
-  font-size: 12px;
-  line-height: 1.4;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  z-index: 1;
-}
-
-.plan-shell__status-bar-divider {
-  flex: none;
-  width: 1px;
-  align-self: stretch;
-  margin: 5px 0;
-  background: var(--pr-border);
-}
-
-.plan-shell__status-bar-item {
-  flex: none;
-  white-space: nowrap;
-  color: var(--pr-text-muted);
-}
-
-.plan-shell__status-bar-severity {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.plan-shell__status-bar-severity:hover,
-.plan-shell__status-bar-severity:focus-visible {
-  color: var(--pr-text);
-}
-
-/* Colour alone never carries the meaning here — each count sits right
-   next to the number it belongs to (never just a bare dot), and the
-   button's own `aria-label` states the full breakdown in words. */
-.plan-shell__status-bar-severity-count {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.plan-shell__status-bar-severity-count::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.plan-shell__status-bar-severity-count--critical::before {
-  background: var(--color-critical);
-}
-
-.plan-shell__status-bar-severity-count--warning::before {
-  background: var(--color-warning);
-}
-
-.plan-shell__status-bar-severity-count--info::before {
-  background: var(--color-accent);
+  /* Symmetric padding once only the icon remains — the asymmetric 4px/12px
+     padding was sized for icon+text, not a bare square icon button. */
+  .plan-shell__app-bar-button--icon-only,
+  .share-link__button {
+    padding: 6px;
+  }
 }
 
 .plan-shell__body {
   flex: 1 1 auto;
   display: grid;
-  /* Story 6.3 — the detail panel is `position: fixed` by default (never a
-     grid participant), so there's no 3rd column to reserve here anymore —
-     the canvas absorbs that space instead of it sitting reserved and
-     empty. Restored (`.plan-shell__body--detail-pinned` below,
-     `@container (min-width: 1180px)`) only while the panel is pinned
-     open, matching the exact original 3-column spec §2 template. */
-  grid-template-columns: clamp(232px, 20cqi, 296px) minmax(360px, 1fr);
+  /* Exact column template from spec §2: rails are the flexible tracks and
+     shrink first; the canvas holds a hard 360px floor so a wide left/right
+     rail combination can never starve it. */
+  grid-template-columns: clamp(232px, 20cqi, 296px) minmax(360px, 1fr) clamp(300px, 26cqi, 384px);
   gap: 12px;
   padding: 12px;
   min-height: 0;
@@ -833,38 +679,6 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-}
-
-/* Story 6.3 — `overflow: visible` by default (not the shared rule's
-   `overflow-y: auto` above): this aside always mounts (Episode 19) even
-   though its content — DetailPanel, `position: fixed` when un-pinned —
-   never needs to scroll WITHIN it. `overflow: hidden`/`auto` on an
-   ancestor doesn't clip a `position: fixed` descendant in most browsers,
-   but `visible` removes any ambiguity, and matches this rule's own
-   pre-Story-6.3 narrow-width behavior now applied at every width instead
-   of only <1180px. Restored to `overflow-y: auto` only while pinned
-   (below), matching the grid-track panel's real need to scroll its own
-   content within the rail. */
-.plan-shell__rail--right {
-  overflow: visible;
-  /* Story 6.3 — `.plan-shell__body` now defines only 2 explicit column
-     tracks by default (the 3rd exists only when pinned, see
-     `--detail-pinned` below), but this aside is still always the 3rd DOM
-     child. `grid-row: 1` ALONE (a real bug this story's own required
-     canvas-area e2e measurement caught — see canvas-real-estate.spec.ts)
-     is NOT enough: the CSS Grid placement algorithm processes items with
-     a definite row but auto column BEFORE fully-auto items, so it grabbed
-     COLUMN 1 (the first available cell in row 1) — stealing the icon
-     rail's own spot, which cascaded into the icon rail displacing the
-     canvas into an entirely different, wrapped position. `grid-column:
-     -1` (the LAST column line, explicit or implicit, negative indices
-     count from the end) makes the placement fully definite in BOTH axes,
-     so it never competes with the icon-rail/canvas's own auto-placement
-     for column 1 or 2 — it creates its own implicit 3rd column instead,
-     computing to ~0 width when empty, exactly the original pre-Story-6.3
-     "0px 3rd column" behavior. */
-  grid-row: 1;
-  grid-column: -1;
 }
 
 /* Design review: left rail only — tightest usable line-height (1 is the
@@ -894,36 +708,12 @@
   border-radius: 8px;
 }
 
-/* Episode 26, Story 26.6 — a real branded moment (icon + the honest
-   supported-engine line) instead of one plain line of muted text, still
-   inside Episode 19's own dashed placeholder box, not a full-page hero. */
 .plan-shell__empty-placeholder {
   margin: 0;
   padding: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
   text-align: center;
-}
-
-.plan-shell__empty-placeholder-icon {
-  width: 36px;
-  height: 36px;
-  color: var(--pr-accent);
-  opacity: 0.7;
-}
-
-.plan-shell__empty-placeholder-text {
-  margin: 0;
-  color: var(--pr-text);
-  font-size: 15px;
-}
-
-.plan-shell__empty-placeholder-engines {
-  margin: 0;
   color: var(--pr-text-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 /* Episode 19 — Plan Input's permanent home in the left rail, above
@@ -1003,10 +793,23 @@
   color: var(--pr-text-muted);
 }
 
-/* Episode 26, Story 26.7 — `.plan-shell__colour-legend`/`-swatch` (the
-   cool -> warm hue-ramp swatch documenting the old per-node metric-color
-   fill) removed along with that fill itself — grep-confirmed zero
-   remaining references. See encoding.ts's own Story 26.7 comment. */
+/* Design review — the colour legend spec §2/§3 calls for: a swatch of the
+   exact same cool -> warm hue ramp `encoding.ts`'s `colorFor()` computes
+   node fill from (blue 210° down to red 0°), so this is documentation of
+   the real encoding, not a decorative, independently-chosen gradient. */
+.plan-shell__colour-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-shell__colour-legend-swatch {
+  display: inline-block;
+  width: 56px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, hsl(210, 70%, 55%), hsl(105, 70%, 55%), hsl(0, 70%, 55%));
+}
 
 .plan-shell__graph {
   position: relative;
@@ -1170,59 +973,84 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-/* Story 6.3 — always rendered as this when mounted; PlanReaderPage.tsx
-   itself now controls WHETHER it's in the DOM at all (only when an
-   un-pinned panel is open), so there's no separate "hidden by default,
-   shown below a breakpoint" CSS state to manage the way there used to be
-   — this is a plain, unconditional scrim, at every shell width. */
+.plan-shell__tabs {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.plan-shell__tab {
+  flex: 1 1 auto;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--pr-border);
+  background: transparent;
+  color: var(--pr-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.plan-shell__tab[aria-selected="true"] {
+  background: var(--pr-accent);
+  border-color: var(--pr-accent);
+  color: white;
+}
+
 .plan-shell__detail-scrim {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 19;
+  display: none;
 }
 
-/* Story 6.3 — once a plan is analyzed, the left column shrinks from the
-   wide pre-analysis input rail to the narrow icon rail — a plain
-   (non-`@container`) rule, since the icon rail's whole point is staying
-   narrow at every width, not just above some breakpoint. Applied AFTER
-   the base rule above so it wins the cascade for this one property. */
-.plan-shell__body--icon-rail {
-  grid-template-columns: 56px minmax(360px, 1fr);
-}
+/* Below 1180px of the SHELL's own width (not the viewport — see
+   .plan-shell's container-type above): the right rail's grid track
+   collapses to 0 width (its content — DetailPanel — has already switched
+   to a fixed overlay via detailPanel.css's own matching `@container`
+   rule, so the track reserving real space here would just waste it) and a
+   scrim appears behind that overlay. Spec §2's breakpoint table.
 
-/* Restores the exact pre-existing (Story 18.2) 3-column template + grid-
-   track right rail, ONLY while the panel is pinned open AND the shell is
-   wide enough for DetailPanel's own `--in-shell` grid-track rule
-   (detailPanel.css) to actually apply — below 1180px, `variant="shell"`
-   degrades to the same overlay+scrim behavior regardless of pin state, so
-   a 3-column template there would just reserve dead space for an
-   overlay. Requires BOTH modifier classes (pinning is only ever reachable
-   once a node exists to pin, which itself requires `analyzed` — the two
-   states can't occur independently in practice) rather than a CSS custom
-   property scheme to compose them, since `grid-template-columns` can't be
-   partially overridden per-column by two independent class selectors. */
-@container (min-width: 1180px) {
-  .plan-shell__body--icon-rail.plan-shell__body--detail-pinned {
-    grid-template-columns: 56px minmax(360px, 1fr) clamp(300px, 26cqi, 384px);
+   Deliberately 0px in the template, NOT `display: none` on the rail
+   itself: `display: none` on an ancestor hides its `position: fixed`
+   descendant too — `position` doesn't let an element escape an ancestor's
+   `display: none`, only its normal layout flow. That's a real bug this
+   story hit during its own e2e run (the panel resolved in the DOM but
+   Playwright reported it "hidden") — a 0-width column keeps the aside
+   itself actually rendered, so its fixed-position child renders normally,
+   completely unaffected by its now-collapsed parent's size. */
+@container (max-width: 1179px) {
+  .plan-shell__body {
+    grid-template-columns: clamp(232px, 20cqi, 296px) minmax(360px, 1fr) 0px;
   }
 
-  .plan-shell__body--detail-pinned .plan-shell__rail--right {
-    overflow-y: auto;
+  .plan-shell__rail--right {
+    overflow: visible;
+  }
+
+  .plan-shell__detail-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 19;
   }
 }
 
-/* Below 860px, the PRE-ANALYSIS wide input rail (232-296px) alongside the
-   canvas would leave uncomfortably little room for either — collapses to
-   a single column, same as before this story. Once a plan is analyzed
-   (`--icon-rail`, 56px), this collapse is unnecessary — the narrow rail
-   comfortably coexists with the canvas at any reasonable width — so it's
-   scoped to exclude that state. */
+/* Below 860px: Findings and the graph become tabs (PlanReaderPage's
+   `isNarrowShell` state drives which one is actually in the DOM) instead
+   of a side-by-side rail+canvas — a single column is all this grid needs
+   to express once only one of them renders at a time. */
 @container (max-width: 859px) {
-  .plan-shell__body:not(.plan-shell__body--icon-rail) {
+  .plan-shell__body {
     grid-template-columns: 1fr;
     height: auto;
     min-height: 420px;
+    /* Without this, `align-content`'s grid default (`normal`, which
+       behaves as `stretch`) distributes the gap between the auto-sized
+       rows' natural content height and this `min-height` floor EQUALLY
+       across every row — including the tabs row, which doesn't want any
+       extra height at all. A real bug this story's own e2e/manual
+       verification caught: the tab buttons rendered ~130px tall instead
+       of their natural button size. `start` leaves each row at its own
+       content height; any leftover space simply sits below, unclaimed. */
     align-content: start;
   }
 }
@@ -1239,38 +1067,10 @@
    PlanComparisonView's panes and PlanGraph's own default-rendered panel
    both need it too, not just this shell's `--in-shell` variant). */
 @container (max-width: 619px) {
-  /* Story 6.3 — a REAL bug this story's own e2e run caught: the canvas
-     column's `minmax(360px, 1fr)` floor (`.plan-shell__body`'s base rule)
-     was designed for the wide 3-column desktop layout, where a 360px
-     floor genuinely protects the canvas from being starved by a wide
-     rail. Combined with the 56px icon rail at a true mobile width (as
-     narrow as 390px), that floor forces MORE total width than the
-     viewport actually has (56 + 360 + gap/padding overhead > 390),
-     overflowing the shell horizontally — which, under Chromium's mobile
-     viewport emulation specifically, silently grows the reported
-     viewport width to fit the overflowing content instead of ever
-     showing a scrollbar, corrupting every other width-dependent
-     measurement on the page. `min-width: 0` (already set on
-     `.plan-shell__canvas` itself) makes a 0-floor safe — the canvas
-     still gets 100% of whatever's left after the narrow rail, it simply
-     stops enforcing a floor wider than a real phone screen. */
-  .plan-shell__body--icon-rail {
-    grid-template-columns: 56px minmax(0, 1fr);
-  }
-
+  .plan-shell__tab,
   .plan-shell__mode-toggle-button,
   .plan-shell__app-bar-button,
-  .plan-reader-page__statement-tab,
-  .findings-drawer__summary {
-    min-height: 44px;
-  }
-
-  /* Story 6.3 — the icon rail's fixed 40x40 buttons are below the mobile
-     touch-target floor; bumped to 44x44 here rather than unconditionally,
-     matching every other control this block already scales only at true
-     mobile. */
-  .icon-rail__button {
-    min-width: 44px;
+  .plan-reader-page__statement-tab {
     min-height: 44px;
   }
 
@@ -1347,79 +1147,34 @@
   flex-wrap: wrap;
 }
 
-/* Episode 26, Story 26.5 — editor-tab-style active treatment, replacing
-   the old filled-pill active state: a real deviation from the icon-rail's
-   own pill convention (Story 26.2) on purpose — these are document/
-   editor-style tabs (one open statement among several, like a file tab),
-   not rail navigation. Rounded TOP corners only (matches a real tab's own
-   shape — nothing sits below its own baseline to round into).
-   Episode 26, Story 26.7 — the active indicator moved from a bottom
-   border to a TOP accent bar (VS Code's own editor-tab language, and the
-   exact treatment in the reference mockup's own `.tab.active::after`),
-   with the active tab's background blending into the canvas below it
-   rather than staying transparent — matches the mockup pixel-for-pixel
-   rather than this story's own earlier, functionally-equivalent-but-
-   differently-placed bottom-underline choice. */
 .plan-reader-page__statement-tab {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px 6px 0 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--pr-border);
   background: transparent;
-  color: var(--pr-text-muted);
+  color: var(--pr-text);
   font-size: 12px;
   cursor: pointer;
-  transition: color 0.1s ease, background-color 0.1s ease;
-}
-
-.plan-reader-page__statement-tab::after {
-  content: "";
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: transparent;
-}
-
-.plan-reader-page__statement-tab:hover,
-.plan-reader-page__statement-tab:focus-visible {
-  background: var(--pr-item-hover-bg, rgba(255, 255, 255, 0.06));
-  color: var(--pr-text);
 }
 
 .plan-reader-page__statement-tab[aria-selected="true"] {
-  background: var(--color-bg-canvas);
-  color: var(--pr-text);
-  font-weight: 600;
-}
-
-.plan-reader-page__statement-tab[aria-selected="true"]::after {
   background: var(--pr-accent);
+  border-color: var(--pr-accent);
+  color: white;
 }
 
 /* Story 20.1 — a collapsed run of trivial control-flow statements. Italic
-   + a permanent dashed top bar (same "this represents several things, not
-   one" language AccessiblePlanList's own `--collapsed` row uses) — this
-   row is never itself "the active statement" (it toggles its own
-   `aria-expanded`, never `aria-selected`), so its own visual signal has to
-   stand on its own rather than reusing the solid accent bar reserved for
-   real tab selection. */
+   + dashed border (same "this represents several things, not one"
+   language AccessiblePlanList's own `--collapsed` row uses) rather than
+   `aria-selected`'s solid-fill treatment, since this row is never itself
+   "the active statement." */
 .plan-reader-page__statement-tab--group {
   font-style: italic;
+  border-style: dashed;
   opacity: 0.85;
-}
-
-.plan-reader-page__statement-tab--group::after {
-  border-top: none;
-  border-bottom: 2px dashed var(--pr-border);
-  height: 0;
-  top: auto;
-  bottom: 0;
 }
 
 /* Story 18.11 — additive to the tab's own label, never replacing it. */
@@ -1460,282 +1215,5 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-/* Story 6.3 — the icon rail (IconRail.tsx), replacing the old always-open
-   left rail once a plan is analyzed. Narrow and fixed-width (56px,
-   matching `.plan-shell__body--icon-rail`'s own grid column) — a plain
-   vertical stack of icon buttons, not a scroll container itself (there's
-   nothing in it that could overflow). */
-.icon-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding-top: 4px;
-  /* Story 6.3 — a real bug this story's own e2e run caught: without this,
-     the scrim (z-index 19, below) sits ON TOP of the rail's own buttons
-     whenever a panel is open, blocking every other icon — including
-     Findings, which the story's own design intends to stay independently
-     clickable at all times (it's a completely different concern from the
-     New Plan/Recent Plans overlay panels). `position: relative` makes
-     this z-index meaningful (an unpositioned element's z-index is a
-     no-op). */
-  position: relative;
-  z-index: 21;
-}
-
-.icon-rail__button {
-  position: relative;
-  /* Story 6.3 — a real bug this story's own e2e run caught: the scrim/
-     panel below (z-index 19/20) are DESCENDANTS of `.icon-rail`, not
-     siblings — `.icon-rail`'s own z-index (below) only controls its
-     stacking relative to elements OUTSIDE it, it does nothing to change
-     the scrim/panel's stacking relative to THESE buttons, their fellow
-     children within `.icon-rail`'s own local stacking context. Without
-     an explicit z-index here, the scrim/panel (both genuinely positioned,
-     z-index 19/20) painted OVER a plain `position: relative` button
-     (implicit z-index 0) regardless of DOM order — blocking every other
-     icon, including Findings, which the story's own design intends to
-     stay independently clickable at all times. */
-  z-index: 22;
-  flex: none;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  /* Episode 26, Story 26.2 originally shipped a fully solid-accent pill
-     (999px radius, white text) here — a deliberate deviation from VS
-     Code's own flat activity-bar treatment. Episode 26, Story 26.7:
-     restyled to match the reference mockup's own activity-btn exactly —
-     an 8px-radius square button with a soft TINTED active background
-     (`color-mix`, 22% accent over the surface color), not a fully solid
-     fill. Less heavy, closer to VS Code's actual activity-bar language
-     than the original pill was. */
-  border-radius: 8px;
-  background: transparent;
-  color: var(--pr-text-muted);
-  font-size: 20px;
-  cursor: pointer;
-  transition: background-color 0.1s ease, color 0.1s ease;
-}
-
-.icon-rail__button:hover,
-.icon-rail__button:focus-visible {
-  background: var(--pr-item-hover-bg, rgba(255, 255, 255, 0.06));
-  color: var(--pr-text);
-}
-
-.icon-rail__button[aria-pressed="true"] {
-  color: var(--color-accent-on-tint);
-  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
-}
-
-.icon-rail__button[aria-pressed="true"]:hover,
-.icon-rail__button[aria-pressed="true"]:focus-visible {
-  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
-}
-
-.icon-rail__badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 3px;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 15px;
-  text-align: center;
-  color: white;
-}
-
-.icon-rail__badge--neutral {
-  background: var(--pr-text-muted);
-}
-
-.icon-rail__badge--critical {
-  background: var(--color-critical);
-}
-
-.icon-rail__badge--warning {
-  background: var(--color-warning);
-  color: #3a2a05; /* matches findingsList.css's own dark-on-amber pairing for the same severity */
-}
-
-.icon-rail__badge--info {
-  background: var(--color-accent);
-}
-
-/* Same fixed-dim-behind-a-fixed-panel visual as the detail panel's own
-   overlay (`.plan-shell__detail-scrim`) — one overlay pattern in this
-   app, not two independently-built ones. Episode 26, Story 26.2:
-   `pointer-events: none` — this used to also be the click-to-close
-   surface (Story 6.3), which meant it swallowed every click while a
-   panel was open; now it's purely the dim, and IconRail.tsx's own
-   document-level click listener handles closing, letting an outside
-   click reach its real target underneath (e.g. selecting a canvas node)
-   instead of being consumed here. */
-.icon-rail__scrim {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 19;
-  pointer-events: none;
-}
-
-.icon-rail__panel {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: min(360px, calc(100vw - 56px));
-  overflow-y: auto;
-  background: var(--pr-bg);
-  color: var(--pr-text);
-  border-right: 1px solid var(--pr-border);
-  padding: 16px;
-  box-sizing: border-box;
-  z-index: 20;
-  animation: icon-rail-panel-enter 160ms ease-out;
-}
-
-@keyframes icon-rail-panel-enter {
-  from {
-    opacity: 0;
-    transform: translateX(-24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .icon-rail__panel {
-    animation: none;
-  }
-}
-
-.icon-rail__panel-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  border: none;
-  background: transparent;
-  color: var(--pr-text-muted);
-  font-size: 18px;
-  cursor: pointer;
-  line-height: 1;
-}
-
-/* Story 6.3 — the findings drawer (FindingsDrawer.tsx), bottom-docked
-   within the canvas column's own flex layout (`.plan-shell__canvas`'s
-   `flex-direction: column`) — a real flex sibling, not a fixed overlay:
-   expanding it is allowed to shrink the graph area above it, within the
-   height cap below, matching this story's own "cap it, internally scroll
-   past the cap" edge case (deliberately different from the detail panel's
-   own zero-reflow requirement, which this drawer was never asked to
-   meet). */
-.findings-drawer {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-top: 1px solid var(--fl-border, var(--pr-border));
-  background: var(--pr-bg);
-  /* Story 6.3 — a real bug this story's own e2e run caught: without a
-     real stacking position, the un-pinned detail panel's own scrim
-     (`position: fixed`, z-index 19 — a full-viewport click-to-close
-     layer) painted ABOVE this plain, normal-flow element regardless of
-     DOM order, blocking every click on it (including the summary bar)
-     whenever the detail overlay was open. This story's own combined-
-     open-state requirement is that both stay independently usable —
-     matching detail-panel's own z-index (20) since the two never
-     actually overlap on screen (the `--inset` modifier below keeps them
-     visually apart), just both need to clear the scrim. */
-  position: relative;
-  z-index: 20;
-}
-
-.findings-drawer__summary {
-  flex: none;
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: left;
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-  color: var(--pr-text-muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.findings-drawer__summary:hover,
-.findings-drawer__summary:focus-visible {
-  color: var(--pr-text);
-}
-
-/* Episode 26, Story 26.3 — this stays the DEFAULT (viewport-responsive)
-   cap, unchanged from Story 6.3. FindingsDrawer.tsx's own `customHeightPx`
-   only overrides it with an inline `max-height` once the user has
-   actually dragged or used the arrow keys (inline style beats this rule
-   on specificity) — until then, this rule is still the only thing
-   governing the drawer's own height, exactly as it always has. */
-.findings-drawer__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  max-height: min(38vh, 420px);
-  padding: 0 12px 12px;
-}
-
-/* Episode 26, Story 26.3 — the drag-resize handle, a thin full-width strip
-   sitting on the drawer's own top edge (between the summary bar and the
-   body). `ns-resize` cursor is the standard affordance for a vertical
-   drag; the visible line only brightens on hover/focus/drag so it doesn't
-   read as a permanent divider when the drawer's just sitting there. */
-.findings-drawer__resize-handle {
-  flex: none;
-  height: 8px;
-  margin: 0 12px;
-  cursor: ns-resize;
-  touch-action: none;
-  position: relative;
-}
-
-.findings-drawer__resize-handle::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 2px;
-  transform: translateY(-50%);
-  border-radius: 1px;
-  background: var(--fl-border, var(--pr-border));
-}
-
-.findings-drawer__resize-handle:hover::before,
-.findings-drawer__resize-handle:focus-visible::before {
-  background: var(--pr-accent);
-}
-
-.findings-drawer__resize-handle:focus-visible {
-  outline: none;
-}
-
-/* Story 6.3's own combined-open-state edge case: an open, un-pinned
-   detail panel (a fixed overlay anchored to the viewport's right edge,
-   `min(420px, 100vw)` wide — detailPanel.css) would otherwise visually
-   collide with this drawer's own right edge in the bottom-right corner.
-   Insetting the drawer away from that known width keeps both fully
-   visible and independently usable rather than one clipping the other. */
-.findings-drawer--inset {
-  margin-right: min(420px, 100vw);
 }
 

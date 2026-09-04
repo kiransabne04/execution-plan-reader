@@ -1,7 +1,27 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ForwardedRef } from "react"
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ForwardedRef,
+} from "react"
+import {
+  Background,
+  Controls,
+  ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
+  useViewport,
+  type NodeMouseHandler,
+  type NodeTypes,
+} from "@xyflow/react"
+import "@xyflow/react/dist/style.css"
 import { collectNodes, type PlanNode } from "../parsers/normalize"
 import { buildPlanContext, type PlanContext } from "../rules/types"
-import { buildGraphElements, type ComparisonOverlay } from "./buildGraphElements"
+import { buildGraphElements, type ComparisonOverlay, type PlanGraphNode } from "./buildGraphElements"
 import { AccessiblePlanList } from "./canvas/AccessiblePlanList"
 import { CanvasPlanGraph } from "./canvas/CanvasPlanGraph"
 import { resolveCssVar } from "./canvas/cssVars"
@@ -10,7 +30,29 @@ import { computeDefaultCollapsedIds, findCollapsedAncestors } from "./collapse"
 import { DetailPanel } from "./detailPanel/DetailPanel"
 import { computePopupPosition } from "./detailPanel/popupPosition"
 import type { MetricKey } from "./encoding"
+import { PlanNodeCard } from "./PlanNodeCard"
+import { CollapsedGroupNode } from "./CollapsedGroupNode"
 import "./planGraph.css"
+
+const nodeTypes: NodeTypes = {
+  planNode: PlanNodeCard,
+  collapsedGroup: CollapsedGroupNode,
+}
+
+// Below this, PlanNodeCard's 12px label is no longer legible. Governs both
+// fitView's floor (below) and <ReactFlow>'s own minZoom, so manual scroll-to-
+// zoom can't reach the same illegible scale fitView is capped away from.
+const MIN_LEGIBLE_ZOOM = 0.5
+
+// Episode 15 — above this node count, React Flow's one-DOM-element-per-node
+// rendering is the documented risk to interaction responsiveness (Story
+// 15.1's premise); the canvas path (src/graph/canvas/) takes over instead.
+// Chosen to sit comfortably below Episode 6's own 500-node collapse-by-
+// default risk point, not derived from a real browser benchmark run in
+// this session — the story's testing approach calls for exactly that
+// benchmark (50/100/250/500/1000+ node sizes, render + interaction
+// latency) before trusting this number in production. Revisit then.
+export const CANVAS_NODE_COUNT_THRESHOLD = 300
 
 export interface PlanGraphProps {
   root: PlanNode
@@ -77,39 +119,41 @@ export interface PlanGraphProps {
    * `onNodeSelected`/`onDetailPanelChange` above, not a second source of
    * truth — the shell never sets collapse state itself. */
   onCollapsedCountChange?: (count: number) => void
-  /** Episode 22, Story 22.3 (and, since Episode 26 Story 26.1, the ONLY
-   * mode there is) — "panel" (default) is every existing behavior
-   * unchanged (the right-rail/overlay `DetailPanel`, via
-   * `externalDetailPanel`/`onDetailPanelChange` or this component's own
-   * internal render). "popup" is the app shell's maximized mode: this
-   * component renders `DetailPanel` itself with `variant="popup"`,
-   * positioned next to the clicked node, via `CanvasPlanGraph`'s own
-   * `onSelectedNodeScreenAnchorChange` + `worldToScreen`
-   * (`CanvasNodeDetailPopup` below) — only `CanvasPlanGraph` can compute
-   * that coordinate, so unlike the "panel" path this isn't reported
-   * outward for the caller to render. `onDetailPanelChange` still fires as
-   * normal either way (PlanReaderPage uses it for its own Escape-stacking
-   * logic — see Story 22.1) even though it no longer decides what gets
-   * rendered in "popup" mode. The accessible-list fallback (Story 15.2)
-   * keeps the plain panel/overlay behavior even when this is "popup" — it
-   * has no node-position concept to anchor a popup to (this episode's own
-   * edge case). */
+  /** Episode 22, Story 22.2 (DOM/SVG mode) + Story 22.3 (canvas mode) —
+   * "panel" (default) is every existing behavior unchanged (the right-
+   * rail/overlay `DetailPanel`, via `externalDetailPanel`/
+   * `onDetailPanelChange` or this component's own internal render).
+   * "popup" is the app shell's maximized mode: this component renders
+   * `DetailPanel` itself with `variant="popup"`, positioned next to the
+   * clicked node — via `flowToScreenPosition()` + `computePopupPosition`
+   * in the DOM/SVG branch (`NodeDetailPopup`), or via `CanvasPlanGraph`'s
+   * own `onSelectedNodeScreenAnchorChange` + `worldToScreen` in the canvas
+   * branch (`CanvasNodeDetailPopup`) — only this component (or, in canvas
+   * mode, its `CanvasPlanGraph` child) can compute that coordinate, so
+   * unlike the "panel" path this isn't reported outward for the caller to
+   * render. `onDetailPanelChange` still fires as normal either way
+   * (PlanReaderPage uses it for its own Escape-stacking logic — see Story
+   * 22.1) even though it no longer decides what gets rendered in "popup"
+   * mode. The accessible-list fallback (canvas mode, Story 15.2) keeps the
+   * plain panel/overlay behavior even when this is "popup" — it has no
+   * node-position concept to anchor a popup to (this episode's own edge
+   * case). */
   nodeDetailVariant?: "panel" | "popup"
 }
 
 /** Story 18.11 — the imperative surface a caller (the app bar's Export
  * button, which lives outside this component and has no reason to know
- * about `collapsedIds`) uses to trigger a PNG export. A ref/imperative-
- * handle, not a prop, because export is a one-shot ACTION a caller
- * triggers on demand — not state this component should report outward
- * continuously the way `onDetailPanelChange` does. */
+ * about `collapsedIds`/DOM-vs-canvas-mode) uses to trigger a PNG export.
+ * A ref/imperative-handle, not a prop, because export is a one-shot
+ * ACTION a caller triggers on demand — not state this component should
+ * report outward continuously the way `onDetailPanelChange` does. */
 export interface PlanGraphHandle {
   /** `null` when there's nothing to export or the browser couldn't
    * produce the image — see exportPng.ts's own doc comment. */
   exportPng: () => Promise<Blob | null>
 }
 
-export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function PlanGraph(
+const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function PlanGraphInner(
   {
     root,
     metric = "actualTimeMs",
@@ -147,20 +191,14 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
   // the PlanNode model itself.
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined)
 
-  // Story 14.2 (and, since Episode 26 Story 26.1, every caller of this —
-  // guided walkthrough step advance, the Findings/Issues list, the
-  // search palette, and comparison-view synced selection): a node an
-  // incoming `focusNodeId` asked us to pan to, held separately from
-  // `focusNodeId` itself (which the parent clears via `onFocusHandled`
-  // moments after this fires — see the effect below) so the pan can still
-  // resolve one commit later, once a just-expanded ancestor's `nodes`
-  // actually contains this id. Only ever set by an external focus request,
-  // never by a plain click, so ordinary in-graph clicking never yanks the
-  // camera — that's not what this is for. Consumed by `CanvasPlanGraph`
-  // itself (its own `panToNodeId`/`onPanHandled` props) rather than a pan
-  // effect living here — see that component's doc comment.
+  // Story 14.2: a node an incoming `focusNodeId` asked us to pan to, held
+  // separately from `focusNodeId` itself (which the parent clears via
+  // `onFocusHandled` moments after this fires — see the effect below) so
+  // the pan can still resolve one commit later, once a just-expanded
+  // ancestor's `nodes` actually contains this id. Only ever set by an
+  // external focus request, never by a plain click, so ordinary in-graph
+  // clicking never yanks the camera — that's not what this is for.
   const [pendingPanNodeId, setPendingPanNodeId] = useState<string | undefined>(undefined)
-  const handlePanHandled = useCallback(() => setPendingPanNodeId(undefined), [])
 
   // Whatever had focus right before the panel opened (a clicked or
   // keyboard-activated card) — restored on close so focus doesn't silently
@@ -185,11 +223,10 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
   }, [onNodeSelected])
 
   // Story 13.1: handle an externally requested focus (a click in the "All
-  // findings"/Issues list, or — Story 14.2 — the OTHER pane of a
-  // comparison view via onNodeSelected/focusNodeId). Expanding any
-  // collapsed ancestor first means `nodes` (recomputed below on
-  // `collapsedIds` change) brings the newly-revealed node into view, not
-  // just the panel.
+  // findings" list, or — Story 14.2 — the OTHER pane of a comparison view
+  // via onNodeSelected/focusNodeId). Expanding any collapsed ancestor first
+  // means the fitView effect below (which re-runs on `nodes.length` change)
+  // brings the newly-revealed node into view, not just the panel.
   useEffect(() => {
     if (focusNodeId === undefined) return
     setCollapsedIds((prev) => {
@@ -221,10 +258,11 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
   // state during render" pattern for resetting on a prop change: a plain
   // conditional setState call while rendering, not inside an effect, so it
   // doesn't trigger the extra render-then-effect round trip a useEffect would.
-  // The control to reach the accessible list is always present and
-  // prominent (rendered right alongside the canvas, never buried), but its
-  // DOM is only actually mounted once opened, so a huge plan a user never
-  // opens it for doesn't pay its render cost.
+  // Story 15.2: which surface is showing when canvas mode is active — the
+  // control to reach it is always present and prominent (rendered right
+  // alongside the canvas, never buried), but the accessible list's DOM is
+  // only actually mounted once opened, so a huge plan a user never opens it
+  // for doesn't pay its render cost — the whole reason canvas mode exists.
   const [showAccessibleList, setShowAccessibleList] = useState(false)
 
   const [prevRoot, setPrevRoot] = useState(root)
@@ -241,6 +279,8 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
     [root, metric, collapsedIds, comparisonOverlays, matchedNodeIds, resolvedContext],
   )
 
+  const useCanvas = allNodes.length > CANVAS_NODE_COUNT_THRESHOLD
+
   const expandCollapsedGroup = useCallback((parentPlanNodeId: string) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev)
@@ -249,9 +289,12 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
     })
   }, [])
 
-  // Story 18.11 — the top-level wrapper ref so `exportPng` can resolve this
-  // app's own CSS custom properties the exact same way CanvasPlanGraph.tsx's
-  // own live rendering already does.
+  // Story 18.11 — the top-level wrapper (assigned below, on whichever of
+  // the two branches at the bottom actually renders) so `exportPng` can
+  // resolve this app's own CSS custom properties the exact same way
+  // CanvasPlanGraph.tsx's own live rendering already does — export must
+  // stay theme-consistent even in DOM/SVG mode, where no `.canvas-plan-
+  // graph` element with those properties is otherwise on the page.
   const containerRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(
@@ -266,15 +309,7 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
         return exportGraphToPngBlob(nodes, edges, {
           textColor: resolveCssVar(el, "--pg-card-text", "#e9e9ed"),
           selectionColor: resolveCssVar(el, "--pg-canvas-selection", "#b5abfc"),
-          // Episode 26, Story 26.7 — the canvas background, not the card/
-          // surface color (see ExportPngColors's own doc comment: node
-          // cards are flat-filled with the surface color now, so the page
-          // background has to be visibly different from it).
-          backgroundColor: resolveCssVar(el, "--color-bg-canvas", "#12131d"),
-          nodeSurfaceColor: resolveCssVar(el, "--pg-card-bg", "#232532"),
-          nodeBorderColor: resolveCssVar(el, "--color-border-strong", "#3f424d"),
-          nodeAccentColor: resolveCssVar(el, "--color-accent", "#9184d9"),
-          badgeNeutralBg: resolveCssVar(el, "--color-border", "rgba(233, 233, 237, 0.12)"),
+          backgroundColor: resolveCssVar(el, "--pg-card-bg", "#232532"),
           comparisonColors: {
             changed: resolveCssVar(el, "--pg-comparison-changed", "#f79009"),
             addedInB: resolveCssVar(el, "--pg-comparison-added", "#47cd89"),
@@ -294,12 +329,80 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
     [nodes, edges],
   )
 
-  const selectedNode = selectedNodeId !== undefined ? allNodes.find((n) => n.id === selectedNodeId) : undefined
+  const { fitView, setCenter } = useReactFlow()
+  useEffect(() => {
+    if (useCanvas) return // the DOM/SVG <ReactFlow> tree below isn't rendered in this mode — nothing to fit
+    // Large plans must never render pre-zoomed to an unreadable scale —
+    // fit on every shape change (initial load, expand/collapse), not just once.
+    // Floored at MIN_LEGIBLE_ZOOM: for a 500+-node plan, fitting every node into
+    // the fixed-size viewport would otherwise zoom out far past PlanNodeCard's
+    // 12px label legibility. Once capped, a large plan overflows the viewport
+    // instead — React Flow's own pan/scroll already handles that for free.
+    // Design review — extra fixed top padding (bigger than the persistent
+    // search-trigger bar's own ~44px height, PlanReaderPage.tsx's
+    // `.plan-shell__search-trigger`) so a bottom-up-laid-out plan's ROOT
+    // node — dagre puts it at the very top, and fitView otherwise centers
+    // the whole graph with no regard for that fixed overlay — never lands
+    // directly behind it. Caught visually: a root node can end up
+    // partially hidden under the search bar with the default uniform 20%
+    // padding, which doesn't reserve space for anything screen-fixed.
+    const frame = requestAnimationFrame(() =>
+      fitView({
+        padding: { top: "56px", left: "20%", right: "20%", bottom: "20%" },
+        duration: 200,
+        minZoom: MIN_LEGIBLE_ZOOM,
+      }),
+    )
+    return () => cancelAnimationFrame(frame)
+  }, [nodes.length, fitView, useCanvas])
 
-  // Episode 22, Story 22.3 — canvas mode's own equivalent of what used to be
-  // the DOM/SVG path's `flowToScreenPosition()`-derived anchor: reported
-  // outward by `CanvasPlanGraph` (it's the one that owns the live pan/zoom
-  // `transform` and the canvas element's own `getBoundingClientRect()`) via
+  // Story 14.2's "clicking a node in one plan ... scrolls to its matched
+  // counterpart in the other": pan the OTHER pane's viewport to the newly-
+  // focused node, not just open its panel. Keyed on `pendingPanNodeId`
+  // rather than `focusNodeId` directly: when the target sat behind a
+  // collapsed ancestor, the ancestor-expanding `setCollapsedIds` above only
+  // takes effect on the NEXT render, so `nodes` here may not contain the
+  // target yet on the render where `focusNodeId` was still set — by the
+  // following render (`nodes` now including it), the parent has already
+  // cleared `focusNodeId` via `onFocusHandled`. `pendingPanNodeId` survives
+  // that clearing, so the pan still resolves once the node is actually
+  // there. Canvas mode has no equivalent yet — same known gap as fitView
+  // above; the accessible list's own scroll-into-view is the reachable
+  // path there.
+  useEffect(() => {
+    if (useCanvas || pendingPanNodeId === undefined) return
+    const target = nodes.find((n) => n.id === pendingPanNodeId)
+    if (!target) return // still behind a collapsed ancestor — wait for the next `nodes` update
+    const width = target.width ?? 160
+    const height = target.height ?? 56
+    const frame = requestAnimationFrame(() =>
+      setCenter(target.position.x + width / 2, target.position.y + height / 2, { zoom: 1, duration: 300 }),
+    )
+    setPendingPanNodeId(undefined) // consumed
+    return () => cancelAnimationFrame(frame)
+  }, [pendingPanNodeId, nodes, useCanvas, setCenter])
+
+  const handleNodeClick = useCallback<NodeMouseHandler<PlanGraphNode>>((_event, node) => {
+    if (node.type === "collapsedGroup") {
+      expandCollapsedGroup(node.data.parentPlanNodeId)
+      return
+    }
+    openPanel(node.id)
+  }, [openPanel, expandCollapsedGroup])
+
+  const selectedNode = selectedNodeId !== undefined ? allNodes.find((n) => n.id === selectedNodeId) : undefined
+  // Episode 22, Story 22.2 — the SAME node's React Flow graph node (not the
+  // plain PlanNode above), whose `position`/`width`/`height` the popup path
+  // needs to compute a screen anchor. `undefined` while the node sits behind
+  // a still-collapsed ancestor (same transient gap `pendingPanNodeId`'s own
+  // effect already handles elsewhere in this file) — NodeDetailPopup below
+  // simply doesn't render until `nodes` catches up on the next render.
+  const selectedGraphNode = selectedNodeId !== undefined ? nodes.find((n) => n.id === selectedNodeId) : undefined
+
+  // Episode 22, Story 22.3 — canvas mode's own equivalent of the DOM/SVG
+  // path's `flowToScreenPosition()`-derived anchor: reported outward by
+  // `CanvasPlanGraph` (it's the one that owns the live pan/zoom `transform`
+  // and the canvas element's own `getBoundingClientRect()`) via
   // `onSelectedNodeScreenAnchorChange`, on every pan/drag/wheel-zoom tick —
   // that's the live-repositioning mechanism, not a separate loop here.
   const [canvasPopupAnchor, setCanvasPopupAnchor] = useState<{ x: number; y: number; width: number; height: number } | undefined>(undefined)
@@ -314,91 +417,197 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
     onDetailPanelChange?.(selectedNode ? { node: selectedNode, context: resolvedContext, onClose: closePanel } : undefined)
   }, [externalDetailPanel, selectedNode, resolvedContext, closePanel, onDetailPanelChange])
 
+  // Keyboard access (Story 6.2's accessibility acceptance criterion: the
+  // panel opens via Enter/Space on a focused node) needs each card to call
+  // back into this component's own selection state — attached here, after
+  // buildGraphElements produces its otherwise-plain, testable node data,
+  // rather than baked into that pure conversion function itself.
+  const nodesWithHandlers = useMemo(
+    () =>
+      useCanvas ? nodes : nodes.map((n) => (n.type === "planNode" ? { ...n, data: { ...n.data, onOpen: () => openPanel(n.id) } } : n)),
+    [nodes, openPanel, useCanvas],
+  )
+
+  if (useCanvas) {
+    return (
+      <div className="plan-graph plan-graph--canvas" data-testid="plan-graph" ref={containerRef}>
+        <div className="plan-graph__canvas-toolbar">
+          {/* Story 18.10, spec §5 `1i` — explains the DOM->canvas switch
+              rather than leaving a large plan to just feel like a
+              different, possibly-broken tool. A local element (not
+              src/app/Notice.tsx) deliberately: src/graph never imports
+              from src/app (the composing layer imports FROM graph, not
+              the reverse) — this matches Notice's info-tier visual
+              language in planGraph.css without crossing that layering
+              boundary for one banner. */}
+          <p className="plan-graph__canvas-banner" data-testid="canvas-mode-banner" role="status">
+            <span className="plan-graph__canvas-banner-label">Note:</span> This plan has {allNodes.length.toLocaleString("en-US")} nodes —
+            switched to a faster rendering mode for large plans. Everything still works the same.
+          </p>
+          <button
+            type="button"
+            className="plan-graph__accessible-list-toggle"
+            data-testid="accessible-list-toggle"
+            aria-pressed={showAccessibleList}
+            onClick={() => setShowAccessibleList((v) => !v)}
+          >
+            {showAccessibleList ? "Back to graph view" : "View as accessible list"}
+          </button>
+        </div>
+        {showAccessibleList ? (
+          <AccessiblePlanList
+            root={root}
+            collapsedIds={collapsedIds}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={openPanel}
+            onExpandCollapsedGroup={expandCollapsedGroup}
+            comparisonOverlays={comparisonOverlays}
+          />
+        ) : (
+          <CanvasPlanGraph
+            nodes={nodes}
+            edges={edges}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={openPanel}
+            onExpandCollapsedGroup={expandCollapsedGroup}
+            // Story 22.3 — only wired up in popup mode: the accessible
+            // list has no node-position concept to anchor a popup to at
+            // all (this episode's own edge-case table), and it isn't even
+            // mounted alongside CanvasPlanGraph (the ternary above), so
+            // this only ever matters for the branch that's actually
+            // showing. Passing `undefined` in "panel" mode is deliberate,
+            // not an oversight — it makes CanvasPlanGraph's own reporting
+            // effect a no-op, matching how DOM/SVG mode's NodeDetailPopup
+            // simply isn't mounted at all outside popup mode.
+            onSelectedNodeScreenAnchorChange={nodeDetailVariant === "popup" ? setCanvasPopupAnchor : undefined}
+          />
+        )}
+        {/* Story 22.3 — same "popup" vs "panel" split Story 22.2 gave the
+            DOM/SVG branch above, via the SAME `nodeDetailVariant` prop —
+            with one extra wrinkle "popup" mode alone doesn't have: the
+            accessible list (Story 15.2) has no node-position concept to
+            anchor a popup to at all (this episode's own edge-case table).
+            `nodeDetailVariant === "popup"` is also, from the caller's own
+            perspective, the signal that it's hidden ITS external rendering
+            (PlanReaderPage suppresses the right rail while maximized,
+            trusting a popup to show instead — see Story 22.1) — so when
+            BOTH are true (maximized AND the accessible list is showing),
+            neither the popup NOR the caller's own external panel is
+            reachable unless this component falls back to rendering
+            directly itself, `externalDetailPanel` notwithstanding. This is
+            a real, found-via-testing gap this line specifically closes:
+            without it, opening a node through the accessible list while
+            maximized silently showed nothing at all. */}
+        {nodeDetailVariant === "popup"
+          ? showAccessibleList
+            ? selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />
+            : selectedNode &&
+              canvasPopupAnchor && <CanvasNodeDetailPopup node={selectedNode} context={resolvedContext} onClose={closePanel} anchor={canvasPopupAnchor} />
+          : !externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
+      </div>
+    )
+  }
+
   return (
     <div className="plan-graph" data-testid="plan-graph" ref={containerRef}>
-      <div className={`plan-graph__canvas-toolbar${nodeDetailVariant === "popup" ? " plan-graph__canvas-toolbar--popup-mode" : ""}`}>
-        <button
-          type="button"
-          className="plan-graph__accessible-list-toggle"
-          data-testid="accessible-list-toggle"
-          aria-pressed={showAccessibleList}
-          onClick={() => setShowAccessibleList((v) => !v)}
-        >
-          {showAccessibleList ? "Back to graph view" : "View as accessible list"}
-        </button>
-      </div>
-      {showAccessibleList ? (
-        <AccessiblePlanList
-          root={root}
-          collapsedIds={collapsedIds}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={openPanel}
-          onExpandCollapsedGroup={expandCollapsedGroup}
-          comparisonOverlays={comparisonOverlays}
-        />
-      ) : (
-        <CanvasPlanGraph
-          nodes={nodes}
-          edges={edges}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={openPanel}
-          onExpandCollapsedGroup={expandCollapsedGroup}
-          panToNodeId={pendingPanNodeId}
-          onPanHandled={handlePanHandled}
-          // Story 22.3 — only wired up in popup mode: the accessible list
-          // has no node-position concept to anchor a popup to at all (this
-          // episode's own edge-case table), and it isn't even mounted
-          // alongside CanvasPlanGraph (the ternary above), so this only
-          // ever matters for the branch that's actually showing. Passing
-          // `undefined` in "panel" mode is deliberate, not an oversight —
-          // it makes CanvasPlanGraph's own reporting effect a no-op.
-          onSelectedNodeScreenAnchorChange={nodeDetailVariant === "popup" ? setCanvasPopupAnchor : undefined}
-        />
-      )}
-      {/* Story 22.3 — "popup" vs "panel", with one extra wrinkle "popup"
-          mode alone doesn't have: the accessible list (Story 15.2) has no
-          node-position concept to anchor a popup to at all (this episode's
-          own edge-case table). `nodeDetailVariant === "popup"` is also,
-          from the caller's own perspective, the signal that it's hidden
-          ITS external rendering (PlanReaderPage suppresses the right rail
-          while maximized, trusting a popup to show instead — see Story
-          22.1) — so when BOTH are true (maximized AND the accessible list
-          is showing), neither the popup NOR the caller's own external
-          panel is reachable unless this component falls back to rendering
-          directly itself, `externalDetailPanel` notwithstanding. This is a
-          real, found-via-testing gap this line specifically closes:
-          without it, opening a node through the accessible list while
-          maximized silently showed nothing at all. */}
+      <EdgeArrowheadDefs />
+      <ReactFlow
+        nodes={nodesWithHandlers}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodeClick={handleNodeClick}
+        proOptions={{ hideAttribution: true }}
+        minZoom={MIN_LEGIBLE_ZOOM}
+        maxZoom={2}
+      >
+        <Background />
+        {/* Design review (reference mock) — top-right, matching the mock's
+            zoom controls, not React Flow's own bottom-left default; the
+            mock shows only zoom in/out/fit-view, not the fourth
+            "toggle interactivity" lock button React Flow adds by default. */}
+        <Controls className="plan-graph-controls" position="top-right" showInteractive={false} />
+      </ReactFlow>
+      {/* Episode 22, Story 22.2 — "popup" mode renders its own node-anchored
+          `DetailPanel`, computed by `NodeDetailPopup` below, instead of the
+          existing "report outward via onDetailPanelChange, caller renders
+          it" path: only a component inside THIS `<ReactFlowProvider>` can
+          call `flowToScreenPosition()`/`useViewport()` to get a screen
+          coordinate at all, so the popup can't be assembled purely from
+          outside this component the way the right-rail/overlay panel is.
+          `onDetailPanelChange` (the effect above) still fires either way —
+          PlanReaderPage's own Escape-stacking logic (Story 22.1) still
+          needs to know a panel/popup is open, even though it no longer
+          decides what gets rendered here. */}
       {nodeDetailVariant === "popup"
-        ? showAccessibleList
-          ? selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />
-          : selectedNode &&
-            canvasPopupAnchor && <CanvasNodeDetailPopup node={selectedNode} context={resolvedContext} onClose={closePanel} anchor={canvasPopupAnchor} />
+        ? selectedNode &&
+          selectedGraphNode && <NodeDetailPopup node={selectedNode} graphNode={selectedGraphNode} context={resolvedContext} onClose={closePanel} />
         : !externalDetailPanel && selectedNode && <DetailPanel node={selectedNode} context={resolvedContext} onClose={closePanel} />}
     </div>
   )
 })
 
+/** Episode 22, Story 22.2 — a small component of its own (not inlined into
+ * `PlanGraphInner` above) specifically so `useViewport()` — which
+ * re-renders its OWN component on every pan/zoom tick, the mechanism this
+ * story's own AC relies on for "live-repositioning, no separate tracking
+ * loop" — only re-runs while a popup is actually mounted. Inlining this
+ * into `PlanGraphInner` directly would subscribe the ENTIRE graph (every
+ * node, the whole `ReactFlow` tree) to re-render on every pan/zoom tick
+ * even when no popup is open, a real, avoidable performance cost for
+ * ordinary panning that has nothing to do with this feature. */
+function NodeDetailPopup({
+  node,
+  graphNode,
+  context,
+  onClose,
+}: {
+  node: PlanNode
+  graphNode: PlanGraphNode
+  context: PlanContext
+  onClose: () => void
+}) {
+  const { flowToScreenPosition } = useReactFlow()
+  // Subscribing to the live viewport (not just reading it once) is the
+  // whole mechanism here: React Flow re-renders this component on every
+  // pan/zoom tick, so `flowToScreenPosition` below is re-evaluated against
+  // the CURRENT transform every time — the "confirmed with the user: live-
+  // reposition every frame, not close-on-pan/zoom" behavior falls out of
+  // ordinary React re-rendering, not a bespoke animation loop.
+  const { zoom } = useViewport()
+  const width = graphNode.width ?? 160
+  const height = graphNode.height ?? 56
+  const screenTopLeft = flowToScreenPosition({ x: graphNode.position.x, y: graphNode.position.y })
+  const anchor = { x: screenTopLeft.x, y: screenTopLeft.y, width: width * zoom, height: height * zoom }
+  const position = computePopupPosition(anchor, POPUP_ESTIMATED_SIZE, viewportSize())
+  return <DetailPanel node={node} context={context} onClose={onClose} variant="popup" position={position} />
+}
+
 /** Matches detailPanel.css's `.detail-panel--popup` sizing (`min(360px,
  * ...)`/`min(70vh, 520px)`) — an upper-bound estimate for clamping
  * purposes, not a real DOM measurement (the panel's actual rendered height
- * is content-dependent, capped by that same max-height). */
+ * is content-dependent, capped by that same max-height). Shared by both
+ * `NodeDetailPopup` (DOM/SVG mode, Story 22.2) and `CanvasNodeDetailPopup`
+ * below (canvas mode, Story 22.3) — one popup implementation, one size
+ * estimate, never two independently-drifting copies. */
 const POPUP_ESTIMATED_SIZE = { width: 360, height: 520 }
 
 /** `window.innerWidth`/`innerHeight` is the right viewport for a popup
- * positioned via `position: fixed` — same basis the anchor's own
- * `getBoundingClientRect()`-based screen coordinates already assume. Read
- * fresh on every call (not memoized) since a real browser resize is
+ * positioned via `position: fixed` — same basis `flowToScreenPosition()`'s
+ * own `getBoundingClientRect()`-based screen coordinates already assume.
+ * Read fresh on every call (not memoized) since a real browser resize is
  * exactly the case a stale cached value would get wrong. */
 function viewportSize() {
   return { width: window.innerWidth, height: window.innerHeight }
 }
 
-/** Episode 22, Story 22.3 — canvas mode's node-anchored popup, feeding the
- * SAME `DetailPanel`/`computePopupPosition` a correct position: only
- * `CanvasPlanGraph` owns the live pan/zoom `transform` and the canvas
- * element's own bounding rect needed to compute it (see that component's
- * `onSelectedNodeScreenAnchorChange`). */
+/** Episode 22, Story 22.3 — canvas mode's own node-anchored popup. The SAME
+ * `DetailPanel`/`computePopupPosition` `NodeDetailPopup` above uses for
+ * DOM/SVG mode — this component is entirely about FEEDING it a correct
+ * position in canvas mode, never a second popup implementation. Unlike
+ * `NodeDetailPopup` (which computes its own anchor via React Flow hooks),
+ * the anchor here is simply a prop: only `CanvasPlanGraph` owns the live
+ * pan/zoom `transform` and the canvas element's own bounding rect needed to
+ * compute it (see that component's `onSelectedNodeScreenAnchorChange`). */
 function CanvasNodeDetailPopup({
   node,
   context,
@@ -413,3 +622,45 @@ function CanvasNodeDetailPopup({
   const position = computePopupPosition(anchor, POPUP_ESTIMATED_SIZE, viewportSize())
   return <DetailPanel node={node} context={context} onClose={onClose} variant="popup" position={position} />
 }
+
+/**
+ * Story 18.4, spec §4: "Arrowheads are a fixed 11px regardless of stroke
+ * weight: markerUnits="userSpaceOnUse"... Default strokeWidth scaling makes
+ * a 7px hot edge sprout a ~40px head." React Flow's own built-in
+ * `markerEnd` option uses `markerUnits="strokeWidth"` internally (scales
+ * WITH the edge, exactly the problem spec calls out) — a hand-defined
+ * `<marker>` with `markerUnits="userSpaceOnUse"` is the only way to get a
+ * genuinely fixed size. `marker-end: url(#id)` works across separate `<svg>`
+ * elements in the same document, so this can render once here rather than
+ * once per edge; each edge (buildGraphElements.ts) references one of these
+ * two ids directly as a plain string. `orient="auto"` rotates the triangle
+ * to match each edge's actual direction at its endpoint — no per-edge
+ * rotation math needed even though smoothstep edges curve at different
+ * angles depending on layout.
+ */
+function EdgeArrowheadDefs() {
+  return (
+    <svg width={0} height={0} style={{ position: "absolute" }} aria-hidden="true">
+      <defs>
+        <marker id="pg-arrow-hot" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={11} markerHeight={11} markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" style={{ fill: "var(--color-edge-hot)" }} />
+        </marker>
+        <marker id="pg-arrow-muted" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={11} markerHeight={11} markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" style={{ fill: "var(--color-edge-muted)" }} />
+        </marker>
+      </defs>
+    </svg>
+  )
+}
+
+/** Self-contained: wraps its own ReactFlowProvider so callers don't need to
+ * know React Flow needs one (fitView/useReactFlow require it). Forwards a
+ * ref straight through to `PlanGraphInner` (Story 18.11's `PlanGraphHandle`)
+ * — this wrapper adds no imperative behavior of its own. */
+export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function PlanGraph(props, ref) {
+  return (
+    <ReactFlowProvider>
+      <PlanGraphInner {...props} ref={ref} />
+    </ReactFlowProvider>
+  )
+})

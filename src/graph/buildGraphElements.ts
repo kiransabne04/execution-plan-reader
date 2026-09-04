@@ -1,9 +1,6 @@
-// Episode 6 — pure PlanNode-tree -> graph nodes/edges conversion,
-// deliberately framework-light (plain objects, historically shaped to match
-// @xyflow/react's Node/Edge types — kept as the shared data model's own
-// shape after Episode 26, Story 26.1 removed React Flow as a RENDERING
-// path, since retyping the whole model was out of that story's scope) so
-// this is fully unit-testable without mounting any renderer.
+// Episode 6 — pure PlanNode-tree -> React Flow nodes/edges conversion,
+// deliberately framework-light (plain objects matching @xyflow/react's Node/
+// Edge shape) so this is fully unit-testable without mounting React Flow.
 // See .claude/skills/graph-visualization/SKILL.md.
 //
 // Episode 18, Story 18.4 — layout direction and edge DIRECTION both flip
@@ -17,7 +14,7 @@
 // direction happened to share the same top-to-bottom shape with by
 // coincidence. Handles swap to match: `source` (outgoing, to this node's
 // OWN parent) on Top, `target` (incoming, from this node's children) on
-// Bottom — see canvasDraw.ts's own per-child offset math.
+// Bottom — see PlanNodeCard.tsx.
 
 import type { Edge, Node, SmoothStepPathOptions } from "@xyflow/react"
 import dagre from "@dagrejs/dagre"
@@ -49,6 +46,7 @@ export interface PlanNodeData extends Record<string, unknown> {
   planNode: PlanNode
   width: number
   height: number
+  color: string
   /** Estimate-vs-actual mismatch — reuses the rule engine's own bad-row-estimate
    * finding rather than recomputing a second, possibly-inconsistent threshold. */
   hasMismatch: boolean
@@ -78,9 +76,9 @@ export interface PlanNodeData extends Record<string, unknown> {
    * `AccessiblePlanList.tsx` already had — one implementation, not a
    * third independent reimplementation. */
   severity?: Warning["severity"]
-  /** Story 18.4 — the operator-icon CATEGORY (not a drawable icon itself —
-   * this stays framework-light per the module comment above; canvasDraw.ts
-   * looks the actual glyph up from `operatorIcons.ts`). */
+  /** Story 18.4 — the operator-icon CATEGORY (not the icon component
+   * itself — this stays framework-light per the module comment above;
+   * `PlanNodeCard` looks the component up from `operatorIcons.ts`). */
   iconKey: OperatorIconKey
   /** Story 18.4 — relation or index name, mono/ellipsised on the card.
    * `undefined` for operators with neither (Sort, Aggregate, …) — an
@@ -95,7 +93,7 @@ export interface PlanNodeData extends Record<string, unknown> {
    * computation from the detail panel's `computeContributionPercent`
    * (cumulative, includes children) — see `exclusiveContributionPercent`'s
    * own doc comment in this file for why a cumulative figure doesn't work
-   * for this particular badge. Threshold-gated in canvasDraw.ts
+   * for this particular badge. Threshold-gated in PlanNodeCard.tsx
    * (`CONTRIBUTION_BADGE_THRESHOLD`), not shown for every node
    * unconditionally. `undefined` when `context` wasn't supplied (e.g. a
    * standalone/test render) or the figure isn't computable. */
@@ -336,6 +334,7 @@ export function buildGraphElements(root: PlanNode, options: BuildGraphElementsOp
           planNode: node,
           width,
           height,
+          color: metricScale.colorFor(value),
           hasMismatch: node.warnings.some((w) => w.ruleId === "bad-row-estimate"),
           // `computeMismatchFactor` on its own doesn't know about the
           // "bad" threshold's already-fired-or-not state `hasMismatch`
@@ -438,12 +437,12 @@ const EDGE_MIN_WIDTH = 1.5
  * Story 18.4, spec §4: "two stroke colours only... thickness carries row
  * volume, colour carries hot-path membership." The hot path is the single
  * continuous root-to-leaf trail through whichever child has the highest
- * `metric` value at each branching point — the same basis node SIZE already
- * uses (`pickMetricValue`), so "on the widest-scaled path" and "on the hot
+ * `metric` value at each branching point — the same basis node fill/size
+ * already uses (`pickMetricValue`), so "hot-colored node" and "on the hot
  * path" never disagree. Only ONE path is ever hot: a non-hottest child's
  * entire subtree is muted regardless of internal variation within it —
  * this names the single dominant cost trail, not every locally-expensive
- * node.
+ * node (that's what node fill color is already for).
  */
 function computeHotPathEdgeIds(root: PlanNode, metric: MetricKey): Set<string> {
   const hot = new Set<string>()

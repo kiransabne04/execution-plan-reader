@@ -38,13 +38,8 @@ test("clicking a matched node in one pane opens the counterpart's detail panel i
   await page.getByTestId("compare-paste-submit").click()
   await expect(page.getByTestId("plan-comparison-view")).toBeVisible()
 
-  // Episode 26, Story 26.1 — canvas is the only rendering path now; the
-  // accessible list (Story 15.2) is this test's deterministic way to
-  // select a node in the first pane specifically.
   const panes = page.getByTestId("plan-graph")
-  const firstPane = panes.nth(0)
-  await firstPane.getByTestId("accessible-list-toggle").click()
-  await firstPane.getByTestId("accessible-plan-list-item").first().click()
+  await panes.nth(0).getByTestId("plan-node-card").first().click()
 
   // Both panes now have an open detail panel — the second one opened via
   // the synced-selection path, not a second manual click.

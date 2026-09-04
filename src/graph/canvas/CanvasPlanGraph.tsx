@@ -10,14 +10,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type WheelEvent } from "react"
 import type { PlanGraphEdge, PlanGraphNode } from "../buildGraphElements"
-import { buildNodeTooltip } from "../nodeTooltip"
 import { drawGraph } from "./canvasDraw"
 import { findNodeAtPoint } from "./hitTest"
 import { computeBounds } from "./graphBounds"
 import { resolveCssVar } from "./cssVars"
 import {
   fitTransform,
-  panToTransform,
   screenToWorld,
   worldToScreen,
   zoomAtPoint,
@@ -47,17 +45,6 @@ export interface CanvasPlanGraphProps {
    * about this component's own behavior (existing `panel`-mode callers
    * never pass it). */
   onSelectedNodeScreenAnchorChange?: (anchor: { x: number; y: number; width: number; height: number } | undefined) => void
-  /** Episode 26, Story 26.1 — "jump to this node" (guided walkthrough step
-   * advance, Findings/Issues "jump to node," search-palette result
-   * selection, comparison-view synced pan) now that canvas is the only
-   * rendering path. Mirrors `focusNodeId`/`onFocusHandled`'s own "the
-   * caller told me to do something, and I clear it once handled" shape
-   * (see PlanGraph.tsx) rather than inventing a second convention. Panning
-   * happens at the CURRENT scale (`panToTransform`), never a freshly
-   * computed fit scale — jumping to a node must never also change how
-   * zoomed in the user is. */
-  panToNodeId?: string
-  onPanHandled?: () => void
 }
 
 const DRAG_THRESHOLD_PX = 4
@@ -71,27 +58,11 @@ export function CanvasPlanGraph({
   onSelectNode,
   onExpandCollapsedGroup,
   onSelectedNodeScreenAnchorChange,
-  panToNodeId,
-  onPanHandled,
 }: CanvasPlanGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [transform, setTransform] = useState<ViewportTransform>(IDENTITY_TRANSFORM)
-  // Episode 26, Story 26.1 — hover tooltip (predicate/seek/join condition),
-  // canvas mode's replacement for PlanNodeCard's CSS-only `:hover`/
-  // `:focus-within` reveal, which disappears along with the rest of DOM/SVG
-  // mode. `buildNodeTooltip` is the exact same content function DOM mode
-  // used — this only adds a hit-tested equivalent to hovering a real DOM
-  // element, not a second tooltip-content implementation. Suppressed once
-  // an actual drag (pan) is underway, so panning across nodes doesn't flash
-  // tooltips the user isn't asking for. Declared here (ahead of the draw
-  // effect below) rather than nearer its own pointer-move handler — Story
-  // 26.7 added it to that effect's own dependency array (hover now
-  // repaints the hovered card's border, matching the mockup's own
-  // `:hover`), and a dependency array is evaluated at the point the effect
-  // is declared, so the state it references has to exist by then.
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>(undefined)
 
   // Rule 4 — devicePixelRatio. Read once per render pass rather than
   // cached in state; a DPR change (dragging the window to a different
@@ -140,32 +111,6 @@ export function CanvasPlanGraph({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes.length, size.width, size.height])
 
-  // Episode 26, Story 26.1 — pan-to-node. Runs whenever the caller sets
-  // `panToNodeId`; centers that single node's own bounds at the CURRENT
-  // scale (never a fit-computed one — see this prop's own doc comment),
-  // then immediately tells the caller it's been handled, mirroring
-  // `focusNodeId`'s exact "consume once, then clear" contract in
-  // PlanGraph.tsx. A node id that isn't (or isn't yet) in `nodes` — e.g.
-  // still hidden inside a collapsed group the caller hasn't expanded yet —
-  // is silently skipped rather than throwing; the caller is expected to
-  // expand collapsed groups first (PlanGraph.tsx's `focusNodeId` effect
-  // already does this before ever setting `panToNodeId`).
-  useEffect(() => {
-    if (panToNodeId === undefined) return
-    const node = nodes.find((n) => n.id === panToNodeId)
-    // Not (yet) in `nodes` — still behind a collapsed ancestor the caller
-    // just asked to expand (PlanGraph.tsx's `focusNodeId` effect). That
-    // expansion lands on a LATER `nodes` update, which re-runs this same
-    // effect (it's in the dep array below) — wait for it rather than
-    // consuming `panToNodeId` now and silently never panning at all.
-    if (!node) return
-    if (size.width > 0 && size.height > 0) {
-      const bounds = computeBounds([node])
-      if (bounds) setTransform((prev) => panToTransform(bounds, size, prev.scale))
-    }
-    onPanHandled?.()
-  }, [panToNodeId, nodes, size, onPanHandled])
-
   // Rule 3 — redraw only on change, batched via requestAnimationFrame, not
   // fired synchronously per state update or on a timer/interval. Every
   // input that should visually change the canvas funnels through this one
@@ -198,16 +143,6 @@ export function CanvasPlanGraph({
       // dark-only palette — this app has no light mode to fall back to.
       const textColor = container ? resolveCssVar(container, "--pg-card-text", "#e9e9ed") : "#e9e9ed"
       const selectionColor = container ? resolveCssVar(container, "--pg-canvas-selection", "#b5abfc") : "#b5abfc"
-      // Episode 26, Story 26.7 — flat, neutral node-card chrome matching
-      // the reference mockup: fill from `--pg-card-bg` (already an alias
-      // for `--color-surface`), border from the STRONGER `--color-border-
-      // strong` (not the fainter `--pg-card-border`/`--color-border` used
-      // for other chrome dividers — the mockup's own node border is
-      // visibly stronger than that), hover border from `--color-accent`.
-      const nodeSurfaceColor = container ? resolveCssVar(container, "--pg-card-bg", "#232532") : "#232532"
-      const nodeBorderColor = container ? resolveCssVar(container, "--color-border-strong", "#3f424d") : "#3f424d"
-      const nodeAccentColor = container ? resolveCssVar(container, "--color-accent", "#9184d9") : "#9184d9"
-      const badgeNeutralBg = container ? resolveCssVar(container, "--color-border", "rgba(233, 233, 237, 0.12)") : "rgba(233, 233, 237, 0.12)"
       // Episode 14, Story 14.2 — cheap to resolve unconditionally (same
       // handful of getComputedStyle reads as the two colors above); a plain
       // single-plan render simply never has any node carrying a
@@ -237,17 +172,12 @@ export function CanvasPlanGraph({
         edges,
         transform,
         selectedNodeId,
-        hoveredNodeId,
         edgeColors,
         severityColors,
         cssWidth: size.width,
         cssHeight: size.height,
         textColor,
         selectionColor,
-        nodeSurfaceColor,
-        nodeBorderColor,
-        nodeAccentColor,
-        badgeNeutralBg,
         comparisonColors,
       })
     })
@@ -255,7 +185,7 @@ export function CanvasPlanGraph({
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     }
-  }, [nodes, edges, transform, selectedNodeId, hoveredNodeId, size, dpr, isVisible])
+  }, [nodes, edges, transform, selectedNodeId, size, dpr, isVisible])
 
   // Episode 22, Story 22.3 — reports the selected node's live on-screen
   // anchor outward (see this prop's own doc comment). Deliberately its own
@@ -330,28 +260,16 @@ export function CanvasPlanGraph({
   const handlePointerMove = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {
       const drag = dragState.current
-      if (drag && drag.pointerId === event.pointerId) {
-        const point = getCanvasRelativePoint(event.clientX, event.clientY)
-        const dx = point.x - drag.startScreen.x
-        const dy = point.y - drag.startScreen.y
-        if (!drag.dragged && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) {
-          // still within the click-vs-drag threshold — fall through to the
-          // hover hit-test below, same as a plain hover move.
-        } else {
-          drag.dragged = true
-          setTransform({ ...drag.startTransform, x: drag.startTransform.x + dx, y: drag.startTransform.y + dy })
-          setHoveredNodeId(undefined)
-          return
-        }
-      }
-      const worldPoint = screenToWorld(getCanvasRelativePoint(event.clientX, event.clientY), transform)
-      const hit = findNodeAtPoint(nodes, worldPoint)
-      setHoveredNodeId(hit && hit.data.kind === "plan" ? hit.id : undefined)
+      if (!drag || drag.pointerId !== event.pointerId) return
+      const point = getCanvasRelativePoint(event.clientX, event.clientY)
+      const dx = point.x - drag.startScreen.x
+      const dy = point.y - drag.startScreen.y
+      if (!drag.dragged && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return
+      drag.dragged = true
+      setTransform({ ...drag.startTransform, x: drag.startTransform.x + dx, y: drag.startTransform.y + dy })
     },
-    [nodes, transform, getCanvasRelativePoint],
+    [getCanvasRelativePoint],
   )
-
-  const handlePointerLeave = useCallback(() => setHoveredNodeId(undefined), [])
 
   const handlePointerUp = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {
@@ -383,20 +301,6 @@ export function CanvasPlanGraph({
     [getCanvasRelativePoint],
   )
 
-  const hoveredNode = hoveredNodeId !== undefined ? nodes.find((n) => n.id === hoveredNodeId) : undefined
-  const hoveredTooltip =
-    hoveredNode && hoveredNode.data.kind === "plan" ? buildNodeTooltip(hoveredNode.data.planNode) : undefined
-  const hoveredAnchor = hoveredNode
-    ? (() => {
-        const rect = canvasRef.current?.getBoundingClientRect()
-        const local = worldToScreen(hoveredNode.position, transform)
-        const width = (hoveredNode.width ?? 160) * transform.scale
-        const x = local.x + (rect?.left ?? 0) + width / 2
-        const y = local.y + (rect?.top ?? 0)
-        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined
-      })()
-    : undefined
-
   return (
     <div ref={containerRef} className="canvas-plan-graph" data-testid="canvas-plan-graph">
       {/* aria-hidden: this canvas is a visual-only surface for mouse/
@@ -413,19 +317,8 @@ export function CanvasPlanGraph({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
         onWheel={handleWheel}
       />
-      {hoveredTooltip && hoveredAnchor && (
-        <div
-          className="canvas-plan-graph__tooltip"
-          data-testid="canvas-plan-graph-tooltip"
-          role="tooltip"
-          style={{ left: `${hoveredAnchor.x}px`, top: `${hoveredAnchor.y}px` }}
-        >
-          {hoveredTooltip}
-        </div>
-      )}
     </div>
   )
 }

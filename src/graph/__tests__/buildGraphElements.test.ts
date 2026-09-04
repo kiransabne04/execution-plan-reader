@@ -38,6 +38,7 @@ describe("buildGraphElements", () => {
     const [node] = nodes
     expect(node.width).toBeGreaterThan(0)
     expect(node.height).toBeGreaterThan(0)
+    expect(node.data.color).toMatch(/^hsl\(/)
   })
 
   it("sets the mismatch flag only when the node carries a bad-row-estimate warning", () => {

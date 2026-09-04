@@ -151,12 +151,8 @@ test("Story 17.1/17.2: zero outbound requests across the full local-persistence 
   await page.getByTestId("restore-session-button").click()
   await expect(page.getByTestId("plan-result")).toBeVisible()
 
-  // Story 6.3 — Recent Plans/PasteBox now live inside the icon rail's
-  // on-demand panels, not a permanent left rail.
-  await page.getByTestId("icon-rail-recent-plans").click()
+  await page.getByTestId("recent-plans-toggle").click()
   await expect(page.getByTestId("recent-plan-item").first()).toBeVisible()
-  await page.getByTestId("icon-rail-recent-plans").click() // close before opening New Plan
-  await page.getByTestId("icon-rail-new-plan").click()
   await page.getByTestId("privacy-details-toggle").click()
   await page.getByTestId("clear-saved-data-button").click()
 
@@ -183,12 +179,7 @@ test("Story 14.2: zero outbound requests while comparing two plans, including a 
   await page.getByTestId("compare-paste-submit").click()
   await expect(page.getByTestId("plan-comparison-view")).toBeVisible()
 
-  // Episode 26, Story 26.1 — canvas is the only rendering path now; the
-  // accessible list (Story 15.2) is this test's deterministic way to
-  // select a node in the first pane specifically.
-  const firstPane = page.getByTestId("plan-graph").first()
-  await firstPane.getByTestId("accessible-list-toggle").click()
-  await firstPane.getByTestId("accessible-plan-list-item").first().click()
+  await page.getByTestId("plan-graph").first().getByTestId("plan-node-card").first().click()
   await page.waitForTimeout(500)
 
   expect(requests).toEqual([])
@@ -213,12 +204,9 @@ test("Story 18.5: zero outbound requests when picking a file or pasting a second
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await page.waitForTimeout(300)
 
-  // Story 6.3 — the New Plan panel auto-collapses to the icon rail after
-  // analyze; reopen it. The paste box ALSO collapses to a "pasted · N
-  // lines" summary once analyzed (design review, unchanged by this
-  // story) — expand that back to a real textarea before pasting a second
-  // plan in.
-  await page.getByTestId("icon-rail-new-plan").click()
+  // The paste box collapses to a "pasted · N lines" summary once analyzed
+  // (design review) — expand it back to a real textarea before pasting a
+  // second plan in.
   await page.getByTestId("paste-box-expand").click()
   await page.getByTestId("paste-textarea").fill(loadFixture("snowflake", "spill-to-remote-disk.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()

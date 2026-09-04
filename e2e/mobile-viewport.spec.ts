@@ -6,7 +6,7 @@
 // usably at a real phone width, and nothing forces horizontal page scroll.
 
 import { test, expect } from "@playwright/test"
-import { loadFixture, openPlanNode } from "./testUtils.js"
+import { loadFixture } from "./testUtils.js"
 
 // A plain viewport override (not the full `devices["iPhone 13"]` preset,
 // which also forces the WebKit engine) — this project only exercises
@@ -29,11 +29,10 @@ test("the graph renders visibly and without horizontal page overflow at a mobile
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
 
-  // Story 6.3 — the graph is always visible now (the retired narrow-shell
-  // tab switch used to gate it behind a "Graph" tab); Findings leads on
-  // true mobile (spec §5 `1k`) through the findings drawer defaulting to
-  // open instead — see mobile-breakpoints.spec.ts.
-  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
+  // Episode 18, Story 18.12: Findings leads on true mobile (spec §5 `1k`)
+  // — the result screen opens on the Findings tab, not the graph.
+  await page.getByTestId("shell-tab-graph").click()
+  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
   expect(hasHorizontalOverflow).toBe(false)
@@ -43,8 +42,10 @@ test("a node's detail panel is still usable (visible, closable) at a mobile view
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: /analyze plan/i }).click()
-  // Story 6.3 — the graph is always visible now, no tab switch needed.
-  await openPlanNode(page)
+  // Episode 18, Story 18.12: Findings leads on true mobile — switch to the
+  // Graph tab to reach a node card, same as a real user would.
+  await page.getByTestId("shell-tab-graph").click()
+  await page.getByTestId("plan-node-card").first().click()
 
   await expect(page.getByTestId("detail-panel")).toBeVisible()
   await page.getByRole("button", { name: "Close details" }).click()

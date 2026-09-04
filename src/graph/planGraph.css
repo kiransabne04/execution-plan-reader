@@ -3,58 +3,56 @@
    aliases declared once in src/styles/tokens.css. Dark-only: no
    `prefers-color-scheme` branch. Matched/unchanged comparison state
    intentionally has no token of its own here — it keeps the card's
-   normal, neutral styling, same as before this consolidation.
-
-   Episode 26, Story 26.1 — canvas is now the only rendering path
-   (CANVAS_NODE_COUNT_THRESHOLD/`useCanvas` and the DOM/SVG <ReactFlow>
-   tree are gone), so this container's own styling applies
-   unconditionally now; there's no longer a separate DOM/SVG-mode layout
-   to distinguish it from. `position: relative` is the positioning context
-   the accessible-list toggle below anchors against. */
+   normal, neutral styling, same as before this consolidation. */
 .plan-graph {
-  position: relative;
   width: 100%;
   height: 100%;
   min-height: 320px;
 }
 
-/* A small floating corner control (not an in-flow header bar, which would
-   shrink the canvas's own available height on every plan now that this
-   isn't a rare large-plan-only affordance). Live-verified (chrome dev
-   tools, real render) against every other absolutely-positioned control
-   PlanReaderPage.tsx layers over this component's own box:
-   `.plan-shell__graph-toolbar` (search trigger + maximize toggle) always
-   occupies top:12/left:12 at z-index 6 — this stacks directly below it,
-   same left edge, same reasoning `.plan-shell__maximized-toolbar` already
-   uses one level up. The right edge is where an un-pinned, non-maximized
-   DetailPanel overlay docks full-height (detailPanel.css, z-index 20), so
-   staying left keeps this reachable regardless of panel state. */
-.plan-graph__canvas-toolbar {
-  position: absolute;
-  top: 56px;
-  left: 12px;
-  z-index: 6;
+/* Episode 15 — canvas mode's container: a fixed-height toolbar row (the
+   accessible-list toggle, always present, never buried) above a flexible
+   content area so CanvasPlanGraph/AccessiblePlanList can measure a real
+   height via getBoundingClientRect rather than a static min-height. */
+.plan-graph--canvas {
+  display: flex;
+  flex-direction: column;
 }
 
-/* Story 22.1/22.3 — while maximized, PlanReaderPage.tsx's OWN maximized-
-   only toolbar row (statement select, Beginner/Expert, Walk-through,
-   Findings) additionally occupies top:56/left:12, and — with Findings
-   toggled open — the whole left edge down to the bottom too
-   (`.plan-shell__maximized-findings`). `nodeDetailVariant="popup"` is,
-   from this component's own perspective, exactly the signal that means
-   "maximized" (see this prop's own doc comment) — reusing it here rather
-   than needing a second, redundant "am I maximized" prop just for this.
-   The right edge is safe in this mode specifically: the maximized
-   DetailPanel is `variant="popup"`, a small popup anchored next to
-   whichever node is selected, never a persistent right-docked strip. */
-.plan-graph__canvas-toolbar--popup-mode {
-  left: auto;
-  right: 12px;
-  top: 12px;
+.plan-graph__canvas-toolbar {
+  flex: none;
+  padding: 8px;
+  border-bottom: 1px solid var(--pg-card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* Story 18.10 — matches src/app/Notice.tsx's info-tier visual language
+   (blurple left-rule, bold label, never color alone) without importing
+   that component — see this banner's own JSX comment for why. */
+.plan-graph__canvas-banner {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--pg-card-bg));
+  color: var(--pg-card-text);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.plan-graph__canvas-banner-label {
+  flex: none;
+  font-weight: 700;
 }
 
 .plan-graph__accessible-list-toggle {
-  background: var(--pg-card-bg);
+  background: transparent;
   border: 1px solid var(--pg-card-border);
   border-radius: 6px;
   color: var(--pg-card-text);
@@ -75,8 +73,281 @@
   }
 }
 
-.plan-graph > .canvas-plan-graph,
-.plan-graph > .accessible-plan-list {
+.plan-graph--canvas > .canvas-plan-graph,
+.plan-graph--canvas > .accessible-plan-list {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Story 18.4 — React Flow's default Handle styling is a visible round dot,
+   meant for an interactive flow-BUILDER (drag a new connection from one).
+   This app never lets a user draw connections; the Handles here exist
+   purely so React Flow knows where each edge should anchor (spec §4's
+   per-input offsets on the bottom edge). Left visible, they'd read as
+   decoration at best and a false interactive affordance at worst —
+   especially now that a node can have several target handles spread
+   across its bottom edge at once. Hidden, not removed: they still work
+   for edge anchoring and hit-testing, just render nothing themselves. */
+.plan-graph .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.plan-node-card-wrapper {
+  position: relative;
   width: 100%;
   height: 100%;
+}
+
+.plan-node-card {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  border: 2px solid var(--pg-card-border);
+  background: var(--pg-card-bg);
+  color: var(--pg-card-text);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 10px;
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+/* Mismatch is a distinct border treatment, never color alone (colorblind
+   accessibility requirement) — a thicker dashed border plus a text badge. */
+.plan-node-card--mismatch {
+  border-style: dashed;
+  border-width: 3px;
+  border-color: var(--pg-mismatch-border);
+}
+
+/* Episode 14, Story 14.2 — three visually different comparison states, a
+   solid (not dashed) border so they read distinctly from the mismatch
+   encoding above even on a node that happens to carry both. Declared after
+   .plan-node-card--mismatch so a node with both classes shows the
+   comparison-view treatment — the more contextually relevant one when a
+   comparison view is actually open. */
+.plan-node-card--comparison-changed {
+  border-style: solid;
+  border-width: 3px;
+  border-color: var(--pg-comparison-changed);
+}
+
+.plan-node-card--comparison-added {
+  border-style: solid;
+  border-width: 3px;
+  border-color: var(--pg-comparison-added);
+}
+
+.plan-node-card--comparison-removed {
+  border-style: solid;
+  border-width: 3px;
+  border-color: var(--pg-comparison-removed);
+}
+
+/* Story 18.4, spec §3: "Severity ring | Warning.severity | 2px amber / 3px
+   red box-shadow + faint glow." A box-shadow, not a border — layers
+   outside the card's existing border (mismatch/comparison) instead of
+   fighting it for the same property, so a node carrying more than one
+   signal at once still shows all of them. Always paired with the severity
+   badge below (never colour alone). */
+.plan-node-card--severity-warning {
+  box-shadow:
+    0 0 0 2px var(--color-warning),
+    0 0 10px 2px color-mix(in srgb, var(--color-warning) 50%, transparent);
+}
+
+.plan-node-card--severity-critical {
+  box-shadow:
+    0 0 0 3px var(--color-critical),
+    0 0 12px 2px color-mix(in srgb, var(--color-critical) 50%, transparent);
+}
+
+.plan-node-card__comparison-delta {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-node-card__badge--comparison-changed {
+  background: var(--pg-comparison-changed);
+  color: var(--pg-badge-text);
+}
+
+.plan-node-card__badge--comparison-addedInB {
+  background: var(--pg-comparison-added);
+  color: var(--pg-badge-text);
+}
+
+.plan-node-card__badge--comparison-removedFromB {
+  background: var(--pg-comparison-removed);
+  color: var(--pg-badge-text);
+}
+
+.plan-node-card__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-weight: 600;
+}
+
+/* The icon+title group — everything `.plan-node-card__label` itself used
+   to be before the contribution figure (below) needed a place to sit at
+   the row's far end. */
+.plan-node-card__label-main {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.plan-node-card__label-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Design review — the top-right "N%" figure (see PlanNodeCard.tsx's own
+   `CONTRIBUTION_BADGE_THRESHOLD` comment). Plain muted text, not a pill
+   badge — it's a measurement, not a finding, so it doesn't compete
+   visually with the badges row below. */
+.plan-node-card__contribution {
+  flex: none;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--pg-card-text-muted);
+}
+
+/* Story 18.4, spec §3's operator-icon table. Sized against the label's own
+   12px text rather than a fixed px value, so it scales the same way the
+   card's other type does if that base size ever changes. */
+.plan-node-card__icon {
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+  color: var(--pg-card-text-muted);
+}
+
+/* Story 18.4 — relation/index name, mono per spec §1's type table
+   ("mono... for identifiers and plan text"), ellipsised rather than
+   wrapped (this card is already tight on vertical space). */
+.plan-node-card__subtitle {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--pg-card-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-node-card__meta {
+  color: var(--pg-card-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-node-card__badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.plan-node-card__badge {
+  display: inline-block;
+  border-radius: 999px;
+  background: var(--pg-badge-bg);
+  color: var(--pg-badge-text);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* Hover tooltip (graph-visualization skill: a separate, lightweight
+   component from the click detail panel) — CSS-only reveal, no JS state,
+   so it costs nothing extra per card at any plan size. Hidden via opacity/
+   visibility (not display:none) so it stays in the accessibility tree and
+   can be reached by :focus-within for keyboard users, not mouse-only. */
+.plan-node-card__tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  z-index: 5;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--pg-card-bg);
+  color: var(--pg-card-text);
+  border: 1px solid var(--pg-card-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+
+.plan-node-card-wrapper:hover .plan-node-card__tooltip,
+.plan-node-card-wrapper:focus-within .plan-node-card__tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.collapsed-group-node {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  border: 2px dashed var(--pg-collapsed-border);
+  background: var(--pg-collapsed-bg);
+  color: var(--pg-card-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: center;
+  padding: 4px;
+}
+
+/* Design review (reference mock) — plain, borderless icon buttons stacked
+   top-right, replacing React Flow's own boxed/bordered default control
+   panel (bottom-left). Only the layout chrome is overridden here; the
+   buttons underneath are still React Flow's real zoom-in/zoom-out/fit-view
+   controls, not a re-implementation. */
+.plan-graph-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: none;
+  background: transparent;
+  border: none;
+}
+
+.plan-graph-controls button.react-flow__controls-button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  fill: var(--pg-card-text-muted);
+}
+
+.plan-graph-controls button.react-flow__controls-button:hover {
+  background: color-mix(in srgb, var(--pg-card-text) 10%, transparent);
+  fill: var(--pg-card-text);
 }

@@ -13,7 +13,7 @@ Full requirements: `docs/technical-spec.md` §3 and §3.1, `docs/prd.md` §6a (I
 
 ## Visual encoding (must match exactly — these are product decisions, not styling preferences)
 
-- Node size scales with the active metric (cost, actual time, or rows). **Superseded, Episode 26 Story 26.7**: node color no longer scales with the metric — a mockup-driven restyle pass replaced the per-node heatmap fill/border with flat, neutral node cards (matching the reference mockup pixel-for-pixel), confirmed explicitly with the user. Severity and estimate-vs-actual mismatch are still surfaced via border shape/ring and badge text, never color alone — that part of "never color alone" is unchanged. See `src/graph/encoding.ts`'s own Story 26.7 comment.
+- Node size and color both scale with the active metric (cost, actual time, or rows — see legend toggle below), heatmap cool→warm.
 - Edge thickness scales with row count flowing between operators.
 - Estimate-vs-actual mismatch is shown via a **distinct border/badge, never color alone** — this must stay colorblind-accessible. Verify with a colorblindness simulator as part of any change touching this encoding.
 - Loop count shown as a small multiplier badge on nodes with `loops > 1`.

@@ -8,7 +8,7 @@
 // narrow viewport is still a modern desktop CPU.
 
 import { test, expect } from "@playwright/test"
-import { loadFixture, openPlanNode } from "./testUtils.js"
+import { loadFixture } from "./testUtils.js"
 
 // 4x is the commonly used "mid-tier mobile" throttle factor (roughly what
 // Lighthouse's mobile preset applies) — deliberately modest, not a
@@ -27,15 +27,17 @@ test("the core paste -> analyze -> open detail panel flow stays usable on a thro
 
   const start = Date.now()
   await page.getByRole("button", { name: /analyze plan/i }).click()
-  // Story 6.3 — the graph is always visible now (the retired narrow-shell
-  // tab switch used to require an explicit tab click here).
-  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
+  // Episode 18, Story 18.12: Findings leads on true mobile (spec §5 `1k`)
+  // — the result screen opens on the Findings tab, not the graph, so the
+  // graph has to be switched to explicitly here, same as a real user would.
+  await page.getByTestId("shell-tab-graph").click()
+  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
   const analyzeElapsed = Date.now() - start
   // Generous — this is a throttled CPU on a small, real fixture, not a
   // tight budget; exists to catch a genuine "the page hangs" regression.
   expect(analyzeElapsed).toBeLessThan(5000)
 
-  await openPlanNode(page)
+  await page.getByTestId("plan-node-card").first().click()
   await expect(page.getByTestId("detail-panel")).toBeVisible()
 
   await context.close()

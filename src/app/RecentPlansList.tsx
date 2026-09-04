@@ -11,37 +11,26 @@ export interface RecentPlansListProps {
   onSelect: (text: string) => void
   onDelete: (id: string) => void
   onClearAll: () => void
-  /** Story 6.3 — when this list renders inside the icon rail's own
-   * "Recent plans" overlay panel, that panel's icon click is already the
-   * one and only expand/collapse gesture needed; this component's own
-   * toggle button would just be a redundant second collapse layer inside
-   * an already-opened panel. Omitted (default false): every pre-existing
-   * caller/test keeps today's own toggle-then-expand behavior unchanged. */
-  hideOwnToggle?: boolean
 }
 
-export function RecentPlansList({ plans, onSelect, onDelete, onClearAll, hideOwnToggle = false }: RecentPlansListProps) {
+export function RecentPlansList({ plans, onSelect, onDelete, onClearAll }: RecentPlansListProps) {
   const [expanded, setExpanded] = useState(false)
 
   if (plans.length === 0) return null
 
-  const isOpen = hideOwnToggle || expanded
-
   return (
     <section className="recent-plans-list" data-testid="recent-plans-list">
-      {!hideOwnToggle && (
-        <button
-          type="button"
-          className="recent-plans-list__toggle"
-          aria-expanded={expanded}
-          data-testid="recent-plans-toggle"
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? "Hide recent plans" : `Recent plans (${plans.length})`}
-        </button>
-      )}
+      <button
+        type="button"
+        className="recent-plans-list__toggle"
+        aria-expanded={expanded}
+        data-testid="recent-plans-toggle"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        {expanded ? "Hide recent plans" : `Recent plans (${plans.length})`}
+      </button>
 
-      {isOpen && (
+      {expanded && (
         <div className="recent-plans-list__body">
           <ul className="recent-plans-list__items">
             {plans.map((plan) => (

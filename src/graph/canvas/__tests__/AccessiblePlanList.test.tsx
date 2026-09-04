@@ -29,24 +29,6 @@ describe("AccessiblePlanList", () => {
     expect(onSelectNode).toHaveBeenCalledWith("root")
   })
 
-  // Episode 26, Story 26.1 — this list is now the universal interactive
-  // path, so it needs the same explicit-focus-on-click PlanNodeCard.tsx
-  // (now deleted) used to do: a mouse click doesn't reliably focus a
-  // button in every browser, and PlanGraph.tsx's own focus-restore-on-
-  // panel-close relies on `document.activeElement` having actually been
-  // this row at click time.
-  it("focuses the clicked row itself, with preventScroll — a bare click shouldn't be left to ambient browser focus behavior", () => {
-    const root = makeNode({ id: "root" })
-    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus")
-    render(<AccessiblePlanList root={root} collapsedIds={new Set()} onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
-
-    const row = screen.getByTestId("accessible-plan-list-item")
-    fireEvent.click(row)
-    expect(document.activeElement).toBe(row)
-    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true })
-    focusSpy.mockRestore()
-  })
-
   it("marks the selected node's row with aria-current", () => {
     const child = makeNode({ id: "child" })
     const root = makeNode({ id: "root", children: [child] })
