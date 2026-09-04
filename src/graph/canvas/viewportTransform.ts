@@ -60,6 +60,25 @@ export function zoomAtPoint(
   }
 }
 
+/** The shared centering math both `fitTransform` and `centerAt` below build
+ * on: given a chosen `scale`, the pan offset that puts `bounds`'s own
+ * center at the viewport's center. Pulled out on its own (Episode 26, Story
+ * 26.1) so pan-to-node can reuse the EXACT same formula at a caller-supplied
+ * fixed scale, rather than fitTransform's own freshly-computed fit scale. */
+function centerAt(
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  viewport: { width: number; height: number },
+  scale: number,
+): ViewportTransform {
+  const boundsCenterX = (bounds.minX + bounds.maxX) / 2
+  const boundsCenterY = (bounds.minY + bounds.maxY) / 2
+  return {
+    scale,
+    x: viewport.width / 2 - boundsCenterX * scale,
+    y: viewport.height / 2 - boundsCenterY * scale,
+  }
+}
+
 /** Computes a transform that fits `bounds` (world-space) inside a
  * `viewport` (CSS-pixel width/height) with the given padding fraction on
  * each side, capped at `maxScale` — mirrors the DOM/SVG path's fitView,
@@ -78,12 +97,21 @@ export function fitTransform(
   const availableHeight = viewport.height * (1 - padding * 2)
   const scale = clampScale(Math.min(maxScale, availableWidth / boundsWidth, availableHeight / boundsHeight))
 
-  const boundsCenterX = (bounds.minX + bounds.maxX) / 2
-  const boundsCenterY = (bounds.minY + bounds.maxY) / 2
+  return centerAt(bounds, viewport, scale)
+}
 
-  return {
-    scale,
-    x: viewport.width / 2 - boundsCenterX * scale,
-    y: viewport.height / 2 - boundsCenterY * scale,
-  }
+/** Episode 26, Story 26.1 — pans to center `bounds` in `viewport` at a FIXED
+ * scale (the caller's current zoom level), never a freshly fit-computed one.
+ * This is what every "jump to this node" caller (guided walkthrough, the
+ * Findings/Problems list, the search palette, comparison-view synced
+ * selection) needs: recentering on a node must never also silently change
+ * how zoomed in the user currently is. Reuses `centerAt`'s exact centering
+ * formula — the only thing pan-to-node does differently from `fitTransform`
+ * is which scale it centers at. */
+export function panToTransform(
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  viewport: { width: number; height: number },
+  currentScale: number,
+): ViewportTransform {
+  return centerAt(bounds, viewport, clampScale(currentScale))
 }

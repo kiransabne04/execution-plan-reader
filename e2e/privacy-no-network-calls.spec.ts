@@ -183,7 +183,12 @@ test("Story 14.2: zero outbound requests while comparing two plans, including a 
   await page.getByTestId("compare-paste-submit").click()
   await expect(page.getByTestId("plan-comparison-view")).toBeVisible()
 
-  await page.getByTestId("plan-graph").first().getByTestId("plan-node-card").first().click()
+  // Episode 26, Story 26.1 — canvas is the only rendering path now; the
+  // accessible list (Story 15.2) is this test's deterministic way to
+  // select a node in the first pane specifically.
+  const firstPane = page.getByTestId("plan-graph").first()
+  await firstPane.getByTestId("accessible-list-toggle").click()
+  await firstPane.getByTestId("accessible-plan-list-item").first().click()
   await page.waitForTimeout(500)
 
   expect(requests).toEqual([])

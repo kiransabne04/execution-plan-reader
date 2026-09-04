@@ -16,7 +16,7 @@
 // hidden entirely, an improvement over the old either/or tab switch.
 
 import { test, expect } from "@playwright/test"
-import { loadFixture } from "./testUtils.js"
+import { loadFixture, openPlanNode } from "./testUtils.js"
 
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 
@@ -31,7 +31,7 @@ test("the findings drawer opens by default on true mobile — Findings leads, bu
   await expect(page.getByTestId("findings-drawer-body")).toBeVisible()
   // Unlike the old either/or tab switch, the graph is never hidden —
   // Findings "leads" by defaulting open, not by hiding the canvas.
-  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 })
 
 test("a fresh analysis re-defaults the drawer to open even after the user collapsed it on the previous plan", async ({ page }) => {
@@ -54,7 +54,7 @@ test("the detail panel is a real bottom sheet on true mobile — anchored to the
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-  await page.getByTestId("plan-node-card").first().click()
+  await openPlanNode(page)
 
   const panel = page.getByTestId("detail-panel")
   await expect(panel).toBeVisible()
@@ -82,7 +82,7 @@ test("the icon rail, findings drawer summary, and the sheet's close button meet 
   expect(summaryBox).not.toBeNull()
   expect(summaryBox!.height).toBeGreaterThanOrEqual(44)
 
-  await page.getByTestId("plan-node-card").first().click()
+  await openPlanNode(page)
   const closeButton = page.getByRole("button", { name: "Close details" })
   const closeBox = await closeButton.boundingBox()
   expect(closeBox).not.toBeNull()
@@ -128,7 +128,7 @@ test("state survives an orientation change — the open detail panel is preserve
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-  await page.getByTestId("plan-node-card").first().click()
+  await openPlanNode(page)
   await expect(page.getByTestId("detail-panel")).toBeVisible()
 
   await page.setViewportSize({ width: 844, height: 390 }) // portrait -> landscape

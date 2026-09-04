@@ -6,7 +6,7 @@
 // drawer, the detail overlay — all reacting to fast clicks).
 
 import { test, expect } from "@playwright/test"
-import { loadFixture } from "./testUtils.js"
+import { loadFixture, openPlanNode } from "./testUtils.js"
 
 const ANALYZE_BUTTON = /analyze plan/i
 
@@ -48,15 +48,19 @@ test.describe("rapid toggling", () => {
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-    const card = page.getByTestId("plan-node-card").first()
+    // Episode 26, Story 26.1 — canvas is the only rendering path now; the
+    // accessible list (Story 15.2) is this test's deterministic,
+    // repeatedly-clickable stand-in for "the same node."
+    await page.getByTestId("accessible-list-toggle").click()
+    const row = page.getByTestId("accessible-plan-list-item").first()
     // Re-clicking the same, already-selected node toggles its panel
     // closed (existing PlanGraph behavior, unchanged by this story) —
     // `force: true` bypasses the panel's own scrim, which would otherwise
-    // block a second click on the node underneath it. The point of this
+    // block a second click on the row underneath it. The point of this
     // test is never seeing MORE than one panel accumulate, regardless of
     // which open/closed state a given click count lands on.
     for (let i = 0; i < 5; i++) {
-      await card.click({ force: true })
+      await row.click({ force: true })
       const count = await page.getByTestId("detail-panel").count()
       expect(count).toBeLessThanOrEqual(1)
     }
@@ -68,8 +72,9 @@ test.describe("rapid toggling", () => {
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-    const cards = page.getByTestId("plan-node-card")
-    const count = await cards.count()
+    await page.getByTestId("accessible-list-toggle").click()
+    const rows = page.getByTestId("accessible-plan-list-item")
+    const count = await rows.count()
     expect(count).toBeGreaterThan(1)
 
     // By design, an open un-pinned panel's scrim covers the whole canvas
@@ -79,7 +84,7 @@ test.describe("rapid toggling", () => {
     // rapid close→reopen→close cycles across different nodes never leave
     // more than one panel or scrim behind.
     for (let i = 0; i < count; i++) {
-      await cards.nth(i).click()
+      await rows.nth(i).click()
       await expect(page.getByTestId("detail-panel")).toHaveCount(1)
       await page.getByTestId("plan-shell-detail-scrim").click({ position: { x: 5, y: 5 } })
       await expect(page.getByTestId("detail-panel")).toHaveCount(0)
@@ -108,7 +113,7 @@ test.describe("rapid toggling", () => {
     await page.goto("/")
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
 
     for (let i = 0; i < 3; i++) {
       await page.getByTestId("detail-panel-pin").click()

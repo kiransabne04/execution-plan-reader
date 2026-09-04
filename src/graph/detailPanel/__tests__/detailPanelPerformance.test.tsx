@@ -71,13 +71,19 @@ describe("DetailPanel — rapid node switching (Story 16.1 edge case)", () => {
     )
     const root = makeNode({ id: "root", children: nodes })
 
+    // Episode 26, Story 26.1 — canvas is the only rendering path now; the
+    // accessible list (Story 15.2, the universal keyboard/screen-reader
+    // path) is this test's deterministic, testid-based way to click
+    // through every node, exercising the exact same `openPanel` state
+    // wiring a canvas click would.
     render(<PlanGraph root={root} />)
-    const cards = screen.getAllByTestId("plan-node-card")
-    expect(cards.length).toBeGreaterThanOrEqual(40)
+    fireEvent.click(screen.getByTestId("accessible-list-toggle"))
+    const rows = screen.getAllByTestId("accessible-plan-list-item")
+    expect(rows.length).toBeGreaterThanOrEqual(40)
 
     const start = performance.now()
-    for (const card of cards) {
-      fireEvent.click(card)
+    for (const row of rows) {
+      fireEvent.click(row)
     }
     const elapsed = performance.now() - start
 

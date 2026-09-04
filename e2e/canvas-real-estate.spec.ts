@@ -9,7 +9,7 @@
 // catch a grid-placement bug that silently shrinks the canvas to nothing.
 
 import { test, expect } from "@playwright/test"
-import { loadFixture } from "./testUtils.js"
+import { loadFixture, openPlanNode } from "./testUtils.js"
 
 const ANALYZE_BUTTON = /analyze plan/i
 const VIEWPORT = { width: 1500, height: 900 }
@@ -20,7 +20,7 @@ test.describe("canvas real estate", () => {
     await page.goto("/")
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-    await page.getByTestId("plan-node-card").first().waitFor()
+    await page.getByTestId("canvas-plan-graph-surface").waitFor()
 
     const canvasBox = await page.getByTestId("plan-shell-canvas").boundingBox()
     expect(canvasBox).not.toBeNull()
@@ -45,7 +45,7 @@ test.describe("canvas real estate", () => {
 
     const before = await page.getByTestId("plan-shell-canvas").boundingBox()
 
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     await expect(page.getByTestId("detail-panel")).toBeVisible()
 
     const during = await page.getByTestId("plan-shell-canvas").boundingBox()
@@ -60,7 +60,7 @@ test.describe("canvas real estate", () => {
 
     const before = await page.getByTestId("plan-shell-canvas").boundingBox()
 
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     await expect(page.getByTestId("detail-panel")).toBeVisible()
 
     await page.getByRole("button", { name: "Close details" }).click()
@@ -77,7 +77,7 @@ test.describe("canvas real estate", () => {
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
     const before = await page.getByTestId("plan-shell-canvas").boundingBox()
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     await page.getByTestId("plan-shell-detail-scrim").click({ position: { x: 5, y: 5 } })
     await expect(page.getByTestId("detail-panel")).toBeHidden()
 

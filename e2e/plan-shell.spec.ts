@@ -6,7 +6,7 @@
 // approach calls for.
 
 import { test, expect } from "@playwright/test"
-import { loadFixture } from "./testUtils.js"
+import { loadFixture, openPlanNode } from "./testUtils.js"
 
 const ANALYZE_BUTTON = /analyze plan/i
 
@@ -33,7 +33,7 @@ test.describe("app shell breakpoints (spec §2)", () => {
     const shellWidth = await page.locator(".plan-shell").evaluate((el) => el.getBoundingClientRect().width)
     expect(shellWidth).toBeGreaterThan(1180) // sanity: this test's premise actually holds at this viewport
 
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     const panel = page.getByTestId("detail-panel")
     await expect(panel).toBeVisible()
     await expect(panel).not.toHaveClass(/detail-panel--in-shell/)
@@ -50,7 +50,7 @@ test.describe("app shell breakpoints (spec §2)", () => {
     const shellWidth = await page.locator(".plan-shell").evaluate((el) => el.getBoundingClientRect().width)
     expect(shellWidth).toBeLessThan(1180)
 
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     const panel = page.getByTestId("detail-panel")
     await expect(panel).toBeVisible()
     await expect(panel).not.toHaveClass(/detail-panel--in-shell/)
@@ -75,7 +75,7 @@ test.describe("app shell breakpoints (spec §2)", () => {
       await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
       await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-      await page.getByTestId("plan-node-card").first().click()
+      await openPlanNode(page)
       await page.getByTestId("detail-panel-pin").click()
 
       const panel = page.getByTestId("detail-panel")
@@ -97,11 +97,11 @@ test.describe("app shell breakpoints (spec §2)", () => {
       await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
       await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-      await page.getByTestId("plan-node-card").first().click()
+      await openPlanNode(page)
       await page.getByTestId("detail-panel-pin").click()
       await expect(page.getByTestId("detail-panel")).toHaveClass(/detail-panel--in-shell/)
 
-      await page.getByTestId("plan-node-card").nth(1).click()
+      await openPlanNode(page, 1)
       await expect(page.getByTestId("detail-panel")).toHaveClass(/detail-panel--in-shell/)
     })
 
@@ -111,7 +111,7 @@ test.describe("app shell breakpoints (spec §2)", () => {
       await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
       await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-      await page.getByTestId("plan-node-card").first().click()
+      await openPlanNode(page)
       await page.getByTestId("detail-panel-pin").click()
 
       const panel = page.getByTestId("detail-panel")
@@ -171,7 +171,7 @@ test.describe("app shell breakpoints (spec §2)", () => {
     await page.goto("/")
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     await page.getByTestId("detail-panel-pin").click()
     await expect(page.getByTestId("detail-panel")).toHaveClass(/detail-panel--in-shell/)
 
@@ -233,7 +233,7 @@ test.describe("app shell breakpoints (spec §2)", () => {
     await page.goto("/")
     await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-    await page.getByTestId("plan-node-card").first().waitFor()
+    await page.getByTestId("canvas-plan-graph-surface").waitFor()
 
     await page.evaluate(() => {
       const el = document.querySelector(".plan-reader-page") as HTMLElement

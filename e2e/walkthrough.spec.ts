@@ -40,7 +40,7 @@ test.describe("guided walkthrough (spec §5 `1g`)", () => {
     // giving this walkthrough more than just the root step.
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "bitmap-and-or-zero-rows.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-    await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+    await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 
     await page.getByTestId("walkthrough-open").click()
     const overlay = page.getByTestId("walkthrough-overlay")
@@ -48,7 +48,7 @@ test.describe("guided walkthrough (spec §5 `1g`)", () => {
 
     // The graph is still in the DOM and visible (not hidden/unmounted)
     // behind the overlay's translucent backdrop.
-    await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+    await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 
     const counter = page.getByTestId("walkthrough-step-counter")
     const firstCountText = await counter.textContent()
@@ -82,7 +82,7 @@ test.describe("guided walkthrough (spec §5 `1g`)", () => {
     await page.goto("/")
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "bitmap-and-or-zero-rows.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-    await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+    await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 
     await page.getByTestId("walkthrough-open").click()
     await expect(page.getByTestId("walkthrough-overlay")).toBeVisible()
@@ -97,7 +97,7 @@ test.describe("guided walkthrough (spec §5 `1g`)", () => {
     await page.goto("/")
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "bitmap-and-or-zero-rows.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-    await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+    await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 
     await page.getByTestId("walkthrough-open").click()
     await expect(page.getByTestId("walkthrough-mode-beginner")).toHaveAttribute("aria-pressed", "true")

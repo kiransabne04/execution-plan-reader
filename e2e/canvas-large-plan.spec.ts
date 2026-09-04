@@ -1,11 +1,15 @@
 // Episode 15 — a real-browser check that the canvas rendering path
 // actually works, not just that it doesn't throw in jsdom (which has no
 // real 2d canvas context at all — see CanvasPlanGraph.tsx's own
-// getContext-returns-null guard and the unit tests built around it). No
-// fixture in this repo is anywhere near CANVAS_NODE_COUNT_THRESHOLD, so
-// this generates a large synthetic (but well-formed) Postgres JSON plan —
-// a long single-child chain is enough to push the node count over the
-// threshold without needing a realistic query shape.
+// getContext-returns-null guard and the unit tests built around it).
+// Episode 26, Story 26.1 made canvas the only rendering path, at every
+// plan size — this file's remaining job is exercising canvas rendering at
+// LARGE plan sizes specifically (deep chains push dagre's layout well past
+// the viewport, forcing a small fit-to-view scale — the scenario the
+// legible-zoom-floor test below needs), not a mode-switch threshold, which
+// no longer exists. No fixture in this repo is this large, so this
+// generates a synthetic (but well-formed) Postgres JSON plan — a long
+// single-child chain is enough, without needing a realistic query shape.
 
 import { test, expect } from "@playwright/test"
 
@@ -31,17 +35,13 @@ function buildLargePostgresPlanJson(chainLength: number): string {
   return JSON.stringify([{ Plan: node }])
 }
 
-test("a plan large enough to cross the canvas threshold renders via the canvas path, with a working accessible-list fallback", async ({
-  page,
-}) => {
+test("a large plan renders via the canvas path, with a working accessible-list companion", async ({ page }) => {
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(buildLargePostgresPlanJson(320))
   await page.getByRole("button", { name: /analyze plan/i }).click()
 
   const canvas = page.getByTestId("canvas-plan-graph-surface")
   await expect(canvas).toBeVisible()
-  // Never the DOM/SVG path's per-node cards at this size.
-  await expect(page.getByTestId("plan-node-card")).toHaveCount(0)
 
   // The canvas actually drew something — not a blank surface. Sampling a
   // handful of pixels across the canvas and confirming at least one is
@@ -74,19 +74,9 @@ test("a plan large enough to cross the canvas threshold renders via the canvas p
   const itemCount = await items.count()
   expect(itemCount).toBeGreaterThan(0)
 
-  // Clicking a row opens the same real detail panel the DOM/SVG path uses.
+  // Clicking a row opens the same real detail panel a canvas click does.
   await items.first().click()
   await expect(page.getByTestId("detail-panel")).toBeVisible()
-})
-
-// Episode 18, Story 18.10, spec §5 `1i`.
-test("shows a banner explaining the DOM->canvas switch", async ({ page }) => {
-  await page.goto("/")
-  await page.getByTestId("paste-textarea").fill(buildLargePostgresPlanJson(320))
-  await page.getByRole("button", { name: /analyze plan/i }).click()
-
-  await expect(page.getByTestId("canvas-mode-banner")).toBeVisible()
-  await expect(page.getByTestId("canvas-mode-banner")).toContainText(/321/) // chainLength leaves + the chain itself = 321 nodes
 })
 
 test("labels below the legible-zoom floor degrade to solid blocks — real canvas, not clipped/overlapping text", async ({ page }) => {

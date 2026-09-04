@@ -36,11 +36,11 @@ function buildLargePostgresPlanJson(chainLength: number): string {
 // any valid PNG file are always this exact sequence.
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
-test("exports a real PNG file from DOM/SVG mode (small plan)", async ({ page }) => {
+test("exports a real PNG file for a small plan", async ({ page }) => {
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(SMALL_PLAN)
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 
   const downloadPromise = page.waitForEvent("download")
   await page.getByTestId("export-png-button").click()
@@ -55,7 +55,7 @@ test("exports a real PNG file from DOM/SVG mode (small plan)", async ({ page }) 
   expect(bytes.subarray(0, 8)).toEqual(PNG_SIGNATURE)
 })
 
-test("exports a real PNG file from canvas mode too — visually consistent per spec §5 `1j`, same export code path either way", async ({
+test("exports a real PNG file for a large plan too — visually consistent per spec §5 `1j`, same export code path either way", async ({
   page,
 }) => {
   await page.goto("/")
@@ -84,7 +84,7 @@ test("the exported PNG reflects the CURRENT collapsedIds state, not a forced ful
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(buildLargePostgresPlanJson(260))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 
   const downloadPromise = page.waitForEvent("download")
   await page.getByTestId("export-png-button").click()

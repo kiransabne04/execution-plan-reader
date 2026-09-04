@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { loadFixture } from "./testUtils.js"
+import { loadFixture, openPlanNode } from "./testUtils.js"
 
 const ANALYZE_BUTTON = /analyze plan/i
 
@@ -11,7 +11,7 @@ test("analyzes a pasted Postgres plan and renders the summary + graph", async ({
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("Postgres")
   await expect(page.getByTestId("plan-summary")).toBeVisible()
-  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
   await expect(page.getByTestId("parse-error")).toHaveCount(0)
 })
 
@@ -53,9 +53,9 @@ test("clicking a plan node opens its rich detail panel with glossary education, 
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
-  await expect(page.getByTestId("plan-node-card").first()).toBeVisible()
+  await expect(page.getByTestId("canvas-plan-graph-surface")).toBeVisible()
 
-  await page.getByTestId("plan-node-card").first().click()
+  await openPlanNode(page)
 
   const panel = page.getByTestId("detail-panel")
   await expect(panel).toBeVisible()

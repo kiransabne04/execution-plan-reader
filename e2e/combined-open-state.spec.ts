@@ -5,7 +5,7 @@
 // coordination between them by default.
 
 import { test, expect } from "@playwright/test"
-import { loadFixture } from "./testUtils.js"
+import { loadFixture, openPlanNode } from "./testUtils.js"
 
 const ANALYZE_BUTTON = /analyze plan/i
 
@@ -16,7 +16,7 @@ test.describe("combined open state", () => {
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "rule-wal-volume.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     await expect(page.getByTestId("detail-panel")).toBeVisible()
 
     await page.getByTestId("findings-drawer-summary").click()
@@ -48,7 +48,7 @@ test.describe("combined open state", () => {
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "rule-wal-volume.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     await page.getByTestId("findings-drawer-summary").click()
 
     await expect(page.getByTestId("plan-graph")).toBeVisible()
@@ -60,7 +60,7 @@ test.describe("combined open state", () => {
     await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "rule-wal-volume.json"))
     await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-    await page.getByTestId("plan-node-card").first().click()
+    await openPlanNode(page)
     await page.getByTestId("detail-panel-pin").click()
     await expect(page.getByTestId("detail-panel")).toHaveClass(/detail-panel--in-shell/)
 

@@ -74,6 +74,26 @@ function buildRemovedPlans() {
   return { planA, planB }
 }
 
+/** Episode 26, Story 26.1 — canvas is now the only rendering path, so a
+ * plan node is no longer a real DOM element with its own `data-node-id`;
+ * the accessible list (Story 15.2, now the universal keyboard/screen-
+ * reader path — see AccessiblePlanList.tsx's own comment) is this test
+ * file's deterministic, testid-based way to select a specific node in a
+ * specific pane, exercising PlanComparisonView's real synced-selection
+ * wiring end to end rather than reaching into canvas hit-testing pixel
+ * math (already covered in isolation by CanvasPlanGraph.test.tsx). */
+function getPanes(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>(".plan-comparison-view__pane"))
+}
+
+function clickNodeInPane(pane: HTMLElement, nodeId: string) {
+  fireEvent.click(within(pane).getByTestId("accessible-list-toggle"))
+  const row = within(pane)
+    .getAllByTestId("accessible-plan-list-item")
+    .find((r) => r.getAttribute("data-node-id") === nodeId)!
+  fireEvent.click(row)
+}
+
 describe("PlanComparisonView", () => {
   it("renders both panes and a plain-language summary strip", () => {
     const { planA, planB } = buildChangedAndAddedPlans()
@@ -85,23 +105,28 @@ describe("PlanComparisonView", () => {
     expect(within(summary).getByText(/1 node changed, 1 added, 0 removed/)).toBeInTheDocument()
   })
 
-  it("marks a changed node with a comparison badge showing the operator delta, and an added node distinctly", () => {
+  // The comparison-delta TEXT itself ("Seq Scan → Index Scan (...)") is a
+  // canvas-drawn detail now, verified at the unit level in
+  // canvasDraw.test.ts (drawGraph reads the same comparisonOverlay data
+  // this view builds) — this test stays at PlanComparisonView's own level
+  // of concern: did it classify the right nodes as changed/added at all,
+  // via the accessible list's real (DOM, testable) comparison badge.
+  it("marks a changed node with a comparison badge, and an added node distinctly", () => {
     const { planA, planB } = buildChangedAndAddedPlans()
     render(<PlanComparisonView planA={planA} planB={planB} />)
 
-    const badges = screen.getAllByTestId("comparison-badge")
-    expect(badges.map((b) => b.textContent)).toEqual(expect.arrayContaining(["changed", "added"]))
-
-    const delta = screen.getAllByTestId("comparison-delta")
-    expect(delta.some((d) => d.textContent?.includes("Seq Scan → Index Scan"))).toBe(true)
+    for (const pane of getPanes()) fireEvent.click(within(pane).getByTestId("accessible-list-toggle"))
+    const badges = screen.getAllByTestId("accessible-plan-list-comparison")
+    expect(badges.map((b) => b.textContent)).toEqual(expect.arrayContaining(["Changed", "Added"]))
   })
 
   it("marks a removed node with a distinct comparison badge", () => {
     const { planA, planB } = buildRemovedPlans()
     render(<PlanComparisonView planA={planA} planB={planB} />)
 
-    const badges = screen.getAllByTestId("comparison-badge")
-    expect(badges.map((b) => b.textContent)).toContain("removed")
+    for (const pane of getPanes()) fireEvent.click(within(pane).getByTestId("accessible-list-toggle"))
+    const badges = screen.getAllByTestId("accessible-plan-list-comparison")
+    expect(badges.map((b) => b.textContent)).toContain("Removed")
   })
 
   it("clicking a matched node in Plan A selects and opens its counterpart in Plan B", () => {
@@ -110,8 +135,7 @@ describe("PlanComparisonView", () => {
 
     // The join root is a stable identity match on both sides (no relation,
     // same depth/ordinal) — click it in Plan A.
-    const joinCardInA = document.querySelector("[data-node-id='a-join']") as HTMLElement
-    fireEvent.click(joinCardInA)
+    clickNodeInPane(getPanes()[0], "a-join")
 
     // Both detail panels (one per pane) should now be open on their
     // respective matched node.
@@ -124,8 +148,7 @@ describe("PlanComparisonView", () => {
     const { planA, planB } = buildRemovedPlans()
     render(<PlanComparisonView planA={planA} planB={planB} labelA="Before" labelB="After" />)
 
-    const removedCard = document.querySelector("[data-node-id='a-scan-regions']") as HTMLElement
-    fireEvent.click(removedCard)
+    clickNodeInPane(getPanes()[0], "a-scan-regions")
 
     expect(screen.getByTestId("comparison-no-match-notice")).toHaveTextContent("No corresponding node in After.")
     // The clicked pane's own panel still opens normally — only the sync to
