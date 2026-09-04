@@ -147,16 +147,21 @@ export function FindingsDrawer({ sources, activeStatementIndex, onSelectNode, su
           {/* Episode 26, Story 26.3 — drag handle. A `role="separator"`
               slider is the correct ARIA shape for a draggable panel-size
               control; keyboard users get the same range via the arrow
-              keys (`aria-valuenow` reflects the live height, matching
-              this codebase's own `aria-valuenow` usage on the detail
-              panel's contribution bar). */}
+              keys. `aria-valuenow` is only reported once the user has
+              actually set an explicit height (dragging/arrow keys) —
+              omitted (not a guessed number) beforehand, both because a
+              slider's `aria-valuenow` is legitimately optional before a
+              value's been set, and because computing it would mean
+              reading `drawerRef.current`'s live layout DURING render
+              (a real lint finding, not just style: React refs are for
+              event handlers/effects, not render). */}
           <div
             className="findings-drawer__resize-handle"
             role="separator"
             aria-orientation="horizontal"
             aria-label="Resize the Issues panel"
             aria-valuemin={MIN_HEIGHT_PX}
-            aria-valuenow={Math.round(customHeightPx ?? getCurrentBodyHeight())}
+            aria-valuenow={customHeightPx !== null ? Math.round(customHeightPx) : undefined}
             tabIndex={0}
             data-testid="findings-drawer-resize-handle"
             onPointerDown={handlePointerDown}
