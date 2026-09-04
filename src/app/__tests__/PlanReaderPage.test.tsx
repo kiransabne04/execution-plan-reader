@@ -59,7 +59,18 @@ afterEach(async () => {
   await _deleteDatabaseForTests()
 })
 
+// Story 6.3 — once a plan is analyzed, the paste textarea lives inside the
+// icon rail's "New plan" on-demand panel (auto-collapsed after a
+// successful analyze), not always on screen the way it was before this
+// story. Opens that panel first if it isn't already, modeling what a real
+// user re-pasting a different plan on an already-analyzed page would
+// actually do — every existing call site that re-analyzes mid-test
+// (re-pasting a second plan on top of the first) keeps working unchanged.
 function pasteAndAnalyze(text: string) {
+  const newPlanIcon = screen.queryByTestId("icon-rail-new-plan")
+  if (newPlanIcon && screen.queryByTestId("paste-textarea") === null) {
+    fireEvent.click(newPlanIcon)
+  }
   fireEvent.change(screen.getByTestId("paste-textarea"), { target: { value: text } })
   fireEvent.click(screen.getByRole("button", { name: /analyze plan/i }))
 }
@@ -283,6 +294,10 @@ describe("PlanReaderPage", () => {
     it("'/' does NOT open the palette while a text input is focused — it must be typeable there instead", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
+      // Story 6.3 — the textarea auto-collapses into the icon rail's "New
+      // plan" panel after a successful analyze; reopen it to reach the
+      // same element this test has always focused.
+      fireEvent.click(screen.getByTestId("icon-rail-new-plan"))
       const textarea = screen.getByTestId("paste-textarea")
       textarea.focus()
 
@@ -628,24 +643,33 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     expect(screen.queryByTestId("recent-plans-list")).not.toBeInTheDocument()
   })
 
-  it("adds an analyzed plan to the recent plans list, reachable via its toggle", async () => {
+  it("adds an analyzed plan to the recent plans list, reachable via its icon and its own toggle", async () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
     await waitFor(() => expect(screen.getByTestId("plan-result")).toBeInTheDocument())
+    // Story 6.3 — Recent Plans now lives inside the icon rail's own
+    // on-demand panel; open it before it can reflect the async
+    // add-to-recents write this analyze just triggered.
+    fireEvent.click(screen.getByTestId("icon-rail-recent-plans"))
     await waitFor(() => expect(screen.getByTestId("recent-plans-list")).toBeInTheDocument())
 
-    expect(screen.queryByTestId("recent-plan-item")).not.toBeInTheDocument() // collapsed by default
-    fireEvent.click(screen.getByTestId("recent-plans-toggle"))
+    // hideOwnToggle is passed here (the icon-rail panel IS the toggle), so
+    // items render directly — no second, redundant collapse layer inside.
     expect(screen.getByTestId("recent-plan-item")).toBeInTheDocument()
   })
 
   it("clicking a recent plan entry re-analyzes it", async () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    fireEvent.click(screen.getByTestId("icon-rail-recent-plans"))
     await waitFor(() => expect(screen.getByTestId("recent-plans-list")).toBeInTheDocument())
+    // Closing Recent Plans before re-analyzing mirrors what a real click on
+    // a DIFFERENT icon (New plan) would do — IconRail only ever shows one
+    // panel at a time.
+    fireEvent.click(screen.getByTestId("icon-rail-recent-plans"))
     pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
 
-    fireEvent.click(screen.getByTestId("recent-plans-toggle"))
+    fireEvent.click(screen.getByTestId("icon-rail-recent-plans"))
     await waitFor(() => expect(screen.getAllByTestId("recent-plan-item")).toHaveLength(2))
 
     const items = screen.getAllByTestId("recent-plan-item")
@@ -656,10 +680,12 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
   it("deleting one recent plan entry removes only that entry", async () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    fireEvent.click(screen.getByTestId("icon-rail-recent-plans"))
     await waitFor(() => expect(screen.getByTestId("recent-plans-list")).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId("icon-rail-recent-plans"))
     pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
 
-    fireEvent.click(screen.getByTestId("recent-plans-toggle"))
+    fireEvent.click(screen.getByTestId("icon-rail-recent-plans"))
     await waitFor(() => expect(screen.getAllByTestId("recent-plan-item")).toHaveLength(2))
 
     fireEvent.click(screen.getAllByTestId("recent-plan-delete")[0])
@@ -684,6 +710,10 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
   it("'Clear saved data' wipes both the session and the recent plans list, and the button disappears once nothing is left", async () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    // Story 6.3 — PasteBox (and its privacy-details disclosure) lives
+    // inside the icon rail's "New plan" panel, auto-collapsed after the
+    // analyze above.
+    fireEvent.click(screen.getByTestId("icon-rail-new-plan"))
     fireEvent.click(screen.getByTestId("privacy-details-toggle"))
     await waitFor(() => expect(screen.getByTestId("clear-saved-data-button")).toBeInTheDocument())
 
@@ -803,17 +833,21 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       expect(within(appBar).getByRole("button", { name: /export as png/i })).toBeEnabled()
     })
 
-    it("puts Findings in the left rail and the graph in the centre column", () => {
+    // Story 6.3 — Findings moved from the old always-open left rail into
+    // a bottom drawer inside the canvas column; the icon rail replaces
+    // the old left rail entirely once a plan is analyzed.
+    it("puts the icon rail on the left, Findings in a drawer inside the canvas column", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
 
-      const leftRail = screen.getByTestId("plan-shell-left-rail")
-      expect(within(leftRail).getByTestId("findings-list")).toBeInTheDocument()
+      expect(screen.getByTestId("icon-rail")).toBeInTheDocument()
+      expect(screen.queryByTestId("plan-shell-left-rail")).not.toBeInTheDocument()
 
       const canvas = screen.getByTestId("plan-shell-canvas")
       expect(within(canvas).getByTestId("plan-summary")).toBeInTheDocument()
       expect(within(canvas).getByTestId("plan-shell-metrics")).toBeInTheDocument()
       expect(within(canvas).getByTestId("plan-graph")).toBeInTheDocument()
+      expect(within(canvas).getByTestId("findings-drawer")).toBeInTheDocument()
     })
 
     // jsdom's ResizeObserver is a no-op stub (src/__tests__/setup.ts) — this

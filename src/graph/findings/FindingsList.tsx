@@ -32,6 +32,20 @@ export interface FindingsListProps {
    * `focusNodeId` prop. This component has no graph/panel knowledge of
    * its own. */
   onSelectNode: (statementIndex: number, nodeId: string) => void
+  /** Story 6.3 — "list" (default) is this component's original always-
+   * been-this-way rendering: a "Findings · N" header, and each finding as
+   * its own full-card severity treatment (colored border/background,
+   * shortText on its own line). "compact" reuses 100% of the same
+   * filtering/data logic above — only the row markup changes, to a single
+   * line (severity dot + truncated shortText + category), for the new
+   * findings drawer (`FindingsDrawer.tsx`), which already shows its own
+   * "N findings · N critical · ..." summary line outside this component
+   * (so this component's own header would be redundant there) and needs
+   * to stay usable at real-world counts (dozens of findings) that the
+   * full-card treatment doesn't scale to. Every existing caller (the
+   * maximized-mode Findings toggle, Episode 22) omits this and keeps the
+   * original "list" rendering unchanged. */
+  variant?: "list" | "compact"
 }
 
 type SeverityFilter = "all" | Warning["severity"]
@@ -43,7 +57,8 @@ const SEVERITY_LABEL: Record<Warning["severity"], string> = {
   info: "Info",
 }
 
-export function FindingsList({ sources, activeStatementIndex, onSelectNode }: FindingsListProps) {
+export function FindingsList({ sources, activeStatementIndex, onSelectNode, variant = "list" }: FindingsListProps) {
+  const isCompact = variant === "compact"
   const allFindings = useMemo(() => collectFindingsAcrossStatements(sources), [sources])
 
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
@@ -78,13 +93,15 @@ export function FindingsList({ sources, activeStatementIndex, onSelectNode }: Fi
   )
 
   return (
-    <section className="findings-list" data-testid="findings-list">
-      <div className="findings-list__header">
-        <h2 className="findings-list__title">
-          Findings <span className="findings-list__count">· {allFindings.length}</span>
-        </h2>
-        <span className="findings-list__sort-label">By severity</span>
-      </div>
+    <section className={`findings-list${isCompact ? " findings-list--compact" : ""}`} data-testid="findings-list">
+      {!isCompact && (
+        <div className="findings-list__header">
+          <h2 className="findings-list__title">
+            Findings <span className="findings-list__count">· {allFindings.length}</span>
+          </h2>
+          <span className="findings-list__sort-label">By severity</span>
+        </div>
+      )}
 
       {allFindings.length === 0 ? (
         <p className="findings-list__empty" data-testid="findings-list-empty">
@@ -138,8 +155,44 @@ export function FindingsList({ sources, activeStatementIndex, onSelectNode }: Fi
                 // statement plan's findings list looks exactly as it did
                 // before this story.
                 const isElsewhere = sources.length > 1 && finding.statementIndex !== activeStatementIndex
+                const key = `${finding.statementIndex}-${finding.nodeId}-${finding.warning.ruleId}-${index}`
+                if (isCompact) {
+                  // Story 6.3 — a single-line row: a severity dot (never
+                  // color alone — the dot is additionally labeled for
+                  // screen readers, and the text itself still names the
+                  // severity via SEVERITY_LABEL below), the shortText
+                  // (truncated by CSS `text-overflow: ellipsis`, not
+                  // string-sliced — the full text is still in the DOM for
+                  // a screen reader, a tooltip, or a wider viewport), and
+                  // the category. No card padding/border/tint — this is
+                  // what keeps this list usable at dozens of findings.
+                  return (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        className={`findings-list__item findings-list__item--compact-row findings-list__item--${finding.warning.severity}`}
+                        data-testid="finding-item"
+                        title={finding.warning.shortText}
+                        onClick={() => onSelectNode(finding.statementIndex, finding.nodeId)}
+                      >
+                        <span
+                          className={`findings-list__severity-dot findings-list__severity-dot--${finding.warning.severity}`}
+                          aria-hidden="true"
+                        />
+                        <span className="findings-list__sr-only">{SEVERITY_LABEL[finding.warning.severity]}</span>
+                        <span className="findings-list__text findings-list__text--compact">{finding.warning.shortText}</span>
+                        <span className="findings-list__category findings-list__category--compact">{finding.category}</span>
+                        {isElsewhere && (
+                          <span className="findings-list__statement-badge" data-testid="finding-statement-badge">
+                            {finding.statementLabel}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  )
+                }
                 return (
-                  <li key={`${finding.statementIndex}-${finding.nodeId}-${finding.warning.ruleId}-${index}`}>
+                  <li key={key}>
                     <button
                       type="button"
                       className={`findings-list__item findings-list__item--${finding.warning.severity}`}

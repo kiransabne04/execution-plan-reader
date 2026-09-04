@@ -613,44 +613,55 @@
   height: 14px;
 }
 
-/* Spec §2: "Share and Export drop to icon-only before wrapping." Below
-   this SHELL width (`@container`, not `@media` — same "measures against
-   the shell's own width" rule every other breakpoint in this file
-   follows), the app bar's natural content (brand, engine badge, mode
-   toggle, walkthrough/compare buttons, Share, Export) needs more space
-   than it has and would otherwise force horizontal scroll —
-   `.plan-shell__app-bar`'s own `overflow-x: auto` was silently absorbing
-   that instead of ever actually wrapping, which is why this went
-   unnoticed: nothing looked visibly broken, it just meant scrolling to
-   reach Export at these widths.
+/* Story 6.3 — every app-bar action button (Walk me through it, Compare,
+   Share, Export) is icon-only UNCONDITIONALLY now, not just "before
+   wrapping" below a breakpoint (this rule's own pre-6.3 version, and
+   spec §2's original wording, both scoped this to Share/Export only —
+   superseded by this story's own explicit "collapse the top-bar action
+   buttons to icon-only" requirement, applied to all four for consistency
+   rather than three of four staying full-text). The label stays in the
+   DOM (a real accessible name via `aria-label`, matching each button's
+   former visible text exactly — see the JSX — plus a `title` attribute
+   for a hover tooltip), just visually hidden, same visually-hidden
+   pattern `findings-list__sr-only` already uses.
 
-   859px, matching `NARROW_SHELL_BREAKPOINT_PX`'s own already-established
-   860px threshold (`.plan-shell__body`'s own breakpoint just below): a
-   measured, not assumed, choice — re-measured with a throwaway Playwright
-   script against the real built app (including the brand-mark icon added
-   in the same design-mockup-review pass, which widened the app bar's
-   natural content enough to invalidate an earlier, narrower 759px
-   threshold this rule used before that icon existed) found the full-text
-   app bar stops fitting somewhere between 786px and 816px of shell width.
-   Reusing 860 rather than picking a new bespoke number keeps one
-   breakpoint value doing double duty at a width that's already a real,
-   meaningful structural change (input rail collapse, Story 18.2) instead
-   of accumulating a third close-but-different magic number. Scoped to
-   Share and Export specifically, per the spec's own wording — the mode
-   toggle/walkthrough/compare buttons keep their full text at every width,
-   unchanged. */
-@container (max-width: 859px) {
-  .plan-shell__app-bar-button-label,
-  .share-link__button-label {
-    display: none;
-  }
+   REAL BUG this story's own e2e run caught: without `position: relative`
+   on the button below, this absolutely-positioned label has no positioned
+   ancestor to anchor to, so its "static position" fallback (no top/left/
+   right/bottom set) is calculated in UNCLIPPED page-flow coordinates —
+   for a button deep in the app bar's own `overflow-x: auto` scroll region,
+   that placed the label's (invisible, 1x1px) box hundreds of pixels to
+   the right, past the visible app bar entirely. `overflow-x: auto` on the
+   app bar only contains descendants whose CONTAINING BLOCK is inside it;
+   an absolutely-positioned element with no closer positioned ancestor
+   escapes that containment and counts toward `document.documentElement`'s
+   own scrollWidth instead — silently growing the page's real horizontal
+   extent (invisible on desktop, since nothing scrolls there in practice,
+   but genuinely broke `window.innerWidth` under Chromium's mobile-
+   viewport emulation, which auto-grows the reported viewport to fit
+   otherwise-overflowing content). Fixed by making the button itself the
+   positioned containing block, below. */
+.plan-shell__app-bar-button-label,
+.share-link__button-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
-  /* Symmetric padding once only the icon remains — the asymmetric 4px/12px
-     padding was sized for icon+text, not a bare square icon button. */
-  .plan-shell__app-bar-button--icon-only,
-  .share-link__button {
-    padding: 6px;
-  }
+/* Symmetric padding once only the icon remains — the asymmetric 4px/12px
+   padding was sized for icon+text, not a bare square icon button.
+   `position: relative` is load-bearing — see the label rule's own comment
+   above for the real overflow bug this fixes. */
+.plan-shell__app-bar-button,
+.share-link__button {
+  position: relative;
+  padding: 6px;
 }
 
 .plan-shell__body {
@@ -696,6 +707,15 @@
    content within the rail. */
 .plan-shell__rail--right {
   overflow: visible;
+  /* Story 6.3 — `.plan-shell__body` now defines only 2 explicit column
+     tracks by default (the 3rd exists only when pinned, see
+     `--detail-pinned` below), but this aside is still always the 3rd DOM
+     child. Without this, grid auto-placement wraps it to an IMPLICIT
+     SECOND ROW instead of an implicit 3rd column (there's no room left in
+     row 1's 2 explicit tracks) — harmless when it's empty, but sloppy and
+     a real footgun for anything added here later. Forces it to stay in
+     row 1, letting auto-placement create the implicit 3rd column instead. */
+  grid-row: 1;
 }
 
 /* Design review: left rail only — tightest usable line-height (1 is the
@@ -1026,17 +1046,29 @@
   z-index: 19;
 }
 
-/* Story 6.3 — restores the exact pre-existing (Story 18.2) 3-column
-   template + grid-track right rail, ONLY while the panel is pinned open
-   AND the shell is wide enough for DetailPanel's own `--in-shell`
-   grid-track rule (detailPanel.css) to actually apply — below 1180px,
-   `variant="shell"` degrades to the same overlay+scrim behavior
-   regardless of pin state, so a 3-column template there would just
-   reserve dead space for an overlay, exactly the waste this story's own
-   default behavior otherwise avoids. */
+/* Story 6.3 — once a plan is analyzed, the left column shrinks from the
+   wide pre-analysis input rail to the narrow icon rail — a plain
+   (non-`@container`) rule, since the icon rail's whole point is staying
+   narrow at every width, not just above some breakpoint. Applied AFTER
+   the base rule above so it wins the cascade for this one property. */
+.plan-shell__body--icon-rail {
+  grid-template-columns: 56px minmax(360px, 1fr);
+}
+
+/* Restores the exact pre-existing (Story 18.2) 3-column template + grid-
+   track right rail, ONLY while the panel is pinned open AND the shell is
+   wide enough for DetailPanel's own `--in-shell` grid-track rule
+   (detailPanel.css) to actually apply — below 1180px, `variant="shell"`
+   degrades to the same overlay+scrim behavior regardless of pin state, so
+   a 3-column template there would just reserve dead space for an
+   overlay. Requires BOTH modifier classes (pinning is only ever reachable
+   once a node exists to pin, which itself requires `analyzed` — the two
+   states can't occur independently in practice) rather than a CSS custom
+   property scheme to compose them, since `grid-template-columns` can't be
+   partially overridden per-column by two independent class selectors. */
 @container (min-width: 1180px) {
-  .plan-shell__body--detail-pinned {
-    grid-template-columns: clamp(232px, 20cqi, 296px) minmax(360px, 1fr) clamp(300px, 26cqi, 384px);
+  .plan-shell__body--icon-rail.plan-shell__body--detail-pinned {
+    grid-template-columns: 56px minmax(360px, 1fr) clamp(300px, 26cqi, 384px);
   }
 
   .plan-shell__body--detail-pinned .plan-shell__rail--right {
@@ -1044,23 +1076,17 @@
   }
 }
 
-/* Below 860px: Findings and the graph become tabs (PlanReaderPage's
-   `isNarrowShell` state drives which one is actually in the DOM) instead
-   of a side-by-side rail+canvas — a single column is all this grid needs
-   to express once only one of them renders at a time. */
+/* Below 860px, the PRE-ANALYSIS wide input rail (232-296px) alongside the
+   canvas would leave uncomfortably little room for either — collapses to
+   a single column, same as before this story. Once a plan is analyzed
+   (`--icon-rail`, 56px), this collapse is unnecessary — the narrow rail
+   comfortably coexists with the canvas at any reasonable width — so it's
+   scoped to exclude that state. */
 @container (max-width: 859px) {
-  .plan-shell__body {
+  .plan-shell__body:not(.plan-shell__body--icon-rail) {
     grid-template-columns: 1fr;
     height: auto;
     min-height: 420px;
-    /* Without this, `align-content`'s grid default (`normal`, which
-       behaves as `stretch`) distributes the gap between the auto-sized
-       rows' natural content height and this `min-height` floor EQUALLY
-       across every row — including the tabs row, which doesn't want any
-       extra height at all. A real bug this story's own e2e/manual
-       verification caught: the tab buttons rendered ~130px tall instead
-       of their natural button size. `start` leaves each row at its own
-       content height; any leftover space simply sits below, unclaimed. */
     align-content: start;
   }
 }
@@ -1077,10 +1103,38 @@
    PlanComparisonView's panes and PlanGraph's own default-rendered panel
    both need it too, not just this shell's `--in-shell` variant). */
 @container (max-width: 619px) {
-  .plan-shell__tab,
+  /* Story 6.3 — a REAL bug this story's own e2e run caught: the canvas
+     column's `minmax(360px, 1fr)` floor (`.plan-shell__body`'s base rule)
+     was designed for the wide 3-column desktop layout, where a 360px
+     floor genuinely protects the canvas from being starved by a wide
+     rail. Combined with the 56px icon rail at a true mobile width (as
+     narrow as 390px), that floor forces MORE total width than the
+     viewport actually has (56 + 360 + gap/padding overhead > 390),
+     overflowing the shell horizontally — which, under Chromium's mobile
+     viewport emulation specifically, silently grows the reported
+     viewport width to fit the overflowing content instead of ever
+     showing a scrollbar, corrupting every other width-dependent
+     measurement on the page. `min-width: 0` (already set on
+     `.plan-shell__canvas` itself) makes a 0-floor safe — the canvas
+     still gets 100% of whatever's left after the narrow rail, it simply
+     stops enforcing a floor wider than a real phone screen. */
+  .plan-shell__body--icon-rail {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
   .plan-shell__mode-toggle-button,
   .plan-shell__app-bar-button,
-  .plan-reader-page__statement-tab {
+  .plan-reader-page__statement-tab,
+  .findings-drawer__summary {
+    min-height: 44px;
+  }
+
+  /* Story 6.3 — the icon rail's fixed 40x40 buttons are below the mobile
+     touch-target floor; bumped to 44x44 here rather than unconditionally,
+     matching every other control this block already scales only at true
+     mobile. */
+  .icon-rail__button {
+    min-width: 44px;
     min-height: 44px;
   }
 
@@ -1225,5 +1279,186 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Story 6.3 — the icon rail (IconRail.tsx), replacing the old always-open
+   left rail once a plan is analyzed. Narrow and fixed-width (56px,
+   matching `.plan-shell__body--icon-rail`'s own grid column) — a plain
+   vertical stack of icon buttons, not a scroll container itself (there's
+   nothing in it that could overflow). */
+.icon-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.icon-rail__button {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pr-text-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.icon-rail__button:hover,
+.icon-rail__button:focus-visible {
+  background: var(--pr-item-hover-bg, rgba(255, 255, 255, 0.06));
+}
+
+.icon-rail__button[aria-pressed="true"] {
+  color: var(--pr-text);
+  border-color: var(--pr-border);
+  background: var(--pr-item-hover-bg, rgba(255, 255, 255, 0.06));
+}
+
+.icon-rail__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  color: white;
+}
+
+.icon-rail__badge--neutral {
+  background: var(--pr-text-muted);
+}
+
+.icon-rail__badge--critical {
+  background: var(--color-critical);
+}
+
+.icon-rail__badge--warning {
+  background: var(--color-warning);
+  color: #3a2a05; /* matches findingsList.css's own dark-on-amber pairing for the same severity */
+}
+
+.icon-rail__badge--info {
+  background: var(--color-accent);
+}
+
+/* Same fixed-scrim-behind-a-fixed-panel mechanism as the detail panel's
+   own overlay (`.plan-shell__detail-scrim`) — one overlay pattern in this
+   app, not two independently-built ones. */
+.icon-rail__scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 19;
+}
+
+.icon-rail__panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(360px, calc(100vw - 56px));
+  overflow-y: auto;
+  background: var(--pr-bg);
+  color: var(--pr-text);
+  border-right: 1px solid var(--pr-border);
+  padding: 16px;
+  box-sizing: border-box;
+  z-index: 20;
+  animation: icon-rail-panel-enter 160ms ease-out;
+}
+
+@keyframes icon-rail-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-rail__panel {
+    animation: none;
+  }
+}
+
+.icon-rail__panel-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: transparent;
+  color: var(--pr-text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* Story 6.3 — the findings drawer (FindingsDrawer.tsx), bottom-docked
+   within the canvas column's own flex layout (`.plan-shell__canvas`'s
+   `flex-direction: column`) — a real flex sibling, not a fixed overlay:
+   expanding it is allowed to shrink the graph area above it, within the
+   height cap below, matching this story's own "cap it, internally scroll
+   past the cap" edge case (deliberately different from the detail panel's
+   own zero-reflow requirement, which this drawer was never asked to
+   meet). */
+.findings-drawer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--fl-border, var(--pr-border));
+  background: var(--pr-bg);
+}
+
+.findings-drawer__summary {
+  flex: none;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--pr-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.findings-drawer__summary:hover,
+.findings-drawer__summary:focus-visible {
+  color: var(--pr-text);
+}
+
+.findings-drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  max-height: min(38vh, 420px);
+  padding: 0 12px 12px;
+}
+
+/* Story 6.3's own combined-open-state edge case: an open, un-pinned
+   detail panel (a fixed overlay anchored to the viewport's right edge,
+   `min(420px, 100vw)` wide — detailPanel.css) would otherwise visually
+   collide with this drawer's own right edge in the bottom-right corner.
+   Insetting the drawer away from that known width keeps both fully
+   visible and independently usable rather than one clipping the other. */
+.findings-drawer--inset {
+  margin-right: min(420px, 100vw);
 }
 
