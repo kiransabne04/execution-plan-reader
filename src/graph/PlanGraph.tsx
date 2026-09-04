@@ -148,7 +148,7 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined)
 
   // Story 14.2 (and, since Episode 26 Story 26.1, every caller of this —
-  // guided walkthrough step advance, the Findings/Problems list, the
+  // guided walkthrough step advance, the Findings/Issues list, the
   // search palette, and comparison-view synced selection): a node an
   // incoming `focusNodeId` asked us to pan to, held separately from
   // `focusNodeId` itself (which the parent clears via `onFocusHandled`
@@ -185,7 +185,7 @@ export const PlanGraph = forwardRef<PlanGraphHandle, PlanGraphProps>(function Pl
   }, [onNodeSelected])
 
   // Story 13.1: handle an externally requested focus (a click in the "All
-  // findings"/Problems list, or — Story 14.2 — the OTHER pane of a
+  // findings"/Issues list, or — Story 14.2 — the OTHER pane of a
   // comparison view via onNodeSelected/focusNodeId). Expanding any
   // collapsed ancestor first means `nodes` (recomputed below on
   // `collapsedIds` change) brings the newly-revealed node into view, not

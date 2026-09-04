@@ -103,7 +103,7 @@ export function fitTransform(
 /** Episode 26, Story 26.1 — pans to center `bounds` in `viewport` at a FIXED
  * scale (the caller's current zoom level), never a freshly fit-computed one.
  * This is what every "jump to this node" caller (guided walkthrough, the
- * Findings/Problems list, the search palette, comparison-view synced
+ * Findings/Issues list, the search palette, comparison-view synced
  * selection) needs: recentering on a node must never also silently change
  * how zoomed in the user currently is. Reuses `centerAt`'s exact centering
  * formula — the only thing pan-to-node does differently from `fitTransform`

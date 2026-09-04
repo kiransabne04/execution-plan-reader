@@ -118,8 +118,8 @@ export function IconRail({
         type="button"
         className="icon-rail__button"
         aria-pressed={isFindingsOpen}
-        aria-label={`Findings${findingsCount > 0 ? ` (${findingsCount})` : ""}`}
-        title="Findings"
+        aria-label={`Issues${findingsCount > 0 ? ` (${findingsCount})` : ""}`}
+        title="Issues"
         data-testid="icon-rail-findings"
         onClick={onToggleFindings}
       >

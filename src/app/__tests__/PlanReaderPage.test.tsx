@@ -758,7 +758,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       expect(screen.getByTestId("icon-rail-panel")).toHaveAttribute("hidden")
     })
 
-    it("opening Findings/Problems closes the New Plan/Recent Plans overlay first", () => {
+    it("opening Findings/Issues closes the New Plan/Recent Plans overlay first", () => {
       render(<PlanReaderPage />)
       pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
       // jsdom's zero-width layout makes the mobile-default effect

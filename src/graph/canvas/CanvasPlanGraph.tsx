@@ -48,7 +48,7 @@ export interface CanvasPlanGraphProps {
    * never pass it). */
   onSelectedNodeScreenAnchorChange?: (anchor: { x: number; y: number; width: number; height: number } | undefined) => void
   /** Episode 26, Story 26.1 — "jump to this node" (guided walkthrough step
-   * advance, Findings/Problems "jump to node," search-palette result
+   * advance, Findings/Issues "jump to node," search-palette result
    * selection, comparison-view synced pan) now that canvas is the only
    * rendering path. Mirrors `focusNodeId`/`onFocusHandled`'s own "the
    * caller told me to do something, and I clear it once handled" shape

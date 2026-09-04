@@ -6,7 +6,7 @@
 
 import { useMemo, useState } from "react"
 import type { Warning } from "../../parsers/normalize"
-import { collectFindingsAcrossStatements, type FindingsSource } from "../../rules/findings"
+import { collectFindingsAcrossStatements, type BatchFinding, type FindingsSource } from "../../rules/findings"
 import { FINDING_CATEGORY_ORDER, type FindingCategory } from "../../rules/findingCategory"
 import { NO_ISSUES_TEXT } from "../../rules/summarize"
 import "./findingsList.css"
@@ -33,7 +33,7 @@ export interface FindingsListProps {
    * its own. */
   onSelectNode: (statementIndex: number, nodeId: string) => void
   /** Story 6.3 — "list" (default) is this component's original always-
-   * been-this-way rendering: a "Findings · N" header, and each finding as
+   * been-this-way rendering: an "Issues · N" header, and each finding as
    * its own full-card severity treatment (colored border/background,
    * shortText on its own line). "compact" reuses 100% of the same
    * filtering/data logic above — only the row markup changes, to a single
@@ -43,8 +43,10 @@ export interface FindingsListProps {
    * (so this component's own header would be redundant there) and needs
    * to stay usable at real-world counts (dozens of findings) that the
    * full-card treatment doesn't scale to. Every existing caller (the
-   * maximized-mode Findings toggle, Episode 22) omits this and keeps the
-   * original "list" rendering unchanged. */
+   * maximized-mode Issues toggle, Episode 22) omits this and keeps the
+   * original "list" rendering unchanged — including Episode 26, Story
+   * 26.3's own statement-grouping below, which is scoped to the "compact"
+   * drawer specifically (the AC's own wording), not this variant. */
   variant?: "list" | "compact"
 }
 
@@ -64,6 +66,20 @@ export function FindingsList({ sources, activeStatementIndex, onSelectNode, vari
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all")
 
+  // Episode 26, Story 26.3 — which statement groups are collapsed, keyed by
+  // `statementIndex`. Absent from the set = expanded (the default, so
+  // opening the drawer shows everything without an extra click) — a plain
+  // local `Set`, same "component-only state, not persisted or lifted"
+  // scope as this story's own drag-resize height below.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set())
+  const toggleGroup = (statementIndex: number) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(statementIndex)) next.delete(statementIndex)
+      else next.add(statementIndex)
+      return next
+    })
+
   // Reset filters only when the SET of statement roots genuinely changes
   // (a fresh parse — object identity of the underlying roots, not just an
   // equal statement count) — same "adjust state during render" pattern
@@ -80,6 +96,7 @@ export function FindingsList({ sources, activeStatementIndex, onSelectNode, vari
     setPrevRoots(rootsKey)
     setSeverityFilter("all")
     setCategoryFilter("all")
+    setCollapsedGroups(new Set())
   }
 
   const categoriesPresent = FINDING_CATEGORY_ORDER.filter((category) =>
@@ -92,12 +109,102 @@ export function FindingsList({ sources, activeStatementIndex, onSelectNode, vari
       (categoryFilter === "all" || f.category === categoryFilter),
   )
 
+  // Story 26.3 — grouped by statement, scoped to the compact drawer variant
+  // and only once there's more than one statement to group at all: "falls
+  // back to a flat list for the single-statement case (most real input),
+  // never an empty single group header wrapping everything." Built from
+  // `visible` (the FILTERED set), not `allFindings` — a statement with no
+  // findings matching the current filters gets no group header, matching
+  // this component's own existing "zero findings" empty-state convention
+  // rather than rendering a pointless empty group.
+  const isGrouped = isCompact && sources.length > 1
+  const groups = isGrouped
+    ? (() => {
+        const byStatement = new Map<number, { statementIndex: number; statementLabel: string; findings: BatchFinding[] }>()
+        for (const finding of visible) {
+          const existing = byStatement.get(finding.statementIndex)
+          if (existing) existing.findings.push(finding)
+          else byStatement.set(finding.statementIndex, { statementIndex: finding.statementIndex, statementLabel: finding.statementLabel, findings: [finding] })
+        }
+        return Array.from(byStatement.values()).sort((a, b) => a.statementIndex - b.statementIndex)
+      })()
+    : null
+
+  function renderRow(finding: BatchFinding, index: number) {
+    // Only meaningful (and only shown) once there's more than one
+    // statement to distinguish between — a plain single-statement plan's
+    // findings list looks exactly as it did before this story. Still shown
+    // inside a statement GROUP too (Story 26.3): the group header says
+    // which statement a row belongs to, but this badge answers a
+    // different question — whether clicking it will jump you away from
+    // the statement you're currently viewing.
+    const isElsewhere = sources.length > 1 && finding.statementIndex !== activeStatementIndex
+    const key = `${finding.statementIndex}-${finding.nodeId}-${finding.warning.ruleId}-${index}`
+    if (isCompact) {
+      // Story 6.3 — a single-line row: a severity dot (never color alone —
+      // the dot is additionally labeled for screen readers, and the text
+      // itself still names the severity via SEVERITY_LABEL below), the
+      // shortText (truncated by CSS `text-overflow: ellipsis`, not
+      // string-sliced — the full text is still in the DOM for a screen
+      // reader, a tooltip, or a wider viewport), and the category. No card
+      // padding/border/tint — this is what keeps this list usable at
+      // dozens of findings.
+      return (
+        <li key={key}>
+          <button
+            type="button"
+            className={`findings-list__item findings-list__item--compact-row findings-list__item--${finding.warning.severity}`}
+            data-testid="finding-item"
+            title={finding.warning.shortText}
+            onClick={() => onSelectNode(finding.statementIndex, finding.nodeId)}
+          >
+            <span
+              className={`findings-list__severity-dot findings-list__severity-dot--${finding.warning.severity}`}
+              aria-hidden="true"
+            />
+            <span className="findings-list__sr-only">{SEVERITY_LABEL[finding.warning.severity]}</span>
+            <span className="findings-list__text findings-list__text--compact">{finding.warning.shortText}</span>
+            <span className="findings-list__category findings-list__category--compact">{finding.category}</span>
+            {isElsewhere && (
+              <span className="findings-list__statement-badge" data-testid="finding-statement-badge">
+                {finding.statementLabel}
+              </span>
+            )}
+          </button>
+        </li>
+      )
+    }
+    return (
+      <li key={key}>
+        <button
+          type="button"
+          className={`findings-list__item findings-list__item--${finding.warning.severity}`}
+          data-testid="finding-item"
+          onClick={() => onSelectNode(finding.statementIndex, finding.nodeId)}
+        >
+          <span className="findings-list__item-header">
+            <span className={`findings-list__severity-label findings-list__severity-label--${finding.warning.severity}`}>
+              {SEVERITY_LABEL[finding.warning.severity]}
+            </span>
+            <span className="findings-list__category">{finding.category}</span>
+            {isElsewhere && (
+              <span className="findings-list__statement-badge" data-testid="finding-statement-badge">
+                {finding.statementLabel}
+              </span>
+            )}
+          </span>
+          <span className="findings-list__text">{finding.warning.shortText}</span>
+        </button>
+      </li>
+    )
+  }
+
   return (
     <section className={`findings-list${isCompact ? " findings-list--compact" : ""}`} data-testid="findings-list">
       {!isCompact && (
         <div className="findings-list__header">
           <h2 className="findings-list__title">
-            Findings <span className="findings-list__count">· {allFindings.length}</span>
+            Issues <span className="findings-list__count">· {allFindings.length}</span>
           </h2>
           <span className="findings-list__sort-label">By severity</span>
         </div>
@@ -142,82 +249,36 @@ export function FindingsList({ sources, activeStatementIndex, onSelectNode, vari
             <p className="findings-list__no-match" data-testid="findings-list-no-match">
               No findings match these filters.
             </p>
+          ) : groups ? (
+            // Story 26.3 — one collapsible group per statement that
+            // actually has a visible finding.
+            <div className="findings-list__groups" data-testid="findings-list-groups">
+              {groups.map((group) => {
+                const isGroupOpen = !collapsedGroups.has(group.statementIndex)
+                return (
+                  <div key={group.statementIndex} className="findings-list__group" data-testid="findings-list-group">
+                    <button
+                      type="button"
+                      className="findings-list__group-header"
+                      aria-expanded={isGroupOpen}
+                      data-testid="findings-list-group-header"
+                      onClick={() => toggleGroup(group.statementIndex)}
+                    >
+                      <span className="findings-list__group-label">{group.statementLabel}</span>
+                      <span className="findings-list__group-count">{group.findings.length}</span>
+                    </button>
+                    {isGroupOpen && <ul className="findings-list__items">{group.findings.map((finding, index) => renderRow(finding, index))}</ul>}
+                  </div>
+                )
+              })}
+            </div>
           ) : (
             // Not virtualized: no fixture in this codebase remotely
             // approaches the hundreds-of-items range where a plain list
             // would become the bottleneck. Revisit (react-window or
             // similar) if a real plan surfaces that many — see Episode
             // 13's edge-case table.
-            <ul className="findings-list__items">
-              {visible.map((finding, index) => {
-                // Only meaningful (and only shown) once there's more than
-                // one statement to distinguish between — a plain single-
-                // statement plan's findings list looks exactly as it did
-                // before this story.
-                const isElsewhere = sources.length > 1 && finding.statementIndex !== activeStatementIndex
-                const key = `${finding.statementIndex}-${finding.nodeId}-${finding.warning.ruleId}-${index}`
-                if (isCompact) {
-                  // Story 6.3 — a single-line row: a severity dot (never
-                  // color alone — the dot is additionally labeled for
-                  // screen readers, and the text itself still names the
-                  // severity via SEVERITY_LABEL below), the shortText
-                  // (truncated by CSS `text-overflow: ellipsis`, not
-                  // string-sliced — the full text is still in the DOM for
-                  // a screen reader, a tooltip, or a wider viewport), and
-                  // the category. No card padding/border/tint — this is
-                  // what keeps this list usable at dozens of findings.
-                  return (
-                    <li key={key}>
-                      <button
-                        type="button"
-                        className={`findings-list__item findings-list__item--compact-row findings-list__item--${finding.warning.severity}`}
-                        data-testid="finding-item"
-                        title={finding.warning.shortText}
-                        onClick={() => onSelectNode(finding.statementIndex, finding.nodeId)}
-                      >
-                        <span
-                          className={`findings-list__severity-dot findings-list__severity-dot--${finding.warning.severity}`}
-                          aria-hidden="true"
-                        />
-                        <span className="findings-list__sr-only">{SEVERITY_LABEL[finding.warning.severity]}</span>
-                        <span className="findings-list__text findings-list__text--compact">{finding.warning.shortText}</span>
-                        <span className="findings-list__category findings-list__category--compact">{finding.category}</span>
-                        {isElsewhere && (
-                          <span className="findings-list__statement-badge" data-testid="finding-statement-badge">
-                            {finding.statementLabel}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  )
-                }
-                return (
-                  <li key={key}>
-                    <button
-                      type="button"
-                      className={`findings-list__item findings-list__item--${finding.warning.severity}`}
-                      data-testid="finding-item"
-                      onClick={() => onSelectNode(finding.statementIndex, finding.nodeId)}
-                    >
-                      <span className="findings-list__item-header">
-                        <span
-                          className={`findings-list__severity-label findings-list__severity-label--${finding.warning.severity}`}
-                        >
-                          {SEVERITY_LABEL[finding.warning.severity]}
-                        </span>
-                        <span className="findings-list__category">{finding.category}</span>
-                        {isElsewhere && (
-                          <span className="findings-list__statement-badge" data-testid="finding-statement-badge">
-                            {finding.statementLabel}
-                          </span>
-                        )}
-                      </span>
-                      <span className="findings-list__text">{finding.warning.shortText}</span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+            <ul className="findings-list__items">{visible.map((finding, index) => renderRow(finding, index))}</ul>
           )}
         </>
       )}

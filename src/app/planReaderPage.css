@@ -1509,12 +1509,53 @@
   color: var(--pr-text);
 }
 
+/* Episode 26, Story 26.3 — this stays the DEFAULT (viewport-responsive)
+   cap, unchanged from Story 6.3. FindingsDrawer.tsx's own `customHeightPx`
+   only overrides it with an inline `max-height` once the user has
+   actually dragged or used the arrow keys (inline style beats this rule
+   on specificity) — until then, this rule is still the only thing
+   governing the drawer's own height, exactly as it always has. */
 .findings-drawer__body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   max-height: min(38vh, 420px);
   padding: 0 12px 12px;
+}
+
+/* Episode 26, Story 26.3 — the drag-resize handle, a thin full-width strip
+   sitting on the drawer's own top edge (between the summary bar and the
+   body). `ns-resize` cursor is the standard affordance for a vertical
+   drag; the visible line only brightens on hover/focus/drag so it doesn't
+   read as a permanent divider when the drawer's just sitting there. */
+.findings-drawer__resize-handle {
+  flex: none;
+  height: 8px;
+  margin: 0 12px;
+  cursor: ns-resize;
+  touch-action: none;
+  position: relative;
+}
+
+.findings-drawer__resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 1px;
+  background: var(--fl-border, var(--pr-border));
+}
+
+.findings-drawer__resize-handle:hover::before,
+.findings-drawer__resize-handle:focus-visible::before {
+  background: var(--pr-accent);
+}
+
+.findings-drawer__resize-handle:focus-visible {
+  outline: none;
 }
 
 /* Story 6.3's own combined-open-state edge case: an open, un-pinned
