@@ -15,8 +15,13 @@ import { decodeShareLink } from "./shareLink"
 // user-supplied mockup screenshot. positioningCopy.ts's exports stay in
 // place (Story 8.1's brief-matching requirement is still true of the
 // source file itself) for a future first-time-visitor-credibility pass to
-// start from, just unused here today. See docs/08-episodes-and-stories.md's
-// Episode 19 header for the full account of what this supersedes.
+// start from. See docs/08-episodes-and-stories.md's Episode 19 header for
+// the full account of what this supersedes. Episode 26, Story 26.6 is that
+// pass, in part: `SUPPORTED_ENGINES` is now used below, in the empty-canvas
+// state — `HERO_HEADLINE`/`HERO_SUBHEADLINE` stay unused (still the
+// retired full-page marketing copy, not this story's own smaller, honest
+// upgrade to the placeholder).
+import { SUPPORTED_ENGINES } from "./positioningCopy"
 import {
   PlanGraph,
   FindingsList,
@@ -1027,13 +1032,26 @@ export function PlanReaderPage() {
               })()}
 
               {!analyzed && (
-                // Episode 19's chosen empty state (confirmed with the user):
-                // a plain, honest placeholder — not the retired marketing
-                // hero, not a fabricated preview of the graph.
+                // Episode 19's own honest-placeholder decision stands — no
+                // fabricated preview of the graph, no marketing hero
+                // reintroduced. Episode 26, Story 26.6 upgrades its
+                // PRESENTATION only: a brand icon and the real supported-
+                // engine list (`SUPPORTED_ENGINES`, the same reviewed
+                // source `positioningCopy.ts`'s retired hero once read
+                // from) make this read as an intentional branded moment
+                // rather than a leftover dashed box, without adding any
+                // new copy of its own. The old footer's attribution
+                // sentence is deliberately NOT duplicated here — confirmed
+                // with the user — it already has one home, the status
+                // bar's own brand chip below.
                 <main className="plan-shell__canvas plan-shell__canvas--empty" data-testid="plan-shell-canvas">
-                  <p className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
-                    Paste a plan on the left to see it visualized here.
-                  </p>
+                  <div className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
+                    <TreeStructure className="plan-shell__empty-placeholder-icon" weight="fill" aria-hidden="true" />
+                    <p className="plan-shell__empty-placeholder-text">Paste a plan on the left to see it visualized here.</p>
+                    <p className="plan-shell__empty-placeholder-engines">
+                      Works with {SUPPORTED_ENGINES.slice(0, -1).join(", ")}, and {SUPPORTED_ENGINES.at(-1)}.
+                    </p>
+                  </div>
                 </main>
               )}
 

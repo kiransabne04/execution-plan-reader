@@ -896,6 +896,30 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     })
   })
 
+  describe("Episode 26, Story 26.6 — branded empty-canvas state", () => {
+    // Explicit test rendering with no `analyzed` state at all, per this
+    // story's own edge case — most other tests only see the empty state in
+    // passing, on the way to analyzing something.
+    it("renders the branded placeholder — icon, instruction text, and the real supported-engine list — before any plan is analyzed", () => {
+      render(<PlanReaderPage />)
+      const placeholder = screen.getByTestId("plan-shell-empty-placeholder")
+      expect(placeholder).toHaveTextContent(/paste a plan on the left/i)
+      expect(placeholder).toHaveTextContent(/Postgres/)
+      expect(placeholder).toHaveTextContent(/SQL Server/)
+      expect(placeholder).toHaveTextContent(/Snowflake/)
+      // Confirmed with the user: the old footer's attribution sentence
+      // lives ONLY behind the status bar's own brand chip (Story 26.4) —
+      // not duplicated into this placeholder too.
+      expect(placeholder).not.toHaveTextContent(/scalingbackend/i)
+    })
+
+    it("disappears once a plan is analyzed, same as the rest of Episode 19's own empty-state contract", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+      expect(screen.queryByTestId("plan-shell-empty-placeholder")).not.toBeInTheDocument()
+    })
+  })
+
   describe("Episode 14, Story 14.2 — comparison view", () => {
     function pasteAndCompare(text: string) {
       fireEvent.change(screen.getByTestId("compare-paste-textarea"), { target: { value: text } })
