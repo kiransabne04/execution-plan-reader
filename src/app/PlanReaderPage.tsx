@@ -467,6 +467,18 @@ export function PlanReaderPage() {
     [activeStatementIndex, switchToStatement],
   )
 
+  // Episode 26, Story 26.2 — "opening the Problems panel explicitly closes
+  // [the New Plan/Recent Plans] overlay first if open": the two would
+  // otherwise occupy the same left column. Wraps every path that can OPEN
+  // the findings drawer (the icon rail's own Findings button, and
+  // FindingsDrawer's own internal summary-row toggle) — only closes
+  // `activeRailPanel` on the OPEN transition, never on close, so collapsing
+  // Findings doesn't fight a panel the user separately opened afterward.
+  const handleFindingsOpenChange = useCallback((open: boolean) => {
+    setIsFindingsDrawerOpen(open)
+    if (open) setActiveRailPanel(null)
+  }, [])
+
   // Story 6.3 — whole-batch severity counts, read TWICE from the same
   // underlying `collectFindingsAcrossStatements` computation: once here
   // (feeding both the icon rail's Findings badge and the drawer's
@@ -1004,7 +1016,7 @@ export function PlanReaderPage() {
                     findingsCount={findingsSummary.total}
                     findingsWorstSeverity={findingsSummary.worstSeverity}
                     isFindingsOpen={isFindingsDrawerOpen}
-                    onToggleFindings={() => setIsFindingsDrawerOpen((v) => !v)}
+                    onToggleFindings={() => handleFindingsOpenChange(!isFindingsDrawerOpen)}
                   />
                 )
               })()}
@@ -1267,7 +1279,7 @@ export function PlanReaderPage() {
                       onSelectNode={handleSelectFinding}
                       summary={findingsSummary}
                       isOpen={isFindingsDrawerOpen}
-                      onOpenChange={setIsFindingsDrawerOpen}
+                      onOpenChange={handleFindingsOpenChange}
                       detailPanelOpen={Boolean(detailPanel) && !isDetailPinned}
                     />
                   )}

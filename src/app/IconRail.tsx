@@ -15,7 +15,7 @@
 // `recentPlansContent` and wrapped in this component's overlay chrome, so
 // no business logic moves, only where it's displayed.
 
-import type { ReactNode } from "react"
+import { useEffect, useRef, type ReactNode } from "react"
 import { FilePlus, ClockCounterClockwise, ListChecks } from "@phosphor-icons/react"
 import type { Warning } from "../parsers/normalize"
 
@@ -49,8 +49,42 @@ export function IconRail({
   const closePanel = () => onSelectPanel(null)
   const toggle = (panel: Exclude<IconRailPanel, null>) => onSelectPanel(activePanel === panel ? null : panel)
 
+  // Episode 26, Story 26.2 — click ANYWHERE outside the rail/panel closes
+  // it now, not just its own close button or a same-icon re-click (Story
+  // 6.3's original behavior, still intact via `toggle`/`closePanel` above).
+  // A plain `document` listener, not `stopPropagation`-guarded — the AC's
+  // own explicit requirement is that the click ALSO still does whatever it
+  // landed on (e.g. selecting a node behind the now-non-interactive scrim
+  // below), not just close this panel. Attached only while a panel is
+  // actually open, so this never costs anything the rest of the time.
+  // Listening on the bubble phase (the default) means the click's own
+  // target handler already ran by the time this fires — closing never
+  // races or preempts it.
+  const navRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!activePanel) return
+    const handleDocumentClick = (event: MouseEvent) => {
+      // `event.composedPath()`, not `navRef.current.contains(event.target)`
+      // — a real bug found via e2e: a click that causes ITS OWN target to
+      // unmount as a side effect (e.g. PasteBox.tsx's "pasted · N lines"
+      // summary button, which disappears the instant it's clicked, right
+      // before this listener runs) leaves `event.target` detached from the
+      // document by the time this fires; `contains()` on a detached node
+      // always reports `false`, misreading a genuinely-inside click as
+      // outside and closing the panel out from under the very content it
+      // just revealed. `composedPath()` is captured at DISPATCH time,
+      // before any handler (including React's own state update) can mutate
+      // the tree, so it still reflects the real ancestry regardless of what
+      // happens to the target afterward.
+      if (navRef.current && !event.composedPath().includes(navRef.current)) closePanel()
+    }
+    document.addEventListener("click", handleDocumentClick)
+    return () => document.removeEventListener("click", handleDocumentClick)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePanel])
+
   return (
-    <nav className="icon-rail" data-testid="icon-rail" aria-label="Plan input and recent plans">
+    <nav className="icon-rail" data-testid="icon-rail" aria-label="Plan input and recent plans" ref={navRef}>
       <button
         type="button"
         className="icon-rail__button"
@@ -100,20 +134,23 @@ export function IconRail({
         )}
       </button>
 
-      {/* Same fixed-scrim-behind-a-fixed-panel mechanism as the detail
-          panel's own overlay (planReaderPage.css's
-          .plan-shell__detail-scrim) — one overlay pattern in this app.
-          `hidden` (a real bug this story's own e2e run caught), not
-          conditional unmounting: PasteBox owns its own pasted-text state
-          internally (`useState`, no controlled prop from here) — closing
-          this panel by UNMOUNTING it would wipe whatever was typed/
-          pasted, breaking the story's own explicit "re-openable, to edit
-          and re-analyze" requirement the moment a plan had already been
-          analyzed once. `hidden` keeps both content subtrees permanently
-          mounted (matching PasteBox's own established "CSS-only
-          visibility toggle, not a conditional unmount" pattern for its
-          internal collapse), only ever swapping which one is visible. */}
-      <div className="icon-rail__scrim" data-testid="icon-rail-scrim" onClick={closePanel} hidden={!activePanel} />
+      {/* Purely a visual dim now (Story 26.2) — `pointer-events: none` in
+          CSS, no `onClick` of its own: the document-level listener above
+          is what actually closes the panel on an outside click, and it
+          needs that click to reach its REAL target underneath (e.g.
+          selecting a canvas node), not be swallowed here the way Story
+          6.3's original click-to-close scrim did. `hidden` (a real bug
+          Story 6.3's own e2e run caught), not conditional unmounting:
+          PasteBox owns its own pasted-text state internally (`useState`,
+          no controlled prop from here) — closing this panel by
+          UNMOUNTING it would wipe whatever was typed/pasted, breaking the
+          "re-openable, to edit and re-analyze" requirement once a plan
+          had already been analyzed once. `hidden` keeps both content
+          subtrees permanently mounted (matching PasteBox's own
+          established "CSS-only visibility toggle, not a conditional
+          unmount" pattern for its internal collapse), only ever swapping
+          which one is visible. */}
+      <div className="icon-rail__scrim" data-testid="icon-rail-scrim" hidden={!activePanel} />
       <div
         className="icon-rail__panel"
         role="dialog"
