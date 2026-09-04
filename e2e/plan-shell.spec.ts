@@ -19,7 +19,12 @@ Planning Time: 0.4 ms
 Execution Time: 9.0 ms`
 
 test.describe("app shell breakpoints (spec §2)", () => {
-  test("above 1180px of the shell's own width, the detail panel is a real grid track — position: static, no scrim", async ({ page }) => {
+  // Story 6.3 — the detail panel is now an overlay by DEFAULT at every
+  // shell width (never a grid track unless pinned open) — these two tests
+  // replace this story's own pre-6.3 "1180px switches between grid-track
+  // and overlay" pair. The grid-track behavior itself still exists and is
+  // covered below, under the pin-preference describe block.
+  test("the detail panel is a fixed overlay with a scrim behind it above 1180px too, by default (un-pinned)", async ({ page }) => {
     await page.setViewportSize({ width: 1500, height: 900 })
     await page.goto("/")
     await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
@@ -31,22 +36,12 @@ test.describe("app shell breakpoints (spec §2)", () => {
     await page.getByTestId("plan-node-card").first().click()
     const panel = page.getByTestId("detail-panel")
     await expect(panel).toBeVisible()
-    await expect(panel).toHaveClass(/detail-panel--in-shell/)
-    await expect(panel).toHaveCSS("position", "static")
-    // The scrim element exists in the DOM whenever the panel is open at
-    // ANY width (`.plan-shell__detail-scrim { display: none }` is the
-    // default, only shown below 1180px) — hidden, not absent, here.
-    await expect(page.getByTestId("plan-shell-detail-scrim")).toBeHidden()
-
-    // A true grid track has real, non-degenerate size — this is the same
-    // "height: 100%" bug this story hit and fixed (see detailPanel.css's
-    // comment): a stretched-grid-item + percentage-height child silently
-    // collapsed to a zero-height, Playwright-"hidden" element.
-    const box = await panel.boundingBox()
-    expect(box?.height).toBeGreaterThan(200)
+    await expect(panel).not.toHaveClass(/detail-panel--in-shell/)
+    await expect(panel).toHaveCSS("position", "fixed")
+    await expect(page.getByTestId("plan-shell-detail-scrim")).toBeVisible()
   })
 
-  test("below 1180px, the detail panel is a fixed overlay with a scrim behind it", async ({ page }) => {
+  test("below 1180px, the detail panel is a fixed overlay with a scrim behind it (unchanged from before this story)", async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 900 })
     await page.goto("/")
     await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
@@ -58,10 +53,7 @@ test.describe("app shell breakpoints (spec §2)", () => {
     await page.getByTestId("plan-node-card").first().click()
     const panel = page.getByTestId("detail-panel")
     await expect(panel).toBeVisible()
-    // The `--in-shell` class itself is always present (it's what makes the
-    // `@container` rule apply in the first place) — it's the COMPUTED
-    // position that changes with width, not the class.
-    await expect(panel).toHaveClass(/detail-panel--in-shell/)
+    await expect(panel).not.toHaveClass(/detail-panel--in-shell/)
     await expect(panel).toHaveCSS("position", "fixed")
 
     const scrim = page.getByTestId("plan-shell-detail-scrim")
@@ -70,6 +62,62 @@ test.describe("app shell breakpoints (spec §2)", () => {
     // a real modal-overlay affordance, not decorative.
     await scrim.click({ position: { x: 5, y: 5 } })
     await expect(panel).toBeHidden()
+  })
+
+  // Story 6.3 — "keep panel open" preference: pinning restores the exact
+  // pre-6.3 grid-track behavior above 1180px, and stays a plain overlay
+  // below it (matching DetailPanel's own `variant="shell"` degradation,
+  // unchanged from Story 18.2).
+  test.describe("pinned detail panel", () => {
+    test("above 1180px, pinning switches the panel to a real grid track — position: static, no scrim", async ({ page }) => {
+      await page.setViewportSize({ width: 1500, height: 900 })
+      await page.goto("/")
+      await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
+      await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+
+      await page.getByTestId("plan-node-card").first().click()
+      await page.getByTestId("detail-panel-pin").click()
+
+      const panel = page.getByTestId("detail-panel")
+      await expect(panel).toHaveClass(/detail-panel--in-shell/)
+      await expect(panel).toHaveCSS("position", "static")
+      await expect(page.getByTestId("plan-shell-detail-scrim")).toBeHidden()
+
+      // A true grid track has real, non-degenerate size — the same
+      // "height: 100%" bug Story 18.2 hit and fixed (detailPanel.css's own
+      // comment): a stretched-grid-item + percentage-height child silently
+      // collapsed to a zero-height, Playwright-"hidden" element.
+      const box = await panel.boundingBox()
+      expect(box?.height).toBeGreaterThan(200)
+    })
+
+    test("pinning survives closing and reselecting a different node", async ({ page }) => {
+      await page.setViewportSize({ width: 1500, height: 900 })
+      await page.goto("/")
+      await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
+      await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+
+      await page.getByTestId("plan-node-card").first().click()
+      await page.getByTestId("detail-panel-pin").click()
+      await expect(page.getByTestId("detail-panel")).toHaveClass(/detail-panel--in-shell/)
+
+      await page.getByTestId("plan-node-card").nth(1).click()
+      await expect(page.getByTestId("detail-panel")).toHaveClass(/detail-panel--in-shell/)
+    })
+
+    test("below 1180px, a pinned panel still degrades to the overlay+scrim treatment", async ({ page }) => {
+      await page.setViewportSize({ width: 1000, height: 900 })
+      await page.goto("/")
+      await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
+      await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+
+      await page.getByTestId("plan-node-card").first().click()
+      await page.getByTestId("detail-panel-pin").click()
+
+      const panel = page.getByTestId("detail-panel")
+      await expect(panel).toHaveClass(/detail-panel--in-shell/)
+      await expect(panel).toHaveCSS("position", "fixed")
+    })
   })
 
   test("below 860px, Findings and the graph become tabs instead of a side-by-side rail+canvas", async ({ page }) => {

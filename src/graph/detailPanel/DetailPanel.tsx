@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { PushPin, PushPinSimple } from "@phosphor-icons/react"
 import type { PlanNode } from "../../parsers/normalize"
 import type { PlanContext } from "../../rules/types"
 import { computeContributionPercent } from "./computeContributionPercent"
@@ -43,6 +44,18 @@ export interface DetailPanelProps {
    * change), not a supported half-controlled state. */
   expertMode?: boolean
   onExpertModeChange?: (expertMode: boolean) => void
+  /** Story 6.3 — "keep panel open" preference. Only meaningful for the
+   * shell's right rail (the caller that switches between `variant="overlay"`
+   * default and `variant="shell"` when pinned) — every other caller
+   * (PlanGraph's own internal render, each PlanComparisonView pane,
+   * `variant="popup"`) has no page-level pin state to share and omits
+   * both props, same "half-controlled is a caller bug" rule `expertMode`
+   * above already established. Rendering the control doesn't depend on
+   * the current `variant` — it needs to work from an un-pinned overlay
+   * (to turn pinning ON) just as much as from an already-pinned panel (to
+   * turn it back off). */
+  isPinned?: boolean
+  onPinnedChange?: (pinned: boolean) => void
 }
 
 const ENGINE_LABEL: Record<PlanNode["engine"], string> = {
@@ -66,6 +79,8 @@ export function DetailPanel({
   position,
   expertMode: controlledExpertMode,
   onExpertModeChange,
+  isPinned,
+  onPinnedChange,
 }: DetailPanelProps) {
   // Uncontrolled fallback for callers with no page-level state to lift
   // from (see the prop's own doc comment) — this is exactly the local
@@ -127,6 +142,26 @@ export function DetailPanel({
       aria-label={`Details for ${node.rawOperatorLabel}`}
       data-testid="detail-panel"
     >
+      {/* Story 6.3 — "keep panel open" preference. Off by default: the
+          panel is an overlay that closes on deselect/outside-click. On:
+          the caller (PlanReaderPage) switches this same instance to
+          `variant="shell"`, restoring the pre-existing grid-track
+          behavior for as long as it's pinned, surviving deselecting and
+          reselecting nodes. */}
+      {onPinnedChange && (
+        <button
+          type="button"
+          className="detail-panel__pin"
+          aria-pressed={Boolean(isPinned)}
+          aria-label={isPinned ? "Unpin details panel (close on deselect)" : "Keep panel open (pin it in place)"}
+          title={isPinned ? "Unpin panel" : "Keep panel open"}
+          data-testid="detail-panel-pin"
+          onClick={() => onPinnedChange(!isPinned)}
+        >
+          {isPinned ? <PushPin weight="fill" aria-hidden="true" /> : <PushPinSimple aria-hidden="true" />}
+        </button>
+      )}
+
       <button
         ref={closeButtonRef}
         type="button"

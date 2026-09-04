@@ -170,6 +170,16 @@ export function PlanReaderPage() {
   // mounts elsewhere in the tree.
   const [detailPanel, setDetailPanel] = useState<{ node: PlanNode; context: PlanContext; onClose: () => void } | undefined>(undefined)
 
+  // Story 6.3 — the detail panel is an overlay by default (never a
+  // reflow — see DetailPanel's own `variant="overlay"`, already the
+  // always-fixed behavior every OTHER caller in this app already uses);
+  // pinning switches this SAME right-rail instance to `variant="shell"`,
+  // restoring the pre-existing grid-track-above-1180px behavior for as
+  // long as it's on. Session-only state, not persisted across reloads —
+  // a deliberate, disclosed scope limit, the same shape `dontSave` above
+  // already has.
+  const [isDetailPinned, setIsDetailPinned] = useState(false)
+
   // Design review (docs/12-ui-redesign-spec.md §2's metrics strip:
   // "total, node count, collapsed count, colour legend...") — collapsed
   // count for display only, reported outward by PlanGraph itself; see
@@ -835,7 +845,18 @@ export function PlanReaderPage() {
               )}
             </div>
           ) : (
-            <div className="plan-shell__body" data-testid="plan-shell-body">
+            <div
+              // Story 6.3 — the 3rd (right) grid track only exists when
+              // the detail panel is pinned open; see planReaderPage.css's
+              // matching `@container (min-width: 1180px)` rule. Default
+              // (un-pinned) drops that track entirely — the overlay panel
+              // is `position: fixed` and exerts no influence on it either
+              // way, but an explicit 2-column template (vs. a stray
+              // 0-width 3rd column left over from before this story) is
+              // clearer and matches what's actually happening.
+              className={`plan-shell__body${isDetailPinned ? " plan-shell__body--detail-pinned" : ""}`}
+              data-testid="plan-shell-body"
+            >
               {/* Left rail (spec §2): "Plan input ... over Findings." Episode
                   19: Plan Input now lives here permanently, above Findings,
                   from the very first load — not in its old pre-shell
@@ -1178,18 +1199,36 @@ export function PlanReaderPage() {
                   this rail would otherwise show a second, redundant copy of
                   the exact same panel underneath the maximized overlay. */}
               <aside className="plan-shell__rail plan-shell__rail--right" data-testid="plan-shell-right-rail">
+                {/* Story 6.3 — overlay by default (`variant="overlay"`,
+                    the always-`position: fixed` behavior every other
+                    caller in this app already uses — never a reflow of
+                    the canvas beside it), `variant="shell"` (the
+                    pre-existing grid-track-above-1180px behavior) only
+                    while pinned. `isPinned`/`onPinnedChange` are passed
+                    unconditionally here since this IS the shell-context
+                    caller the pin control is built for (see DetailPanel's
+                    own doc comment for the other callers that omit both). */}
                 {detailPanel && !isMaximized && (
                   <DetailPanel
                     node={detailPanel.node}
                     context={detailPanel.context}
                     onClose={detailPanel.onClose}
-                    variant="shell"
+                    variant={isDetailPinned ? "shell" : "overlay"}
                     expertMode={expertMode}
                     onExpertModeChange={setExpertMode}
+                    isPinned={isDetailPinned}
+                    onPinnedChange={setIsDetailPinned}
                   />
                 )}
               </aside>
-              {detailPanel && !isMaximized && (
+              {/* Story 6.3 — the scrim now renders (and closes the panel
+                  on click) whenever an UN-PINNED panel is open, at every
+                  shell width — not gated to <1180px anymore, since
+                  overlay-by-default is no longer a narrow-width-only
+                  state. A pinned panel gets no scrim: it's a normal grid
+                  track the user asked to keep visible, not something a
+                  stray click on the canvas should dismiss. */}
+              {detailPanel && !isMaximized && !isDetailPinned && (
                 <div className="plan-shell__detail-scrim" data-testid="plan-shell-detail-scrim" onClick={detailPanel.onClose} />
               )}
             </div>

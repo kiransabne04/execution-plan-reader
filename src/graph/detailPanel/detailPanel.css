@@ -170,8 +170,27 @@
   line-height: 1;
 }
 
+/* Story 6.3 — sits just to the left of the close button, same corner. */
+.detail-panel__pin {
+  position: absolute;
+  top: 12px;
+  right: 40px;
+  border: none;
+  background: transparent;
+  color: var(--dp-text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.detail-panel__pin[aria-pressed="true"] {
+  color: var(--dp-text);
+}
+
 .detail-panel__header {
-  padding-right: 28px;
+  padding-right: 52px;
   padding-bottom: 12px;
   margin-bottom: 14px;
   border-bottom: 1px solid var(--dp-border);

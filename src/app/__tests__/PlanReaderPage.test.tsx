@@ -836,7 +836,44 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       const rightRail = screen.getByTestId("plan-shell-right-rail")
       const panel = within(rightRail).getByTestId("detail-panel")
-      expect(panel).toHaveClass("detail-panel--in-shell")
+      // Story 6.3 — overlay by default now (never `--in-shell`, the old
+      // grid-track class), even though it still mounts inside the shell's
+      // right rail element (see this component's own doc comment for why
+      // that aside stays mounted regardless).
+      expect(panel).toHaveClass("detail-panel")
+      expect(panel).not.toHaveClass("detail-panel--in-shell")
+    })
+
+    // Story 6.3 — "keep panel open" preference restores the pre-existing
+    // grid-track behavior.
+    it("pinning the detail panel switches it to the grid-track variant; unpinning switches it back", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      const panel = screen.getByTestId("detail-panel")
+      expect(panel).not.toHaveClass("detail-panel--in-shell")
+
+      fireEvent.click(screen.getByTestId("detail-panel-pin"))
+      expect(screen.getByTestId("detail-panel")).toHaveClass("detail-panel--in-shell")
+      // The un-pinned scrim (click-outside-to-close) must not render while
+      // pinned — a pinned panel is a normal grid track, not something a
+      // stray canvas click should dismiss.
+      expect(screen.queryByTestId("plan-shell-detail-scrim")).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId("detail-panel-pin"))
+      expect(screen.getByTestId("detail-panel")).not.toHaveClass("detail-panel--in-shell")
+    })
+
+    it("the click-outside scrim closes an un-pinned panel", () => {
+      render(<PlanReaderPage />)
+      pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+
+      fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
+      expect(screen.getByTestId("detail-panel")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId("plan-shell-detail-scrim"))
+      expect(screen.queryByTestId("detail-panel")).not.toBeInTheDocument()
     })
 
     it("closing the shell-rendered panel (Escape) restores focus to the triggering card, same as the original internal panel did", () => {
@@ -1004,7 +1041,11 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
       const rightRail = screen.getByTestId("plan-shell-right-rail")
-      expect(within(rightRail).getByTestId("detail-panel")).toHaveClass("detail-panel--in-shell")
+      // Story 6.3 — overlay by default (not `--in-shell` anymore), but
+      // still not the popup variant either — normal-mode clicks open the
+      // shell's own right-rail-mounted overlay panel, same as before this
+      // story except for which variant that is.
+      expect(within(rightRail).getByTestId("detail-panel")).not.toHaveClass("detail-panel--popup")
       expect(screen.queryByTestId("detail-panel")).not.toHaveClass("detail-panel--popup")
     })
 

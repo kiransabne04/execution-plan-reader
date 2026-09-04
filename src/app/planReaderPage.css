@@ -656,10 +656,13 @@
 .plan-shell__body {
   flex: 1 1 auto;
   display: grid;
-  /* Exact column template from spec §2: rails are the flexible tracks and
-     shrink first; the canvas holds a hard 360px floor so a wide left/right
-     rail combination can never starve it. */
-  grid-template-columns: clamp(232px, 20cqi, 296px) minmax(360px, 1fr) clamp(300px, 26cqi, 384px);
+  /* Story 6.3 — the detail panel is `position: fixed` by default (never a
+     grid participant), so there's no 3rd column to reserve here anymore —
+     the canvas absorbs that space instead of it sitting reserved and
+     empty. Restored (`.plan-shell__body--detail-pinned` below,
+     `@container (min-width: 1180px)`) only while the panel is pinned
+     open, matching the exact original 3-column spec §2 template. */
+  grid-template-columns: clamp(232px, 20cqi, 296px) minmax(360px, 1fr);
   gap: 12px;
   padding: 12px;
   min-height: 0;
@@ -679,6 +682,20 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+}
+
+/* Story 6.3 — `overflow: visible` by default (not the shared rule's
+   `overflow-y: auto` above): this aside always mounts (Episode 19) even
+   though its content — DetailPanel, `position: fixed` when un-pinned —
+   never needs to scroll WITHIN it. `overflow: hidden`/`auto` on an
+   ancestor doesn't clip a `position: fixed` descendant in most browsers,
+   but `visible` removes any ambiguity, and matches this rule's own
+   pre-Story-6.3 narrow-width behavior now applied at every width instead
+   of only <1180px. Restored to `overflow-y: auto` only while pinned
+   (below), matching the grid-track panel's real need to scroll its own
+   content within the rail. */
+.plan-shell__rail--right {
+  overflow: visible;
 }
 
 /* Design review: left rail only — tightest usable line-height (1 is the
@@ -997,40 +1014,33 @@
   color: white;
 }
 
+/* Story 6.3 — always rendered as this when mounted; PlanReaderPage.tsx
+   itself now controls WHETHER it's in the DOM at all (only when an
+   un-pinned panel is open), so there's no separate "hidden by default,
+   shown below a breakpoint" CSS state to manage the way there used to be
+   — this is a plain, unconditional scrim, at every shell width. */
 .plan-shell__detail-scrim {
-  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 19;
 }
 
-/* Below 1180px of the SHELL's own width (not the viewport — see
-   .plan-shell's container-type above): the right rail's grid track
-   collapses to 0 width (its content — DetailPanel — has already switched
-   to a fixed overlay via detailPanel.css's own matching `@container`
-   rule, so the track reserving real space here would just waste it) and a
-   scrim appears behind that overlay. Spec §2's breakpoint table.
-
-   Deliberately 0px in the template, NOT `display: none` on the rail
-   itself: `display: none` on an ancestor hides its `position: fixed`
-   descendant too — `position` doesn't let an element escape an ancestor's
-   `display: none`, only its normal layout flow. That's a real bug this
-   story hit during its own e2e run (the panel resolved in the DOM but
-   Playwright reported it "hidden") — a 0-width column keeps the aside
-   itself actually rendered, so its fixed-position child renders normally,
-   completely unaffected by its now-collapsed parent's size. */
-@container (max-width: 1179px) {
-  .plan-shell__body {
-    grid-template-columns: clamp(232px, 20cqi, 296px) minmax(360px, 1fr) 0px;
+/* Story 6.3 — restores the exact pre-existing (Story 18.2) 3-column
+   template + grid-track right rail, ONLY while the panel is pinned open
+   AND the shell is wide enough for DetailPanel's own `--in-shell`
+   grid-track rule (detailPanel.css) to actually apply — below 1180px,
+   `variant="shell"` degrades to the same overlay+scrim behavior
+   regardless of pin state, so a 3-column template there would just
+   reserve dead space for an overlay, exactly the waste this story's own
+   default behavior otherwise avoids. */
+@container (min-width: 1180px) {
+  .plan-shell__body--detail-pinned {
+    grid-template-columns: clamp(232px, 20cqi, 296px) minmax(360px, 1fr) clamp(300px, 26cqi, 384px);
   }
 
-  .plan-shell__rail--right {
-    overflow: visible;
-  }
-
-  .plan-shell__detail-scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 19;
+  .plan-shell__body--detail-pinned .plan-shell__rail--right {
+    overflow-y: auto;
   }
 }
 
