@@ -670,44 +670,36 @@
   height: 14px;
 }
 
-/* Spec §2: "Share and Export drop to icon-only before wrapping." Below
-   this SHELL width (`@container`, not `@media` — same "measures against
-   the shell's own width" rule every other breakpoint in this file
-   follows), the app bar's natural content (brand, engine badge, mode
-   toggle, walkthrough/compare buttons, Share, Export) needs more space
-   than it has and would otherwise force horizontal scroll —
-   `.plan-shell__app-bar`'s own `overflow-x: auto` was silently absorbing
-   that instead of ever actually wrapping, which is why this went
-   unnoticed: nothing looked visibly broken, it just meant scrolling to
-   reach Export at these widths.
+/* Design review (header PNG reference): Share and Export are icon-only
+   at every shell width, not just below a measured breakpoint — the
+   mockup's own source never gives either button a text label at all
+   (superseding this rule's earlier "drop to icon-only before wrapping"
+   reading of spec §2, which had them keeping full text above ~860px).
+   The mode toggle/walkthrough/compare buttons are unaffected — they keep
+   their full text at every width, per the spec's own wording. Symmetric
+   padding, since these are bare square icon buttons now, never icon+text. */
+.plan-shell__app-bar-button--icon-only,
+.share-link__button {
+  padding: 6px;
+}
 
-   859px, matching `NARROW_SHELL_BREAKPOINT_PX`'s own already-established
-   860px threshold (`.plan-shell__body`'s own breakpoint just below): a
-   measured, not assumed, choice — re-measured with a throwaway Playwright
-   script against the real built app (including the brand-mark icon added
-   in the same design-mockup-review pass, which widened the app bar's
-   natural content enough to invalidate an earlier, narrower 759px
-   threshold this rule used before that icon existed) found the full-text
-   app bar stops fitting somewhere between 786px and 816px of shell width.
-   Reusing 860 rather than picking a new bespoke number keeps one
-   breakpoint value doing double duty at a width that's already a real,
-   meaningful structural change (input rail collapse, Story 18.2) instead
-   of accumulating a third close-but-different magic number. Scoped to
-   Share and Export specifically, per the spec's own wording — the mode
-   toggle/walkthrough/compare buttons keep their full text at every width,
-   unchanged. */
-@container (max-width: 859px) {
-  .plan-shell__app-bar-button-label,
-  .share-link__button-label {
-    display: none;
-  }
+/* Design review (header PNG reference): spec §2's app-bar "filename"
+   slot, between the brand and the engine badge. */
+.plan-shell__app-bar-divider {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  background: var(--pr-border);
+}
 
-  /* Symmetric padding once only the icon remains — the asymmetric 4px/12px
-     padding was sized for icon+text, not a bare square icon button. */
-  .plan-shell__app-bar-button--icon-only,
-  .share-link__button {
-    padding: 6px;
-  }
+.plan-shell__app-bar-filename {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--pr-text-muted);
 }
 
 .plan-shell__body {

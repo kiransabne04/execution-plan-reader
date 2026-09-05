@@ -104,6 +104,12 @@ export function PlanReaderPage() {
   const [analyzed, setAnalyzed] = useState<AnalyzedPlan | null>(initial?.analyzed ?? null)
   const [error, setError] = useState<string | null>(initial?.error ?? null)
   const [rawText, setRawText] = useState(initial?.rawText ?? "")
+  // Design review (header PNG reference): spec §2's app-bar "filename"
+  // slot — a dropped/picked file's name, or a loaded sample's real
+  // filename. Undefined (never a fabricated placeholder) for plain
+  // paste, a restored share link, or a recent/restored session, none of
+  // which carry a real name.
+  const [sourceFilename, setSourceFilename] = useState<string | undefined>(undefined)
   // Story 20.1: defaults to the first NON-TRIVIAL statement (a real query,
   // or one with a finding) rather than always 0 — a large stored-procedure
   // plan's own statement 0 is frequently a trivial `DECLARE`, and landing
@@ -323,8 +329,9 @@ export function PlanReaderPage() {
   )
 
   const handleAnalyze = useCallback(
-    (text: string) => {
+    (text: string, filename?: string) => {
       setRawText(text)
+      setSourceFilename(filename)
       try {
         const result = analyzePlanText(text)
         setAnalyzed(result)
@@ -608,6 +615,7 @@ export function PlanReaderPage() {
   const handleNewPlan = useCallback(() => {
     setAnalyzed(null)
     setRawText("")
+    setSourceFilename(undefined)
     setError(null)
     setActiveStatementIndex(0)
     setExpandedStatementGroups(new Set())
@@ -667,11 +675,20 @@ export function PlanReaderPage() {
                 then, so the empty first-load app bar shows just the brand. */}
             {analyzed && (
               <>
-                {/* spec §2's app-bar order has a "filename" slot here (a
-                    dropped/picked file's name, truncating). There's no real
-                    filename yet — plans only arrive via paste until Story
-                    18.5's file input lands — so this is intentionally omitted
-                    rather than showing an empty or fabricated placeholder. */}
+                {/* Design review (header PNG reference): spec §2's
+                    app-bar "filename" slot. Story 18.5's file input and
+                    the sample-plan loaders both give a real name now —
+                    still omitted entirely (never an empty/fabricated
+                    placeholder) for plain paste, a restored share link,
+                    or a restored session, none of which have one. */}
+                {sourceFilename && (
+                  <>
+                    <span className="plan-shell__app-bar-divider" aria-hidden="true" />
+                    <span className="plan-shell__app-bar-filename" data-testid="app-bar-filename" title={sourceFilename}>
+                      {sourceFilename}
+                    </span>
+                  </>
+                )}
                 <span className="plan-shell__engine-badge" data-testid="detected-engine-badge">
                   {ENGINE_LABEL[analyzed.engine]}
                 </span>
@@ -715,11 +732,11 @@ export function PlanReaderPage() {
                   </button>
                 )}
                 <ShareLinkButton rawText={rawText} />
-                {/* Spec §2: "Share and Export drop to icon-only before
-                    wrapping." Was deferred pending real icon assets — Story
-                    18.4's operator icon set (@phosphor-icons/react) shipped
-                    since, so that blocker's gone; see planReaderPage.css's
-                    own comment for the measured (not assumed) breakpoint. */}
+                {/* Design review (header PNG reference): Share and Export
+                    are icon-only at every width, not just below a
+                    breakpoint — the mockup's own source never gives
+                    either button a text label at all. `aria-label` still
+                    carries the real accessible name. */}
                 <button
                   type="button"
                   className="plan-shell__app-bar-button plan-shell__app-bar-button--icon-only"
@@ -728,7 +745,6 @@ export function PlanReaderPage() {
                   aria-label="Export as PNG"
                 >
                   <DownloadSimple className="plan-shell__app-bar-button-icon" weight="regular" aria-hidden="true" />
-                  <span className="plan-shell__app-bar-button-label">Export</span>
                 </button>
               </>
             )}

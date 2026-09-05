@@ -110,6 +110,22 @@ describe("PlanReaderPage", () => {
     expect(screen.queryByTestId("parse-error")).not.toBeInTheDocument()
   })
 
+  // Design review (header PNG reference): spec §2's app-bar filename slot.
+  it("shows the app-bar filename slot for a loaded FILE, but never fabricates one for a plain paste", async () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
+    expect(screen.queryByTestId("app-bar-filename")).not.toBeInTheDocument()
+
+    const file = new File([loadFixture("postgres", "multi-way-join.json")], "orders-plan.json", { type: "application/json" })
+    fireEvent.change(screen.getByTestId("file-picker-input"), { target: { files: [file] } })
+    await waitFor(() => expect(screen.getByTestId("app-bar-filename")).toHaveTextContent("orders-plan.json"))
+
+    // New plan clears it — the next load (paste or file) starts honest again.
+    fireEvent.click(screen.getByTestId("new-plan-button"))
+    pasteAndAnalyze(loadFixture("postgres", "multi-way-join.json"))
+    expect(screen.queryByTestId("app-bar-filename")).not.toBeInTheDocument()
+  })
+
   it("shows a friendly error, not a crash, for pasted non-plan text", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "non-plan-text.txt"))
@@ -779,13 +795,19 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       const appBar = document.querySelector(".plan-shell__app-bar") as HTMLElement
       expect(appBar).toBeInTheDocument()
-      const text = appBar.textContent ?? ""
-      const brandIndex = text.indexOf("PlanReader")
-      const engineIndex = text.indexOf("Postgres")
-      const modeIndex = text.indexOf("Beginner")
-      const walkthroughIndex = text.indexOf("Walk me through it")
-      const compareIndex = text.indexOf("Compare with another plan")
-      const exportIndex = text.indexOf("Export")
+      // Design review (header PNG reference): Share and Export are
+      // icon-only now — "Export" isn't visible text anymore, so every
+      // position is checked against the markup (data-testid survives
+      // regardless of whether a button shows a text label), one
+      // consistent index space rather than mixing textContent offsets
+      // with innerHTML ones.
+      const html = appBar.innerHTML
+      const brandIndex = html.indexOf("PlanReader")
+      const engineIndex = html.indexOf('data-testid="detected-engine-badge"')
+      const modeIndex = html.indexOf('data-testid="shell-mode-beginner"')
+      const walkthroughIndex = html.indexOf('data-testid="walkthrough-open"')
+      const compareIndex = html.indexOf('data-testid="compare-toggle"')
+      const exportIndex = html.indexOf('data-testid="export-png-button"')
       expect(brandIndex).toBeGreaterThanOrEqual(0)
       expect(brandIndex).toBeLessThan(engineIndex)
       expect(engineIndex).toBeLessThan(modeIndex)
@@ -795,10 +817,10 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       // Story 18.9 shipped "Walk me through it" and Story 18.11 shipped
       // "Export" — see each story's own describe block below for behavior.
-      // Story 18.2's own follow-up (icon-only Share/Export below 760px,
-      // fixed once Story 18.4's icons existed) gave Export an aria-label
-      // ("Export as PNG") distinct from its visible text ("Export") — the
-      // accessible name is what getByRole matches against.
+      // Design review (header PNG reference): Export is icon-only at
+      // every width now, with no visible text at all — `aria-label`
+      // ("Export as PNG") is its ONLY name, which is what getByRole
+      // matches against here.
       expect(within(appBar).getByRole("button", { name: /walk me through it/i })).toBeEnabled()
       expect(within(appBar).getByRole("button", { name: /export as png/i })).toBeEnabled()
     })

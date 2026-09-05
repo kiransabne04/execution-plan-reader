@@ -40,13 +40,11 @@ export function ShareLinkButton({ rawText }: ShareLinkButtonProps) {
 
   return (
     <div className="share-link">
-      {/* Spec §2: "Share and Export drop to icon-only before wrapping" —
-          see planReaderPage.css's own comment for the measured breakpoint.
-          `aria-label` carries the accessible name regardless of whether
-          the text label is visually hidden. */}
+      {/* Design review (header PNG reference): icon-only at every width —
+          the mockup's own source never gives this button a text label.
+          `aria-label` carries the real accessible name. */}
       <button type="button" className="share-link__button" onClick={handleClick} aria-label="Copy shareable link">
         <Link className="share-link__button-icon" weight="regular" aria-hidden="true" />
-        <span className="share-link__button-label">Copy shareable link</span>
       </button>
 
       {status === "copied" && (

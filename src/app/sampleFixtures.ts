@@ -20,6 +20,11 @@ export interface SampleFixture {
   engineLabel: string
   formatLabel: string
   description: string
+  /** The fixture's own real filename under src/fixtures/ — shown in the
+   * app-bar's filename slot once loaded (design review, header PNG
+   * reference), same honest-name treatment a real dropped/picked file
+   * gets, never an invented one. */
+  filename: string
   text: string
 }
 
@@ -29,6 +34,7 @@ export const SAMPLE_FIXTURES: readonly SampleFixture[] = [
     engineLabel: "Postgres",
     formatLabel: "EXPLAIN JSON",
     description: "nested-loop join producing 500× more rows than estimated",
+    filename: "rule-exploding-join.json",
     text: postgresExplodingJoin,
   },
   {
@@ -36,6 +42,7 @@ export const SAMPLE_FIXTURES: readonly SampleFixture[] = [
     engineLabel: "SQL Server",
     formatLabel: "Showplan XML",
     description: "index seek feeding a per-row key lookup",
+    filename: "seek-and-key-lookup.xml",
     text: sqlserverKeyLookup,
   },
   {
@@ -43,6 +50,7 @@ export const SAMPLE_FIXTURES: readonly SampleFixture[] = [
     engineLabel: "Snowflake",
     formatLabel: "Operator stats JSON",
     description: "aggregate spilling to remote storage",
+    filename: "spill-to-remote-disk.json",
     text: snowflakeRemoteSpill,
   },
 ]

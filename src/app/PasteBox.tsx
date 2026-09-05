@@ -4,7 +4,11 @@ import { PRIVACY_CAVEAT_NOTE, PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
 import { SAMPLE_FIXTURES } from "./sampleFixtures"
 
 export interface PasteBoxProps {
-  onAnalyze: (text: string) => void
+  /** `filename` is a real name (a dropped/picked file's own name, or a
+   * loaded sample's actual filename) — omitted for plain paste, never a
+   * fabricated one. See PlanReaderPage.tsx's own `sourceFilename` state
+   * and the app-bar's filename slot (design review, header PNG reference). */
+  onAnalyze: (text: string, filename?: string) => void
   /** Pre-fills the textarea — used when a Story 11.2 shareable link decoded
    * successfully on load, so the recovered text is visible and re-copyable,
    * not just silently rendered into the graph below. */
@@ -95,7 +99,7 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
     try {
       const fileText = await readFileAsText(file)
       setText(fileText)
-      onAnalyze(fileText)
+      onAnalyze(fileText, file.name)
       setIsCollapsed(true)
     } catch {
       // A real file-read failure (permissions, a mid-read device error) is
@@ -109,9 +113,9 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
   // Design review, spec §6 `1d`: same "paste and go" treatment the file
   // picker already gets above — visible in the (re-editable) textarea AND
   // handed straight to `onAnalyze`, not a second, silent load path.
-  const loadSample = (sampleText: string) => {
+  const loadSample = (sampleText: string, filename: string) => {
     setText(sampleText)
-    onAnalyze(sampleText)
+    onAnalyze(sampleText, filename)
     setIsCollapsed(true)
   }
 
@@ -249,7 +253,7 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
               type="button"
               className="paste-box__sample-button"
               data-testid="sample-plan-button"
-              onClick={() => loadSample(sample.text)}
+              onClick={() => loadSample(sample.text, sample.filename)}
             >
               <span className="paste-box__sample-engine">{sample.engineLabel}</span>
               <span className="paste-box__sample-description">— {sample.description}</span>
