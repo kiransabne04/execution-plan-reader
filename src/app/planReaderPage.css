@@ -47,15 +47,15 @@
    itself is untouched; see PlanReaderPage.tsx's own Episode 19 comment. */
 
 .plan-reader-page__footer {
-  /* `auto` on a flex-column parent's last child consumes the leftover
-     space above it, pinning this to the bottom of the (now full-height)
-     `.plan-reader-page` on short content, while still scrolling below
-     taller content instead of overlapping it — the "sticky footer"
-     layout without `position: sticky`. */
+  /* `flex: none` so this stays its own small content height — the
+     shell above (`.plan-shell`, flex:1) is what claims the leftover
+     viewport space now, right up to this row. `margin-top: auto` kept
+     as a fallback pin in case the shell's own height ever collapses. */
+  flex: none;
   margin-top: auto;
-  padding: 12px 16px;
+  padding: 6px 16px;
   color: var(--pr-text-muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .plan-reader-page__footer p {
@@ -515,6 +515,13 @@
   border: 1px solid var(--pr-border);
   border-radius: 8px;
   overflow: hidden;
+  /* `.plan-reader-page` is now a flex column filling the viewport
+     (see its own rule) — flex:1 + min-height:0 here makes the shell
+     claim the leftover space down to the footer instead of stopping at
+     its old fixed `.plan-shell__body` height and leaving a bare gap
+     above the footer. */
+  flex: 1;
+  min-height: 0;
 }
 
 .plan-shell__app-bar {
@@ -670,16 +677,13 @@
   gap: 12px;
   padding: 12px;
   min-height: 0;
-  /* Spec §2 says 100dvh with only the rails/panel scrolling, never the
-     page — that assumes the shell IS the page. This app keeps Story 8.1's
-     hero always rendered above it, which the spec's own mockup (a
-     dedicated app screen, no hero) didn't have to share space with — a
-     literal 100dvh here would push the shell mostly off-screen under the
-     hero instead. Deliberate, documented deviation: a generous but bounded
-     height instead, so the shell still gets real vertical room without
-     double-counting viewport height already spent on the hero. Revisit if
-     a later story addresses hero visibility once a plan is loaded. */
-  height: min(78dvh, 760px);
+  /* Spec §2's 100dvh assumed the shell IS the page. Story 8.1's hero is
+     gone (Episode 19), and `.plan-shell` itself is now flex:1 inside a
+     full-viewport-height `.plan-reader-page` — so this row's own
+     flex:1 1 auto (above) already fills exactly the leftover height
+     down to the footer, no fixed cap needed. Old fixed
+     `height: min(78dvh, 760px)` removed: it stopped the shell short of
+     the footer and left a dead gap between them. */
 }
 
 .plan-shell__rail {
