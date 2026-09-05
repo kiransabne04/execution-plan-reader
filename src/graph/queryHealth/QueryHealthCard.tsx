@@ -38,8 +38,12 @@ const DIMENSION_LABEL: Record<QueryHealthDimension, string> = {
 // the finding-severity tiers) rather than inventing a fourth vocabulary —
 // "healthy" here is this card's own name for what those surfaces call "info"/
 // clean, chosen because a raw score has no `info`-tier concept of its own.
+// Design review (spec §2 "2a fluid shell"): exact thresholds are the
+// spec's own — "teal at ≥80, amber at ≥55, red below" — a presentation-
+// only tier for this ring/dimension coloring, not the actual scoring math
+// in rules/queryHealth.ts (untouched).
 function scoreTier(score: number): "critical" | "warning" | "healthy" {
-  if (score < 50) return "critical"
+  if (score < 55) return "critical"
   if (score < 80) return "warning"
   return "healthy"
 }
@@ -226,6 +230,12 @@ export function QueryHealthCard({ health, severityExamples }: QueryHealthCardPro
               )
             })}
           </ul>
+          )}
+
+          {overallScored && (
+            <p className="query-health-card__weighting-note" data-testid="query-health-weighting-note">
+              Weights each node's share of total time against the severity of what it triggered.
+            </p>
           )}
 
           <ul className="query-health-card__breakdown" data-testid="query-health-breakdown">

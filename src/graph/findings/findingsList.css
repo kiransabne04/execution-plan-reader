@@ -45,8 +45,12 @@
 
 .findings-list__summary {
   margin: 0;
-  font-size: 12.5px;
+  /* Design review (spec §2 "2a fluid shell"): "Summary type is
+     clamp(12.5px,1.05cqi,14px) with a 68ch measure" — carried over
+     unchanged from this block's old centre-canvas home. */
+  font-size: clamp(12.5px, 1.05cqi, 14px);
   line-height: 1.5;
+  max-width: 68ch;
 }
 
 /* Matches the reference mock's two-tone verdict sentence: the lead-in

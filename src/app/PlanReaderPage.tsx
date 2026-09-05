@@ -1232,6 +1232,21 @@ export function PlanReaderPage() {
                           </span>
                         )}
                       </div>
+
+                      {/* Design review (spec §2 "2a fluid shell"): credit
+                          sits at the right edge of the canvas footer,
+                          divider-separated, capped at 30ch so it wraps to
+                          two lines rather than pushing the metrics —
+                          "No separate footer bar." No hyperlink — there's
+                          no real URL for the video series/blog post yet
+                          (Episode 12.1, blocked; a fabricated link would
+                          be worse than none), so "the handle links to the
+                          content stack" has no real destination to point
+                          at either, same honest-gap reasoning. */}
+                      <span className="plan-shell__canvas-divider" aria-hidden="true" />
+                      <p className="plan-shell__canvas-credit">
+                        Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.
+                      </p>
                     </div>
                   )}
                 </main>
@@ -1313,10 +1328,16 @@ export function PlanReaderPage() {
           skeptical visitor. No hyperlink here — there's no real URL for the
           video series/blog post in this project's docs yet (a known,
           tracked gap; see Episode 12's content-linking story), and a
-          fabricated link would be worse than none. */}
-      <footer className="plan-reader-page__footer">
-        <p>Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.</p>
-      </footer>
+          fabricated link would be worse than none.
+
+          Design review (spec §2 "2a fluid shell"): "No separate footer
+          bar" — once a plan is analyzed, this credit lives in the canvas
+          footer instead (plan-shell__canvas-credit, above). Kept here,
+          plain (no border/background/sticky treatment — not a "bar"),
+          ONLY for the empty landing state, where no canvas footer exists
+          to carry it and a first-time visitor would otherwise never see
+          it at all. */}
+      {!analyzed && <p className="plan-reader-page__credit">Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.</p>}
     </main>
   )
 }

@@ -56,6 +56,44 @@ body {
   outline-offset: 2px;
 }
 
+/* Design review (spec §1 / §2 "2a fluid shell"): "Scrollbars everywhere
+   are 7px, transparent track, pill thumb in the accent at 30%, 55% on
+   hover, solid #9184d9 while dragging." Global — every scroll container
+   in the app (rails, findings list, detail panel, raw-attributes/query-
+   correlation blocks, the query-health popover) gets this without a
+   per-component rule. Firefox has no thumb-hover/active states of its
+   own to match — `scrollbar-color`/`scrollbar-width` is its only lever. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-accent) 32%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--color-accent);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 h1,
 h2 {
   font-family: var(--heading);

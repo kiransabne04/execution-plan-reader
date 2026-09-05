@@ -37,22 +37,17 @@
    grep-confirmed zero remaining references before deleting. positioningCopy.ts
    itself is untouched; see PlanReaderPage.tsx's own Episode 19 comment. */
 
-.plan-reader-page__footer {
-  /* Sticky rather than static: pins to the bottom of the viewport so it
-     stays visible instead of scrolling out of sight below a tall shell. */
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  margin-top: 40px;
-  padding: 12px 16px;
-  background: var(--pr-bg);
-  border-top: 1px solid var(--pr-border);
+/* Design review (spec §2 "2a fluid shell"): "No separate footer bar" —
+   once a plan is analyzed, the credit moves into the canvas footer
+   (.plan-shell__canvas-credit below). This plain, unstyled paragraph is
+   the empty-landing-state-only fallback (see PlanReaderPage.tsx's own
+   comment) — no border, no background, no sticky positioning, so it
+   never reads as a "bar" of its own. */
+.plan-reader-page__credit {
+  margin: 24px 0 0;
+  padding: 0 16px;
   color: var(--pr-text-muted);
   font-size: 13px;
-}
-
-.plan-reader-page__footer p {
-  margin: 0;
 }
 
 .restore-session-banner {
@@ -827,13 +822,17 @@
 /* Design review, spec §2 "Canvas footer" — "A sticky metrics bar directly
    under the canvas... flex-wrap: wrap; min-height: 46px — never a fixed
    height and never horizontally scrolling; at narrow widths it wraps to
-   two rows." Query Health (QueryHealthCard, left) and the plan-metrics
-   group (right) are its two flex children, spaced apart. */
+   two rows." Query Health sits flush left (the footer's first child,
+   normal flex flow); the plan-metrics group, the divider, and the credit
+   cluster flush right as one group — `margin-left: auto` lives on the
+   metrics group itself (below), not a `justify-content: space-between`
+   on this element, since that would spread all FOUR children (health,
+   metrics, divider, credit) evenly instead of clustering the last three
+   together at the right edge. */
 .plan-shell__canvas-footer {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
   min-height: 46px;
@@ -845,6 +844,11 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 18px;
+  /* Clusters this group (and the divider/credit that follow it in normal
+     flex flow) flush against the footer's right edge, while Query Health
+     stays flush left as the footer's first child — see the footer's own
+     comment above. */
+  margin-left: auto;
 }
 
 /* Spec §2: "Each a stacked uppercase label over a mono value." */
@@ -871,6 +875,26 @@
   max-width: 22ch;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Design review (spec §2 "2a fluid shell"): marks where the credit
+   begins, right after the plan-metrics group (which carries the
+   `margin-left: auto` that clusters this whole trailing group at the
+   footer's right edge — see `.plan-shell__canvas-metrics` above). */
+.plan-shell__canvas-divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  background: var(--pr-border);
+}
+
+.plan-shell__canvas-credit {
+  flex: none;
+  margin: 0;
+  max-width: 30ch;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--pr-text-muted);
 }
 
 /* Spec §2: "The only canvas overlays are the search affordance (top
