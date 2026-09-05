@@ -17,6 +17,21 @@
      reasons not worth chasing further; an explicit width setting is
      unambiguous regardless of the parent's flex algorithm quirks. */
   width: 100%;
+  /* Spec §2b: "the shell is 100dvh... so only the rails and panel
+     scroll — never the page." #root is already `display:flex;
+     flex-direction:column; min-height:100svh` — flex:1 here makes this
+     section claim all of that height (instead of just its own content
+     height), and the column direction lets `.plan-shell` below fill it
+     in turn. A literal `height:100dvh` directly on `.plan-shell` would
+     work too when this IS the whole page (Episode 19 retired the hero
+     that used to sit above it), but would overflow the page the moment
+     anything else renders below it — the empty-state credit paragraph,
+     for one — which is exactly the "never the page" scroll this rule
+     exists to prevent. flex:1 degrades correctly instead: .plan-shell
+     still gets everything BUT what that sibling needs. */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   margin: 0 auto;
   padding: 0;
   box-sizing: border-box;
@@ -560,6 +575,11 @@
   border: 1px solid var(--pr-border);
   border-radius: 8px;
   overflow: hidden;
+  /* Spec §2b: fills whatever height `.plan-reader-page`'s own flex:1
+     (above) leaves it — see that rule's comment for why this is a
+     flex-fill rather than a literal `height: 100dvh` here. */
+  flex: 1;
+  min-height: 0;
 }
 
 .plan-shell__app-bar {
@@ -771,16 +791,15 @@
   gap: 12px;
   padding: 12px;
   min-height: 0;
-  /* Spec §2 says 100dvh with only the rails/panel scrolling, never the
-     page — that assumes the shell IS the page. This app keeps Story 8.1's
-     hero always rendered above it, which the spec's own mockup (a
-     dedicated app screen, no hero) didn't have to share space with — a
-     literal 100dvh here would push the shell mostly off-screen under the
-     hero instead. Deliberate, documented deviation: a generous but bounded
-     height instead, so the shell still gets real vertical room without
-     double-counting viewport height already spent on the hero. Revisit if
-     a later story addresses hero visibility once a plan is loaded. */
-  height: min(78dvh, 760px);
+  /* Spec §2b: "the shell is 100dvh... so only the rails and panel
+     scroll — never the page." The old fixed `height: min(78dvh, 760px)`
+     cap here was a deliberate deviation from that, made when Story 8.1's
+     hero rendered above the shell and a literal 100dvh would have pushed
+     it off-screen — Episode 19 retired that hero, and this row's own
+     `flex: 1 1 auto` now simply fills whatever `.plan-shell`'s own
+     flex:1 (planReaderPage.css's own comment) leaves it after the
+     52px app-bar, which amounts to the same "shell fills the viewport"
+     result 100dvh describes, without the page ever needing to scroll. */
 }
 
 .plan-shell__rail {
@@ -869,6 +888,51 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--pr-text-muted);
+}
+
+.plan-shell__input-section-header-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Spec §2b: "860 — input rail collapses into a one-line disclosure
+   bar." One row, full-width, muted "Plan input" label on the left and
+   an accent "Expand" affordance on the right — the collapsed state
+   itself; `.plan-shell__input-disclosure-toggle--inline` (used inside
+   the expanded section's own header instead) is the same visual
+   language for collapsing back. */
+.plan-shell__input-disclosure {
+  flex: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--pr-border);
+  border-radius: 6px;
+  background: var(--pr-badge-bg);
+  color: var(--pr-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plan-shell__input-disclosure-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pr-accent);
+  font-size: 11px;
+}
+
+.plan-shell__input-disclosure-toggle--inline {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 .plan-shell__new-plan-button {

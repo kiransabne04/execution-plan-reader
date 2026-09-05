@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { CheckCircle, DownloadSimple, MagnifyingGlass, PlayCircle, TreeStructure } from "@phosphor-icons/react"
+import { CaretDown, CaretUp, CheckCircle, DownloadSimple, MagnifyingGlass, PlayCircle, TreeStructure } from "@phosphor-icons/react"
 import { PasteBox } from "./PasteBox"
 import { Notice } from "./Notice"
 import { ComparePasteBox } from "./ComparePasteBox"
@@ -217,6 +217,16 @@ export function PlanReaderPage() {
   const MOBILE_SHELL_BREAKPOINT_PX = 620
   const shellRef = useRef<HTMLElement>(null)
   const [isNarrowShell, setIsNarrowShell] = useState(false)
+  // Spec §2b's breakpoint table: "860 — input rail collapses into a
+  // one-line disclosure bar." Only ever consulted once a plan is already
+  // analyzed AND the shell is narrow (see the JSX below) — before that,
+  // Plan Input stays fully expanded at every width, preserving the
+  // earlier, still-valid reason it was made unconditionally visible in
+  // the first place (a plan must be reachable at every breakpoint). This
+  // just adds the collapsed BAR as a real, one-click-away state once
+  // there's already a result on screen and the input's own job is done —
+  // it doesn't reintroduce the thing that decision guarded against.
+  const [isInputRailExpanded, setIsInputRailExpanded] = useState(false)
   const [isMobileShell, setIsMobileShell] = useState(false)
   // Which tab shows at narrow widths. Defaults to "graph" at the 860px
   // (tablet) breakpoint, which can still usefully show a graph — "Findings
@@ -907,59 +917,96 @@ export function PlanReaderPage() {
                   the user's own explicit edge case for this change).
                   Findings itself still respects that tab switch below
                   860px — it's what actually competes with the graph for
-                  space, not Plan Input. */}
+                  space, not Plan Input.
+
+                  Spec §2b: "860 — input rail collapses into a one-line
+                  disclosure bar." Only once a plan is already analyzed
+                  AND the shell is narrow — before that (or at ≥860px),
+                  the full section always renders, so the reachability
+                  guarantee above still holds; this only adds the
+                  collapsed bar as a real, one-click-away state once the
+                  input's own job is done and a result is already on
+                  screen. */}
               <aside className="plan-shell__rail plan-shell__rail--left" data-testid="plan-shell-left-rail">
-                <div className="plan-shell__input-section" data-testid="plan-shell-input-section">
-                  <div className="plan-shell__input-section-header">
-                    <h2 className="plan-shell__input-section-title">Plan input</h2>
-                    {analyzed && (
-                      <button
-                        type="button"
-                        className="plan-shell__new-plan-button"
-                        data-testid="new-plan-button"
-                        onClick={handleNewPlan}
-                      >
-                        New plan
-                      </button>
+                {isNarrowShell && analyzed && !isInputRailExpanded ? (
+                  <button
+                    type="button"
+                    className="plan-shell__input-disclosure"
+                    data-testid="plan-shell-input-disclosure"
+                    aria-expanded={false}
+                    onClick={() => setIsInputRailExpanded(true)}
+                  >
+                    <span>Plan input</span>
+                    <span className="plan-shell__input-disclosure-toggle">
+                      Expand <CaretDown aria-hidden="true" />
+                    </span>
+                  </button>
+                ) : (
+                  <div className="plan-shell__input-section" data-testid="plan-shell-input-section">
+                    <div className="plan-shell__input-section-header">
+                      <h2 className="plan-shell__input-section-title">Plan input</h2>
+                      <span className="plan-shell__input-section-header-actions">
+                        {isNarrowShell && analyzed && (
+                          <button
+                            type="button"
+                            className="plan-shell__input-disclosure-toggle plan-shell__input-disclosure-toggle--inline"
+                            data-testid="plan-shell-input-collapse"
+                            aria-expanded={true}
+                            onClick={() => setIsInputRailExpanded(false)}
+                          >
+                            Collapse <CaretUp aria-hidden="true" />
+                          </button>
+                        )}
+                        {analyzed && (
+                          <button
+                            type="button"
+                            className="plan-shell__new-plan-button"
+                            data-testid="new-plan-button"
+                            onClick={handleNewPlan}
+                          >
+                            New plan
+                          </button>
+                        )}
+                      </span>
+                    </div>
+
+                    {restoreCandidate && (
+                      <RestoreSessionBanner
+                        savedAt={restoreCandidate.savedAt}
+                        onRestore={() => handleAnalyze(restoreCandidate.text)}
+                        onDismiss={handleDismissRestore}
+                      />
+                    )}
+
+                    <PasteBox
+                      onAnalyze={handleAnalyze}
+                      initialText={initial?.rawText}
+                      dontSave={dontSave}
+                      onDontSaveChange={setDontSave}
+                      hasSavedData={restoreCandidate !== null || recentPlans.length > 0}
+                      onClearSavedData={handleClearSavedData}
+                    />
+
+                    {persistenceNotice && (
+                      <p className="plan-reader-page__note" data-testid="persistence-notice">
+                        {persistenceNotice}
+                      </p>
+                    )}
+
+                    <RecentPlansList
+                      plans={recentPlans}
+                      onSelect={handleAnalyze}
+                      onDelete={handleDeleteRecentPlan}
+                      onClearAll={handleClearAllRecentPlans}
+                    />
+
+                    {error && (
+                      <Notice severity="critical" data-testid="parse-error">
+                        {error}
+                      </Notice>
                     )}
                   </div>
-
-                  {restoreCandidate && (
-                    <RestoreSessionBanner
-                      savedAt={restoreCandidate.savedAt}
-                      onRestore={() => handleAnalyze(restoreCandidate.text)}
-                      onDismiss={handleDismissRestore}
-                    />
-                  )}
-
-                  <PasteBox
-                    onAnalyze={handleAnalyze}
-                    initialText={initial?.rawText}
-                    dontSave={dontSave}
-                    onDontSaveChange={setDontSave}
-                    hasSavedData={restoreCandidate !== null || recentPlans.length > 0}
-                    onClearSavedData={handleClearSavedData}
-                  />
-
-                  {persistenceNotice && (
-                    <p className="plan-reader-page__note" data-testid="persistence-notice">
-                      {persistenceNotice}
-                    </p>
-                  )}
-
-                  <RecentPlansList
-                    plans={recentPlans}
-                    onSelect={handleAnalyze}
-                    onDelete={handleDeleteRecentPlan}
-                    onClearAll={handleClearAllRecentPlans}
-                  />
-
-                  {error && (
-                    <Notice severity="critical" data-testid="parse-error">
-                      {error}
-                    </Notice>
-                  )}
-                </div>
+                )}
 
                 {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "findings") && (
                   <FindingsList
