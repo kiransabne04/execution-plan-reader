@@ -15,15 +15,29 @@ import { makeNode } from "../../../rules/__tests__/testHelpers"
 import type { PlanNode } from "../../../parsers/normalize"
 
 describe("DetailPanel — memoization (Story 16.1)", () => {
-  it("does not re-derive stat rows when the panel re-renders for an unrelated reason (Beginner/Expert toggle)", () => {
+  it("re-derives stat rows exactly once across a Beginner/Expert toggle (a genuine reorder, not a plain re-render) — never a second time after that for the same node", () => {
+    // Design review, spec §1f: "Expert reorders, it does not just extend.
+    // Numbers first, education last." DetailPanel.tsx now renders two
+    // structurally different JSX branches for the two modes — React
+    // remounts StatsTable across that switch (a different position in a
+    // different subtree, not the same element re-rendered in place),
+    // so buildStatRows legitimately runs again ONCE on the toggle itself.
+    // What this test still guards, unchanged from before the reorder:
+    // that single remount doesn't cascade into repeated recomputation on
+    // every subsequent unrelated re-render once settled in the new mode.
     const spy = vi.spyOn(buildStatRowsModule, "buildStatRows")
     const node = makeNode({ actualTimeMs: 5 })
     const context = buildPlanContext(node)
-    render(<DetailPanel node={node} context={context} onClose={() => {}} />)
+    const { rerender } = render(<DetailPanel node={node} context={context} onClose={() => {}} />)
     const callsAfterMount = spy.mock.calls.length
 
     fireEvent.click(screen.getByRole("button", { name: "Expert" }))
-    expect(spy.mock.calls.length).toBe(callsAfterMount) // StatsTable doesn't read expertMode — must not re-run
+    expect(spy.mock.calls.length).toBe(callsAfterMount + 1)
+
+    // An unrelated re-render (same node/context, new onClose identity)
+    // while ALREADY in Expert mode must not re-derive again.
+    rerender(<DetailPanel node={node} context={context} onClose={() => {}} />)
+    expect(spy.mock.calls.length).toBe(callsAfterMount + 1)
   })
 
   it("does not re-look-up the glossary entry when the panel re-renders for an unrelated reason", () => {
@@ -90,20 +104,14 @@ describe("DetailPanel — rapid node switching (Story 16.1 edge case)", () => {
   })
 })
 
-describe("DetailPanel — large raw-attributes bag (Story 16.1 edge case, revised by Story 18.7 and the spec §5 Beginner-visibility correction)", () => {
-  it("Beginner mode shows the section COLLAPSED, never expanding 500 fields' worth of content by default", () => {
+describe("DetailPanel — large raw-attributes bag (Story 16.1 edge case, revised by Story 18.7)", () => {
+  it("Beginner mode never renders attribute content at all, even for a very large attributes bag", () => {
     const bigAttributes = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`field-${i}`, `value-${i}`]))
     const node = makeNode({ attributes: bigAttributes })
     const context = buildPlanContext(node)
     render(<DetailPanel node={node} context={context} onClose={() => {}} />)
-    // Design review, spec §5: Beginner's own numbered section list
-    // includes Raw attributes (item 7) — present, just collapsed. The
-    // real performance guarantee this test locks in is unchanged from
-    // before: the 500-entry JSON block itself never renders unless a
-    // user explicitly expands it.
-    const section = screen.getByTestId("raw-attributes")
-    expect(section).toBeInTheDocument()
-    expect(screen.queryByText(/field-499/)).not.toBeInTheDocument()
+    // Design review, spec §1f: "Beginner: ... raw attributes hidden."
+    expect(screen.queryByTestId("raw-attributes")).not.toBeInTheDocument()
   })
 
   it("Story 18.7: Expert mode expands 500 fields by default, within the same bounded-time budget Story 16.2 established for other bulk-content paths, not reintroducing an open-latency regression", () => {

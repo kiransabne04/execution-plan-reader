@@ -107,6 +107,21 @@ export function DetailPanel({
   // (e.g. the Beginner/Expert toggle, which this value doesn't depend on).
   const contributionPercent = useMemo(() => computeContributionPercent(node, context), [node, context])
 
+  // Design review, spec §1f: "copy node JSON" — one of the Expert-only
+  // header actions. `node` is already the exact, already-normalized
+  // PlanNode this whole panel renders from — no second serialization
+  // path, no raw engine JSON kept around separately to reach for instead.
+  const [copyJsonStatus, setCopyJsonStatus] = useState<"idle" | "copied" | "failed">("idle")
+  const handleCopyJson = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(node, null, 2))
+      setCopyJsonStatus("copied")
+    } catch {
+      setCopyJsonStatus("failed")
+    }
+    setTimeout(() => setCopyJsonStatus("idle"), 2000)
+  }
+
   return (
     <div
       className={
@@ -180,9 +195,11 @@ export function DetailPanel({
         </div>
       )}
 
-      <OperatorEducation node={node} expertMode={expertMode} />
-      <StatsTable node={node} expertMode={expertMode} />
-      <WarningsSection warnings={node.warnings} expertMode={expertMode} engine={node.engine} />
+      {expertMode && (
+        <button type="button" className="detail-panel__copy-json" data-testid="detail-panel-copy-json" onClick={handleCopyJson}>
+          {copyJsonStatus === "copied" ? "Copied" : copyJsonStatus === "failed" ? "Couldn't copy" : "Copy node JSON"}
+        </button>
+      )}
 
       <section className="detail-panel__section" data-testid="contribution-summary">
         <h3 className="detail-panel__section-heading">Contribution to the plan</h3>
@@ -208,13 +225,38 @@ export function DetailPanel({
         )}
       </section>
 
-      <QueryCorrelation queryText={context.statementText} queryTextRedacted={context.queryTextRedacted} />
-      {/* Story 18.13, spec §5 `2c`: "never stack the two [this and the
-          funnel callout] adjacent" — placed here, several sections away
-          from WarningsSection (where FunnelCallout renders), by
-          construction, not just visual styling. */}
-      <ContentStack operatorType={node.operatorType} ruleIds={node.warnings.map((w) => w.ruleId)} />
-      <RawAttributes attributes={node.attributes} expertMode={expertMode} />
+      {/* Design review, spec §1f: "Expert reorders, it does not just
+          extend. Numbers first, education last — collapsed to a single
+          disclosure line at the bottom." Beginner keeps the original
+          narrative order (education leads); Expert puts the data sections
+          first and pushes OperatorEducation (which already collapses
+          itself to one line in Expert mode — OperatorEducation.tsx's own
+          logic, untouched here) to the very end. Every section's own
+          content/behavior is identical either way — only the ORDER of
+          these five calls differs between the two branches below. */}
+      {expertMode ? (
+        <>
+          <StatsTable node={node} expertMode={expertMode} />
+          <WarningsSection warnings={node.warnings} expertMode={expertMode} engine={node.engine} />
+          <QueryCorrelation queryText={context.statementText} queryTextRedacted={context.queryTextRedacted} />
+          <RawAttributes attributes={node.attributes} expertMode={expertMode} />
+          <ContentStack operatorType={node.operatorType} ruleIds={node.warnings.map((w) => w.ruleId)} />
+          <OperatorEducation node={node} expertMode={expertMode} />
+        </>
+      ) : (
+        <>
+          <OperatorEducation node={node} expertMode={expertMode} />
+          <StatsTable node={node} expertMode={expertMode} />
+          <WarningsSection warnings={node.warnings} expertMode={expertMode} engine={node.engine} />
+          <QueryCorrelation queryText={context.statementText} queryTextRedacted={context.queryTextRedacted} />
+          {/* Story 18.13, spec §5 `2c`: "never stack the two [this and the
+              funnel callout] adjacent" — placed here, several sections
+              away from WarningsSection (where FunnelCallout renders), by
+              construction, not just visual styling. */}
+          <ContentStack operatorType={node.operatorType} ruleIds={node.warnings.map((w) => w.ruleId)} />
+          <RawAttributes attributes={node.attributes} expertMode={expertMode} />
+        </>
+      )}
     </div>
   )
 }

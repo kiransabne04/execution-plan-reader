@@ -227,6 +227,26 @@
   border-color: var(--dp-text);
 }
 
+/* Design review, spec §1f: "copy node JSON" — one of the Expert-only
+   header actions. A plain small button, not a full section — it sits
+   right under the mode toggle, before the reordered Expert content
+   begins. */
+.detail-panel__copy-json {
+  display: block;
+  margin: 0 0 14px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--dp-border);
+  background: transparent;
+  color: var(--dp-text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.detail-panel__copy-json:hover {
+  color: var(--dp-text);
+}
+
 .detail-panel__section {
   margin-bottom: 16px;
 }
@@ -376,6 +396,15 @@
 
 .detail-panel__stat-mismatch {
   color: var(--dp-warning-critical);
+  font-weight: 600;
+}
+
+/* Design review, spec §1f: "Workers launched below workers planned is
+   called out in amber" — amber specifically (--dp-finding-warning-text),
+   not the red --dp-warning-critical above reserves for an actual
+   estimate mismatch. */
+.detail-panel__stat-warning {
+  color: var(--dp-finding-warning-text);
   font-weight: 600;
 }
 

@@ -33,6 +33,7 @@ import { formatNumber } from "../rules/format"
 import { collectFindingsAcrossStatements } from "../rules/findings"
 import { computeQueryHealth } from "../rules/queryHealth"
 import { pickMetricValue, type MetricKey } from "../graph/encoding"
+import { loadExpertMode, saveExpertMode } from "./expertModePersistence"
 import {
   saveSession,
   loadSession,
@@ -191,7 +192,15 @@ export function PlanReaderPage() {
   // plan) — that's the entire point of lifting it: picking Expert once and
   // having it stay Expert while browsing. Shared with Story 18.9's
   // walkthrough once that exists, per spec §2.
-  const [expertMode, setExpertMode] = useState(false)
+  // Design review, spec §1f: "The mode is sticky across sessions
+  // (localStorage); an expert sets it once." Lazy initializer so the
+  // synchronous localStorage read only ever happens once, on mount — not
+  // on every render.
+  const [expertMode, setExpertModeState] = useState(loadExpertMode)
+  const setExpertMode = useCallback((value: boolean) => {
+    setExpertModeState(value)
+    saveExpertMode(value)
+  }, [])
 
   // Episode 18, Story 18.2 — spec §2's breakpoint table: below 860px of
   // the SHELL's own width (not the viewport — this is exactly why

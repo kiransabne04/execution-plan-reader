@@ -69,7 +69,9 @@ function StatsTableInner({ node, expertMode }: StatsTableProps) {
                         ? "detail-panel__stat-gap"
                         : row.label === "Actual rows" && hasMismatch
                           ? "detail-panel__stat-mismatch"
-                          : undefined
+                          : row.isWarning
+                            ? "detail-panel__stat-warning"
+                            : undefined
                     }
                   >
                     {row.value}

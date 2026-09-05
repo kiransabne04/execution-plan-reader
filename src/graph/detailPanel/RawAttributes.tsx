@@ -7,17 +7,16 @@ export interface RawAttributesProps {
 }
 
 /**
- * Panel section 7 (Beginner) / 8 (Expert) — the untouched attributes bag,
- * the escape hatch for anyone who wants to see exactly what the engine
- * reported with nothing normalized away.
+ * Panel section 8 — the untouched attributes bag, only shown at all in
+ * Expert mode (never in Beginner). The escape hatch for anyone who wants
+ * to see exactly what the engine reported with nothing normalized away.
  *
- * Design review, spec §5: present in BOTH modes now (Beginner's own
- * numbered section list includes it as item 7) — corrected from an
- * earlier "Expert only" reading of this same spec that hid it from
- * Beginner entirely. Only the DEFAULT expanded state still differs:
- * Expert opens expanded (Story 18.7), Beginner opens collapsed — nothing
- * beginner-facing is lost by starting collapsed, and it's still one click
- * away, same as every other collapsible section on this panel.
+ * Design review, spec §1f: "Beginner: ... raw attributes hidden." A
+ * PREVIOUS pass (Design review, spec §5) read a different phrasing of
+ * this same spec as "present in both modes, Beginner just starts
+ * collapsed" and changed this to render in Beginner too — spec §1f is
+ * the more specific, later text on this exact question and is explicit
+ * that Beginner hides it outright. Reverted back to Expert-only.
  *
  * Story 18.7 (spec §5 `1f`): expanded by default on entering Expert mode
  * — still collapsible by hand afterward, see the `expanded` state/effect
@@ -31,7 +30,7 @@ export interface RawAttributesProps {
 function RawAttributesInner({ attributes, expertMode }: RawAttributesProps) {
   const [expanded, setExpanded] = useState(expertMode)
 
-  // Story 18.7, spec §5 `1f`: Expert mode's raw attributes are "expanded"
+  // Story 18.7, spec §1f: Expert mode's raw attributes are "expanded"
   // (Beginner's is "hidden" — this section isn't even rendered there, see
   // the early return below). React's documented "adjust state during
   // render" pattern (same one PlanGraph.tsx already uses for its own
@@ -54,6 +53,7 @@ function RawAttributesInner({ attributes, expertMode }: RawAttributesProps) {
   const entries = useMemo(() => Object.entries(attributes), [attributes])
   const formatted = useMemo(() => entries.map(([key, value]) => `${key}: ${value}`).join("\n"), [entries])
 
+  if (!expertMode) return null
   if (entries.length === 0) return null
 
   return (

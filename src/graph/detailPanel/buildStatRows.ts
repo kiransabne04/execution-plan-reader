@@ -19,6 +19,12 @@ export interface StatRow {
    * block instead of squeezing them into the narrow value column of the
    * 2-column table, where a long composite condition reads badly. */
   isLongText?: boolean
+  /** Design review, spec §1f: "Workers launched below workers planned is
+   * called out in amber — a common and otherwise invisible cause of a
+   * slow plan." Generic (not named after that one case) since the same
+   * "flag this specific row, not the whole section" treatment could
+   * apply to a future stat with its own real-vs-expected shortfall. */
+  isWarning?: boolean
 }
 
 const NOT_CAPTURED = "not captured in this plan"
@@ -224,6 +230,12 @@ function rowsPruning(node: PlanNode): StatRow[] {
 function rowsParallel(node: PlanNode): StatRow[] {
   const rows: StatRow[] = []
   if (node.parallel?.workersPlanned !== undefined) rows.push({ label: "Workers planned", value: formatNumber(node.parallel.workersPlanned) })
-  if (node.parallel?.workersLaunched !== undefined) rows.push({ label: "Workers launched", value: formatNumber(node.parallel.workersLaunched) })
+  if (node.parallel?.workersLaunched !== undefined) {
+    // Design review, spec §1f: "Workers launched below workers planned is
+    // called out in amber — a common and otherwise invisible cause of a
+    // slow plan."
+    const shortfall = node.parallel.workersPlanned !== undefined && node.parallel.workersLaunched < node.parallel.workersPlanned
+    rows.push({ label: "Workers launched", value: formatNumber(node.parallel.workersLaunched), isWarning: shortfall })
+  }
   return rows
 }
