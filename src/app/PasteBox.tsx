@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type DragEvent, type FormEvent } from "react"
 import { CaretDown, CaretUp, CornersOut, UploadSimple } from "@phosphor-icons/react"
 import { PRIVACY_CAVEAT_NOTE, PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
+import { SAMPLE_FIXTURES } from "./sampleFixtures"
 
 export interface PasteBoxProps {
   onAnalyze: (text: string) => void
@@ -103,6 +104,15 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
       // channel to report. Left as a silent no-op rather than inventing a
       // second error-display path for an edge case this unlikely.
     }
+  }
+
+  // Design review, spec §6 `1d`: same "paste and go" treatment the file
+  // picker already gets above — visible in the (re-editable) textarea AND
+  // handed straight to `onAnalyze`, not a second, silent load path.
+  const loadSample = (sampleText: string) => {
+    setText(sampleText)
+    onAnalyze(sampleText)
+    setIsCollapsed(true)
   }
 
   const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -225,6 +235,29 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
       <p className="paste-box__privacy" data-testid="privacy-statement">
         {PRIVACY_STATEMENT_SHORT}
       </p>
+
+      {/* Design review, spec §6 `1d`: "No plan handy? Start from a
+          sample" — one real fixture per engine (sampleFixtures.ts),
+          hidden once a plan is actually loaded/pasted, same as the mock
+          (which only shows this on the empty landing state). */}
+      {!showCollapsedSummary && (
+        <div className="paste-box__samples" data-testid="sample-plan-list">
+          <span className="paste-box__samples-label">No plan handy? Start from a sample</span>
+          {SAMPLE_FIXTURES.map((sample) => (
+            <button
+              key={sample.engine}
+              type="button"
+              className="paste-box__sample-button"
+              data-testid="sample-plan-button"
+              onClick={() => loadSample(sample.text)}
+            >
+              <span className="paste-box__sample-engine">{sample.engineLabel}</span>
+              <span className="paste-box__sample-description">— {sample.description}</span>
+              <span className="paste-box__sample-format">{sample.formatLabel}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Episode 17 — local persistence controls, and the caveat note, both
           tucked behind this disclosure (design review) rather than always

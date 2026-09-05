@@ -10,9 +10,66 @@
   margin-top: 12px;
   border-top: 1px solid var(--fl-border);
   padding-top: 12px;
+  /* Design review, spec §2: only the card list itself scrolls
+     (`.findings-list__items` below) — this section fills whatever
+     height `.plan-shell__rail--left`'s flex layout leaves it, and
+     everything above the card list (summary, header, filters) stays
+     `flex: none` so it never gets squeezed. */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Design review, spec §2: "the plain-language Summary block sits above
+   [the Findings header/filters]" — moved here from the centre canvas
+   (Story 5.2's PlanSummary, unchanged data/logic, new location only). */
+.findings-list__summary-block {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-bottom: 9px;
+  margin-bottom: 9px;
+  border-bottom: 1px solid var(--fl-border);
+}
+
+.findings-list__summary-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fl-text-muted);
+}
+
+.findings-list__summary {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* Matches the reference mock's two-tone verdict sentence: the lead-in
+   clause (up to the colon) in a bold severity color, the rest of the
+   sentence in the paragraph's own normal (muted) color. */
+.findings-list__summary-opener {
+  font-weight: 600;
+}
+
+.findings-list__summary-opener--critical {
+  color: var(--color-critical);
+}
+
+.findings-list__summary-opener--warning {
+  color: var(--color-warning-text);
+}
+
+.findings-list__summary-opener--info {
+  color: var(--fl-info-text);
 }
 
 .findings-list__header {
+  flex: none;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -47,6 +104,7 @@
 }
 
 .findings-list__filters {
+  flex: none;
   display: flex;
   gap: 10px;
   margin-bottom: 12px;
@@ -78,10 +136,16 @@
 .findings-list__items {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 2px 2px 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Spec §2's own scroll region: everything else in this rail is
+     `flex: none` (see `.findings-list` above), so this is the only
+     thing that scrolls when the card list is taller than the rail. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .findings-list__item {

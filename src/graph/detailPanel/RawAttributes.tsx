@@ -7,9 +7,17 @@ export interface RawAttributesProps {
 }
 
 /**
- * Panel section 8 — the untouched attributes bag, only shown at all in
- * Expert mode (never in Beginner). The escape hatch for anyone who wants
- * to see exactly what the engine reported with nothing normalized away.
+ * Panel section 7 (Beginner) / 8 (Expert) — the untouched attributes bag,
+ * the escape hatch for anyone who wants to see exactly what the engine
+ * reported with nothing normalized away.
+ *
+ * Design review, spec §5: present in BOTH modes now (Beginner's own
+ * numbered section list includes it as item 7) — corrected from an
+ * earlier "Expert only" reading of this same spec that hid it from
+ * Beginner entirely. Only the DEFAULT expanded state still differs:
+ * Expert opens expanded (Story 18.7), Beginner opens collapsed — nothing
+ * beginner-facing is lost by starting collapsed, and it's still one click
+ * away, same as every other collapsible section on this panel.
  *
  * Story 18.7 (spec §5 `1f`): expanded by default on entering Expert mode
  * — still collapsible by hand afterward, see the `expanded` state/effect
@@ -46,7 +54,6 @@ function RawAttributesInner({ attributes, expertMode }: RawAttributesProps) {
   const entries = useMemo(() => Object.entries(attributes), [attributes])
   const formatted = useMemo(() => entries.map(([key, value]) => `${key}: ${value}`).join("\n"), [entries])
 
-  if (!expertMode) return null
   if (entries.length === 0) return null
 
   return (
@@ -58,7 +65,7 @@ function RawAttributesInner({ attributes, expertMode }: RawAttributesProps) {
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
       >
-        Raw attributes {expanded ? "▾" : "▸"}
+        Raw attributes · {entries.length} {expanded ? "▾" : "▸"}
       </button>
       {expanded && <pre className="detail-panel__raw-attributes">{formatted}</pre>}
     </section>

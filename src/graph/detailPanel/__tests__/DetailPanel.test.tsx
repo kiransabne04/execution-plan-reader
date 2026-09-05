@@ -101,13 +101,22 @@ describe("DetailPanel", () => {
     expect(screen.getByTestId("query-correlation")).toHaveTextContent("SELECT * FROM Orders")
   })
 
-  it("hides raw attributes in Beginner mode and reveals them, EXPANDED, in Expert mode (Story 18.7)", () => {
+  it("shows raw attributes COLLAPSED in Beginner mode and EXPANDED in Expert mode (spec §5: present in both, only the default differs)", () => {
     const node = makeNode({ attributes: { "Relation Name": "orders" } })
     renderPanel(node)
-    expect(screen.queryByTestId("raw-attributes")).not.toBeInTheDocument()
+    // Design review, spec §5 Beginner's own numbered list includes Raw
+    // attributes as item 7 — present, just collapsed by default (an
+    // earlier reading of this spec hid it from Beginner entirely; that
+    // was the actual gap, not this section's presence here).
+    expect(screen.getByTestId("raw-attributes")).toBeInTheDocument()
+    expect(screen.queryByText(/Relation Name: orders/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /Raw attributes/ }))
+    expect(screen.getByText(/Relation Name: orders/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Raw attributes/ }))
+    expect(screen.queryByText(/Relation Name: orders/)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Expert" }))
-    expect(screen.getByTestId("raw-attributes")).toBeInTheDocument()
     // Story 18.7 (spec §5 1f): expanded by default on entering Expert mode
     // — reversed from the pre-18.7 collapsed-by-default behavior.
     expect(screen.getByText(/Relation Name: orders/)).toBeInTheDocument()

@@ -8,10 +8,17 @@ import { useMemo, useState } from "react"
 import type { Warning } from "../../parsers/normalize"
 import { collectFindingsAcrossStatements, type FindingsSource } from "../../rules/findings"
 import { FINDING_CATEGORY_ORDER, type FindingCategory } from "../../rules/findingCategory"
-import { NO_ISSUES_TEXT } from "../../rules/summarize"
+import { NO_ISSUES_TEXT, OPENERS, type PlanSummary } from "../../rules/summarize"
 import "./findingsList.css"
 
 export interface FindingsListProps {
+  /** Design review, spec §2: the left rail's plain-language verdict
+   * sentence (Story 5.2's `PlanSummary`) sits inside the Findings section
+   * itself, above the header — moved here from its old position atop the
+   * centre canvas (spec §2's own "centre: the canvas and nothing else").
+   * Optional only so this component's existing tests/callers that don't
+   * care about the summary aren't forced to pass one. */
+  summary?: PlanSummary
   /** Story 20.4: every statement in the batch, not just the active one —
    * a large SQL Server stored-proc plan's findings were previously
    * scoped to whichever ONE statement happened to be selected, silently
@@ -43,7 +50,7 @@ const SEVERITY_LABEL: Record<Warning["severity"], string> = {
   info: "Info",
 }
 
-export function FindingsList({ sources, activeStatementIndex, onSelectNode }: FindingsListProps) {
+export function FindingsList({ summary, sources, activeStatementIndex, onSelectNode }: FindingsListProps) {
   const allFindings = useMemo(() => collectFindingsAcrossStatements(sources), [sources])
 
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
@@ -79,6 +86,24 @@ export function FindingsList({ sources, activeStatementIndex, onSelectNode }: Fi
 
   return (
     <section className="findings-list" data-testid="findings-list">
+      {summary && (
+        <div className="findings-list__summary-block">
+          <span className="findings-list__summary-label">Summary</span>
+          <p className="findings-list__summary" data-testid="plan-summary">
+            {summary.severity !== "none" ? (
+              <>
+                <span className={`findings-list__summary-opener findings-list__summary-opener--${summary.severity}`}>
+                  {OPENERS[summary.severity]}
+                </span>
+                {summary.text.slice(OPENERS[summary.severity].length)}
+              </>
+            ) : (
+              summary.text
+            )}
+          </p>
+        </div>
+      )}
+
       <div className="findings-list__header">
         <h2 className="findings-list__title">
           Findings <span className="findings-list__count">· {allFindings.length}</span>

@@ -72,7 +72,7 @@ describe("buildStepNarration", () => {
       const node = makeNode({ id: "a", operatorType: "seq_scan", rawOperatorLabel: "Seq Scan", actualTimeMs: 10 })
       const narration = buildStepNarration(node, buildPlanContext(node), expertMode)
 
-      render(<OperatorEducation operatorType={node.operatorType} rawOperatorLabel={node.rawOperatorLabel} expertMode={expertMode} />)
+      render(<OperatorEducation node={node} expertMode={expertMode} />)
       const rendered = screen.getByTestId("operator-education-what").textContent
       expect(rendered).toContain(narration.explanation)
     })

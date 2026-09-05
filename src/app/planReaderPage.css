@@ -183,6 +183,63 @@
   color: var(--pr-text-muted);
 }
 
+/* Design review, spec §6 `1d`: "No plan handy? Start from a sample." */
+.paste-box__samples {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--pr-border);
+}
+
+.paste-box__samples-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pr-text-muted);
+}
+
+.paste-box__sample-button {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--pr-border);
+  border-radius: 6px;
+  background: var(--pr-badge-bg);
+  color: var(--pr-text);
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.paste-box__sample-button:hover {
+  border-color: var(--pr-accent);
+}
+
+.paste-box__sample-engine {
+  flex: none;
+  font-weight: 700;
+}
+
+.paste-box__sample-description {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--pr-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paste-box__sample-format {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--pr-text-muted);
+}
+
 /* Design review: the mock's rail has nothing below the privacy line — the
    caveat text and the persistence controls both live behind this small
    disclosure instead of sitting open by default (see PasteBox.tsx's own
@@ -681,6 +738,21 @@
   overflow-y: auto;
 }
 
+/* Design review, spec §2: "the finding cards below scroll
+   independently" — Plan Input, the Summary block, and the Findings
+   header/filters must all stay put while only the card list itself
+   scrolls, so the left rail no longer scrolls as one unit (overriding
+   the generic `.plan-shell__rail` rule above); `.findings-list__items`
+   (findingsList.css) is the one flex:1/overflow-y:auto region now. The
+   right rail (detail panel) is untouched — it already manages its own
+   internal scroll per spec §5 ("Both panel bodies are flex:1;
+   min-height:0; overflow-y:auto"). */
+.plan-shell__rail--left {
+  display: flex;
+  flex-direction: column;
+  overflow-y: hidden;
+}
+
 /* Design review: left rail only — tightest usable line-height (1 is the
    practical floor; 0 clips ascenders/descenders on multi-line text)
    rather than the page's default 145%. Scoped to `--left` specifically —
@@ -718,9 +790,12 @@
 
 /* Episode 19 — Plan Input's permanent home in the left rail, above
    Findings, from first load onward (spec §2: "Plan input ... over
-   Findings"). A plain block, not its own scroll region — the rail itself
-   already scrolls (`.plan-shell__rail`) if content overflows. */
+   Findings"). `flex: none` — the left rail is now flex-column
+   (`.plan-shell__rail--left` above) with `.findings-list__items` as the
+   only scrolling region, so this block must hold its natural height
+   rather than being squeezed by the flex layout. */
 .plan-shell__input-section {
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -757,40 +832,79 @@
   cursor: pointer;
 }
 
-.plan-shell__summary {
-  margin: 0;
-  font-size: clamp(12.5px, 1.05cqi, 14px);
-  line-height: 1.5;
-  max-width: 68ch;
-}
-
-/* Design review — matches the reference mock's two-tone verdict sentence:
-   the lead-in clause (up to the colon) in a bold severity color, the rest
-   of the sentence in the paragraph's own normal (muted) color. */
-.plan-shell__summary-opener {
-  font-weight: 600;
-}
-
-.plan-shell__summary-opener--critical {
-  color: var(--color-critical);
-}
-
-.plan-shell__summary-opener--warning {
-  color: var(--color-warning-text);
-}
-
-.plan-shell__summary-opener--info {
-  color: var(--pr-accent);
-}
-
-.plan-shell__metrics-strip {
+/* Design review, spec §2 "Canvas footer" — "A sticky metrics bar directly
+   under the canvas... flex-wrap: wrap; min-height: 46px — never a fixed
+   height and never horizontally scrolling; at narrow widths it wraps to
+   two rows." Query Health (QueryHealthCard, left) and the plan-metrics
+   group (right) are its two flex children, spaced apart. */
+.plan-shell__canvas-footer {
   flex: none;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 16px;
-  font-size: 12px;
+  gap: 12px;
+  min-height: 46px;
+  padding: 6px 4px;
+}
+
+.plan-shell__canvas-metrics {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+/* Spec §2: "Each a stacked uppercase label over a mono value." */
+.plan-shell__canvas-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.3;
+}
+
+.plan-shell__canvas-metric-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   color: var(--pr-text-muted);
+}
+
+.plan-shell__canvas-metric-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--pr-text);
+  white-space: nowrap;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Spec §2: "The only canvas overlays are the search affordance (top
+   left), the zoom controls (top right) and the encoding legend (bottom
+   left)." — deliberately NOT in `.plan-shell__canvas-footer` above; the
+   spec's own reasoning is that the footer overflows at realistic widths
+   once the legend text is added to it. `.plan-shell__graph` (the canvas
+   wrapper) is already `position: relative`, same anchor the search/zoom
+   toolbars use. */
+.plan-shell__canvas-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: calc(100% - 24px);
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pr-bg) 78%, transparent);
+  border: 1px solid var(--pr-border);
+  font-size: 11px;
+  color: var(--pr-text-muted);
+  pointer-events: none;
 }
 
 /* Design review — the colour legend spec §2/§3 calls for: a swatch of the

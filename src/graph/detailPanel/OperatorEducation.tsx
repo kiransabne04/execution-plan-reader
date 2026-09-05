@@ -1,6 +1,8 @@
 import { memo } from "react"
 import { GraduationCap } from "@phosphor-icons/react"
+import type { PlanNode } from "../../parsers/normalize"
 import { getGlossaryEntry, getGlossaryFallback } from "../glossary"
+import { getPlannerReasoning } from "./plannerReasoning"
 
 /** Design review (reference mock) — this section's own heading, distinct
  * from every other section's plain muted-gray one: an accent color plus a
@@ -18,8 +20,7 @@ function EducationHeading({ children }: { children: string }) {
 }
 
 export interface OperatorEducationProps {
-  operatorType: string
-  rawOperatorLabel: string
+  node: PlanNode
   expertMode: boolean
 }
 
@@ -44,12 +45,24 @@ export interface OperatorEducationProps {
  * `glossary/types.ts` / the operator-glossary-content skill for the
  * updated field docs (that skill's own instruction: "if this skill and
  * those docs disagree, the docs win and this file should be updated").
+ *
+ * Design review, spec §5 Beginner item 1: "'Why the planner chose it
+ * here'" is a SECOND, separate box alongside "What this operator does" —
+ * both in the same blurple education tint, but the "why" is generated
+ * per-node from real data (`plannerReasoning.ts`), never from the
+ * operator-glossary-content skill's static, plan-independent entries.
+ * Beginner only, same as the rest of this section's long-form content —
+ * Expert's one-line collapse has no room for a second box, and an expert
+ * reading Cost & timing/Buffers/Operator internals directly has less use
+ * for a plain-language "why" than a beginner does. Omitted silently when
+ * `plannerReasoning.ts` has no template for this operatorType yet (an
+ * honest, tracked gap — never a fabricated generic sentence).
  */
-function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: OperatorEducationProps) {
-  const entry = getGlossaryEntry(operatorType)
+function OperatorEducationInner({ node, expertMode }: OperatorEducationProps) {
+  const entry = getGlossaryEntry(node.operatorType)
 
   if (!entry) {
-    const fallback = getGlossaryFallback(rawOperatorLabel)
+    const fallback = getGlossaryFallback(node.rawOperatorLabel)
     return (
       <section className="detail-panel__section" data-testid="operator-education-fallback">
         <EducationHeading>What this operator does</EducationHeading>
@@ -69,6 +82,8 @@ function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: 
     )
   }
 
+  const reasoning = getPlannerReasoning(node)
+
   return (
     <>
       <section className="detail-panel__section" data-testid="operator-education-what">
@@ -77,6 +92,14 @@ function OperatorEducationInner({ operatorType, rawOperatorLabel, expertMode }: 
           <p>{entry.longDefinition}</p>
         </div>
       </section>
+      {reasoning && (
+        <section className="detail-panel__section" data-testid="operator-education-why">
+          <EducationHeading>Why the planner chose it here</EducationHeading>
+          <div className="detail-panel__education">
+            <p>{reasoning}</p>
+          </div>
+        </section>
+      )}
       <section className="detail-panel__section" data-testid="operator-education-general">
         <h3 className="detail-panel__section-heading">In general</h3>
         <div className="detail-panel__education">

@@ -1,72 +1,64 @@
 /* Episode 23, Story 23.3 — --qh-* tokens are aliases declared once in
-   src/styles/tokens.css. Dark-only: no `prefers-color-scheme` branch. */
+   src/styles/tokens.css. Dark-only: no `prefers-color-scheme` branch.
+
+   Design review, spec §2 "Canvas footer" / "Query health popover" —
+   restyled from a standalone card into the ring-plus-chips trigger that
+   sits in the canvas footer bar, with the breakdown as a popover opening
+   upward (the footer sits directly under the canvas). */
 
 .query-health-card {
-  margin: 8px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--qh-border);
-  border-radius: 8px;
-}
-
-.query-health-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.query-health-card__title {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--qh-text-muted);
-}
-
-.query-health-card__methodology-toggle {
+  position: relative;
   flex: none;
-  border: none;
-  background: transparent;
-  color: var(--qh-text-muted);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 4px;
-}
-
-.query-health-card__methodology-toggle:hover,
-.query-health-card__methodology-toggle:focus-visible {
-  color: var(--qh-healthy);
-}
-
-.query-health-card__methodology {
-  margin: 8px 0 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--qh-text-muted);
 }
 
 .query-health-card__insufficient {
-  margin: 8px 0 0;
-  padding: 6px 8px;
-  border-radius: 6px;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
   background: var(--qh-insufficient-bg);
   color: var(--qh-insufficient-text);
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.query-health-card__trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.query-health-card__trigger:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.query-health-card__ring {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.query-health-card__ring-hole {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--qh-ring-hole);
+  display: grid;
+  place-items: center;
 }
 
 .query-health-card__score {
-  margin: 8px 0 0;
-  font-size: 28px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
-}
-
-.query-health-card__score-max {
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--qh-text-muted);
 }
 
 .query-health-card__score--critical {
@@ -82,11 +74,17 @@
 }
 
 .query-health-card__legend {
-  margin: 6px 0 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  font-size: 12.5px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.query-health-card__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .query-health-card__legend-item--critical {
@@ -101,21 +99,146 @@
   color: var(--qh-healthy);
 }
 
-.query-health-card__breakdown-toggle {
-  margin-top: 8px;
+/* — Popover — */
+
+.query-health-card__popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  width: 296px;
+  max-width: calc(100vw - 32px);
+  padding: 14px 16px;
+  border: 1px solid var(--qh-border);
+  border-radius: 10px;
+  background: var(--color-bg-rail);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.query-health-card__popover-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.query-health-card__popover-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.query-health-card__popover-status {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+}
+
+.query-health-card__popover-status--critical {
+  color: var(--qh-critical);
+}
+
+.query-health-card__popover-status--warning {
+  color: var(--qh-warning);
+}
+
+.query-health-card__popover-status--healthy {
+  color: var(--qh-healthy);
+}
+
+.query-health-card__popover-close {
+  flex: none;
   border: none;
-  background: transparent;
+  background: none;
   color: var(--qh-text-muted);
-  font-size: 12.5px;
-  text-decoration: underline;
+  font-size: 13px;
+  line-height: 1;
   cursor: pointer;
+  padding: 2px 4px;
+}
+
+.query-health-card__popover-close:hover,
+.query-health-card__popover-close:focus-visible {
+  color: var(--color-text);
+}
+
+.query-health-card__severity-rows {
+  list-style: none;
+  margin: 0 0 12px;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.query-health-card__severity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.query-health-card__severity-tile {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 2px;
+}
+
+.query-health-card__severity-row--critical .query-health-card__severity-tile {
+  background: var(--qh-critical);
+}
+
+.query-health-card__severity-row--warning .query-health-card__severity-tile {
+  background: var(--qh-warning);
+}
+
+.query-health-card__severity-row--healthy .query-health-card__severity-tile {
+  background: var(--qh-healthy);
+}
+
+.query-health-card__severity-text {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.query-health-card__severity-count {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.query-health-card__severity-row--critical .query-health-card__severity-count {
+  color: var(--qh-critical);
+}
+
+.query-health-card__severity-row--warning .query-health-card__severity-count {
+  color: var(--qh-warning);
+}
+
+.query-health-card__severity-row--healthy .query-health-card__severity-count {
+  color: var(--qh-healthy);
+}
+
+.query-health-card__severity-characterization {
+  color: var(--color-text-secondary);
+}
+
+.query-health-card__severity-examples {
+  display: block;
+  color: var(--qh-text-muted);
+  font-size: 11.5px;
+  font-family: var(--font-mono);
 }
 
 .query-health-card__breakdown {
   list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
+  margin: 0 0 12px;
+  padding: 10px 0 0;
+  border-top: 1px dashed var(--qh-border);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -160,4 +283,20 @@
   color: var(--qh-insufficient-text);
   font-size: 11.5px;
   font-style: italic;
+}
+
+.query-health-card__methodology {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--qh-border);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--qh-text-muted);
+}
+
+@media (max-width: 480px) {
+  .query-health-card__popover {
+    left: 50%;
+    transform: translateX(-50%);
+  }
 }

@@ -1,18 +1,29 @@
-// Episode 23, Story 23.3 — the "Query Health" card. Purely presentational:
+// Episode 23, Story 23.3 — the "Query Health" score. Purely presentational:
 // takes an already-computed `QueryHealth` (`computeQueryHealth`,
 // src/rules/queryHealth.ts — recomputed by the caller per active statement,
-// this component never runs the scoring math itself). Additive to
-// PlanReaderPage.tsx's existing plan-shell summary sentence (Story 5.2) —
-// the qualitative sentence and this quantitative score are two different,
-// complementary views of the same underlying findings; this story does not
-// touch summarize.ts or its own callers/tests.
+// this component never runs the scoring math itself).
+//
+// Design review, spec §2 "Canvas footer" / "Query health popover": restyled
+// from a standalone card into the compact ring-plus-chips trigger that sits
+// in the canvas footer bar, with the breakdown now a popover (opens
+// upward, since the footer sits directly under the canvas) instead of an
+// inline expand-in-place section. The severity counts, per-dimension
+// scores, and the methodology disclosure are the SAME data/logic as
+// before — nothing here was removed, only where it's shown.
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { QUERY_HEALTH_DIMENSIONS, type QueryHealth, type QueryHealthDimension } from "../../rules/queryHealth"
 import "./queryHealthCard.css"
 
 export interface QueryHealthCardProps {
   health: QueryHealth
+  /** Design review, spec §2 popover: "...and the example nodes behind
+   * it." Optional, per-severity operator labels derived by the caller
+   * from the same nodes/warnings already on screen (PlanReaderPage) —
+   * this component never re-walks the tree itself. Absent or empty for
+   * a severity simply omits that line (an honest gap, never a
+   * fabricated example). */
+  severityExamples?: Partial<Record<"critical" | "warning" | "healthy", string[]>>
 }
 
 const DIMENSION_LABEL: Record<QueryHealthDimension, string> = {
@@ -33,6 +44,21 @@ function scoreTier(score: number): "critical" | "warning" | "healthy" {
   return "healthy"
 }
 
+// Spec §2's own three labels for the ring's tier.
+const STATUS_WORD: Record<"critical" | "warning" | "healthy", string> = {
+  critical: "Poor",
+  warning: "Needs attention",
+  healthy: "Healthy",
+}
+
+// Spec §2 popover: "a short characterisation" per severity row. Fixed,
+// spec-given wording — not generated per plan.
+const SEVERITY_CHARACTERIZATION: Record<"critical" | "warning" | "healthy", string> = {
+  critical: "blocks performance",
+  warning: "worth a look",
+  healthy: "nothing flagged",
+}
+
 // The exact mechanism, in plain terms — this is the "not LLM-generated, and
 // here's what it actually does" disclosure Episode 23's whole design turns
 // on (docs/08-episodes-and-stories.md), not an afterthought. Keep this
@@ -46,99 +72,195 @@ const METHODOLOGY_TEXT =
   "whichever dimensions had enough data in this plan to score at all — a dimension with no data says so, rather " +
   "than guessing."
 
-export function QueryHealthCard({ health }: QueryHealthCardProps) {
+export function QueryHealthCard({ health, severityExamples }: QueryHealthCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [isMethodologyOpen, setIsMethodologyOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  const close = () => {
+    setIsExpanded(false)
+    // Spec §2: "Escape and X both return focus to the trigger."
+    triggerRef.current?.focus()
+  }
+
+  useEffect(() => {
+    if (!isExpanded) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close()
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded])
+
+  const score = health.overall.status === "scored" ? health.overall.score : undefined
+  const overallScored = score !== undefined
+  const tier = score !== undefined ? scoreTier(score) : undefined
 
   return (
-    <section className="query-health-card" data-testid="query-health-card">
-      <div className="query-health-card__header">
-        <h2 className="query-health-card__title">Query Health</h2>
-        <button
-          type="button"
-          className="query-health-card__methodology-toggle"
-          aria-expanded={isMethodologyOpen}
-          aria-label="How this score is calculated"
-          data-testid="query-health-methodology-toggle"
-          onClick={() => setIsMethodologyOpen((v) => !v)}
-        >
-          ⓘ
-        </button>
-      </div>
-
-      {isMethodologyOpen && (
-        <p className="query-health-card__methodology" data-testid="query-health-methodology">
-          {METHODOLOGY_TEXT}
-        </p>
-      )}
-
-      {health.overall.status === "insufficient-data" ? (
-        <p className="query-health-card__insufficient" data-testid="query-health-insufficient">
-          Not enough data to score this plan.
-        </p>
-      ) : (
-        <>
-          <p
-            className={`query-health-card__score query-health-card__score--${scoreTier(health.overall.score)}`}
-            data-testid="query-health-score"
-          >
-            {health.overall.score}
-            <span className="query-health-card__score-max"> / 100</span>
-          </p>
-          <p className="query-health-card__legend" data-testid="query-health-legend">
-            <span className="query-health-card__legend-item query-health-card__legend-item--critical">🔴 {health.critical} critical</span>
-            <span className="query-health-card__legend-item query-health-card__legend-item--warning">
-              🟠 {health.warning} warning{health.warning === 1 ? "" : "s"}
-            </span>
-            <span className="query-health-card__legend-item query-health-card__legend-item--healthy">🟢 {health.healthy} healthy</span>
-          </p>
-        </>
-      )}
-
+    <div className="query-health-card" data-testid="query-health-card">
+      {/* Design review: the trigger is always present and always opens the
+       * SAME popover (dimension breakdown + methodology are independent of
+       * whether the overall score itself could be computed — a dimension
+       * can be individually scored even when the overall verdict can't be,
+       * so that data must stay reachable, matching this component's
+       * pre-existing behavior). Only the ring/score/severity-chip content
+       * is conditional on `overallScored`. */}
       <button
         type="button"
-        className="query-health-card__breakdown-toggle"
+        ref={triggerRef}
+        className="query-health-card__trigger"
         aria-expanded={isExpanded}
+        aria-haspopup="dialog"
+        aria-label={
+          overallScored && score !== undefined && tier
+            ? `Query health ${score} out of 100, ${STATUS_WORD[tier]}. Show breakdown.`
+            : "Query health: not enough data. Show breakdown."
+        }
         data-testid="query-health-breakdown-toggle"
         onClick={() => setIsExpanded((v) => !v)}
       >
-        {isExpanded ? "Hide breakdown" : "Show breakdown"}
+        {overallScored && score !== undefined && tier ? (
+          <>
+            <span
+              className="query-health-card__ring"
+              aria-hidden="true"
+              style={{
+                background: `conic-gradient(var(--qh-${tier}) calc(${Math.max(0, Math.min(100, score))} * 3.6deg), var(--qh-ring-track) 0)`,
+              }}
+            >
+              <span className="query-health-card__ring-hole">
+                <span className={`query-health-card__score query-health-card__score--${tier}`} data-testid="query-health-score">
+                  {score}
+                </span>
+              </span>
+            </span>
+
+            <span className="query-health-card__legend" data-testid="query-health-legend">
+              <span
+                className="query-health-card__legend-item query-health-card__legend-item--critical"
+                aria-label={`${health.critical} critical`}
+              >
+                <span aria-hidden="true">🔴</span>
+                <span aria-hidden="true">{health.critical}</span>
+              </span>
+              <span
+                className="query-health-card__legend-item query-health-card__legend-item--warning"
+                aria-label={`${health.warning} warning${health.warning === 1 ? "" : "s"}`}
+              >
+                <span aria-hidden="true">🟠</span>
+                <span aria-hidden="true">{health.warning}</span>
+              </span>
+              <span
+                className="query-health-card__legend-item query-health-card__legend-item--healthy"
+                aria-label={`${health.healthy} healthy`}
+              >
+                <span aria-hidden="true">🟢</span>
+                <span aria-hidden="true">{health.healthy}</span>
+              </span>
+            </span>
+          </>
+        ) : (
+          <span className="query-health-card__insufficient" data-testid="query-health-insufficient">
+            Not enough data to score this plan.
+          </span>
+        )}
       </button>
 
-      {/* Breakdown content is derived straight from the `health` prop on
-          every render, never held in local state separately from it — a
-          user with this expanded who then switches to a different (or
-          insufficient-data) statement never sees a stale frame of the
-          PREVIOUS statement's numbers (this story's own edge-case table). */}
       {isExpanded && (
-        <ul className="query-health-card__breakdown" data-testid="query-health-breakdown">
-          {QUERY_HEALTH_DIMENSIONS.map((dimension) => {
-            const result = health.dimensions[dimension]
-            return (
-              <li key={dimension} className="query-health-card__dimension" data-testid="query-health-dimension">
-                <span className="query-health-card__dimension-label">{DIMENSION_LABEL[dimension]}</span>
-                {result.status === "scored" ? (
-                  <span
-                    className={`query-health-card__dimension-score query-health-card__dimension-score--${scoreTier(result.score)}`}
-                    data-testid="query-health-dimension-score"
-                  >
-                    {result.score}
+        // Spec §2: "opens a 296px popover above the footer" — the footer
+        // sits directly under the canvas (planReaderPage.css), so
+        // opening upward is this popover's own natural direction, not a
+        // separate placement decision.
+        <div className="query-health-card__popover" role="dialog" aria-label="Query health breakdown" data-testid="query-health-popover">
+          <div className="query-health-card__popover-header">
+            <h2 className="query-health-card__popover-title">
+              Query Health
+              {tier && (
+                <span className={`query-health-card__popover-status query-health-card__popover-status--${tier}`}> · {STATUS_WORD[tier]}</span>
+              )}
+            </h2>
+            <button
+              type="button"
+              className="query-health-card__popover-close"
+              aria-label="Close"
+              data-testid="query-health-popover-close"
+              onClick={close}
+            >
+              ✕
+            </button>
+          </div>
+
+          {!overallScored && (
+            <p className="query-health-card__popover-insufficient" data-testid="query-health-popover-insufficient">
+              Not enough data for an overall score — the dimensions below show what could be scored individually.
+            </p>
+          )}
+
+          {overallScored && (
+          <ul className="query-health-card__severity-rows">
+            {(["critical", "warning", "healthy"] as const).map((severity) => {
+              const count = severity === "critical" ? health.critical : severity === "warning" ? health.warning : health.healthy
+              const examples = severityExamples?.[severity]
+              return (
+                <li
+                  key={severity}
+                  className={`query-health-card__severity-row query-health-card__severity-row--${severity}`}
+                  data-testid="query-health-severity-row"
+                >
+                  <span className="query-health-card__severity-tile" aria-hidden="true" />
+                  <span className="query-health-card__severity-text">
+                    <span className="query-health-card__severity-count">
+                      {count} {severity === "warning" ? `warning${count === 1 ? "" : "s"}` : severity}
+                    </span>
+                    <span className="query-health-card__severity-characterization">
+                      {" — "}
+                      {SEVERITY_CHARACTERIZATION[severity]}
+                    </span>
+                    {examples && examples.length > 0 && (
+                      <span className="query-health-card__severity-examples" data-testid="query-health-severity-examples">
+                        e.g. {examples.join(", ")}
+                      </span>
+                    )}
                   </span>
-                ) : (
-                  // Visibly distinct from a real low score — never the same
-                  // muted number styling a genuine 20/100 would get, since
-                  // the two mean opposite things (a real problem vs. an
-                  // honest absence of signal). See this component's own
-                  // CSS for the actual visual treatment.
-                  <span className="query-health-card__dimension-insufficient" data-testid="query-health-dimension-insufficient">
-                    not enough data
-                  </span>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+                </li>
+              )
+            })}
+          </ul>
+          )}
+
+          <ul className="query-health-card__breakdown" data-testid="query-health-breakdown">
+            {QUERY_HEALTH_DIMENSIONS.map((dimension) => {
+              const result = health.dimensions[dimension]
+              return (
+                <li key={dimension} className="query-health-card__dimension" data-testid="query-health-dimension">
+                  <span className="query-health-card__dimension-label">{DIMENSION_LABEL[dimension]}</span>
+                  {result.status === "scored" ? (
+                    <span
+                      className={`query-health-card__dimension-score query-health-card__dimension-score--${scoreTier(result.score)}`}
+                      data-testid="query-health-dimension-score"
+                    >
+                      {result.score}
+                    </span>
+                  ) : (
+                    // Visibly distinct from a real low score — never the same
+                    // muted number styling a genuine 20/100 would get, since
+                    // the two mean opposite things (a real problem vs. an
+                    // honest absence of signal). See this component's own
+                    // CSS for the actual visual treatment.
+                    <span className="query-health-card__dimension-insufficient" data-testid="query-health-dimension-insufficient">
+                      not enough data
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+
+          <p className="query-health-card__methodology" data-testid="query-health-methodology">
+            {METHODOLOGY_TEXT}
+          </p>
+        </div>
       )}
-    </section>
+    </div>
   )
 }

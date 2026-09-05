@@ -30,9 +30,9 @@ import {
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
 import type { PlanContext } from "../rules/types"
 import { formatNumber } from "../rules/format"
-import { OPENERS } from "../rules/summarize"
 import { collectFindingsAcrossStatements } from "../rules/findings"
 import { computeQueryHealth } from "../rules/queryHealth"
+import { pickMetricValue, type MetricKey } from "../graph/encoding"
 import {
   saveSession,
   loadSession,
@@ -490,6 +490,51 @@ export function PlanReaderPage() {
       ? "estimated cost"
       : "rows"
 
+  // Design review, spec §2 canvas footer's "plan metrics" group (total
+  // time, slowest node, rows, node count, plan width). Total time and
+  // node count already existed (plan-shell__metrics-strip); the other
+  // three are new here, each reusing an existing computation rather than
+  // adding a second one: `pickMetricValue` is the SAME function
+  // buildGraphElements.ts already uses for node color/size, so "the
+  // slowest node" here is guaranteed to be the same node the graph
+  // itself renders hottest. Plan width has no normalized PlanNode field
+  // (only Postgres's raw `attributes["Plan Width"]`, in bytes-per-row) —
+  // rather than fabricate one for every engine, it's read straight off
+  // the root's raw attributes and simply omitted when absent (SQL
+  // Server/Snowflake, or a Postgres TEXT plan without it), same "explicit
+  // gap, never a fabricated value" convention as the detail panel's own
+  // stat rows.
+  const metricKey: MetricKey =
+    metricLabel === "actual time" ? "actualTimeMs" : metricLabel === "estimated cost" ? "estimatedCost" : "actualRows"
+  const slowestNode = activeStatementNodes.reduce<PlanNode | undefined>((best, node) => {
+    if (!best) return node
+    return pickMetricValue(node, metricKey) > pickMetricValue(best, metricKey) ? node : best
+  }, undefined)
+  const maxRows = Math.max(0, ...activeStatementNodes.map((n) => pickMetricValue(n, "actualRows")))
+  const planWidthBytes = activeStatement?.root.attributes?.["Plan Width"]
+
+  // Design review, spec §2 popover: "the example nodes behind it" — up to
+  // 2 distinct operator labels per severity, derived from the SAME nodes
+  // already on screen (never a second warning-collection pass; findings
+  // themselves still come from `collectFindingsAcrossStatements` via
+  // `findingsSources`, this only reads each node's own `warnings` array
+  // to label the severity rows in the Query Health popover).
+  const severityExamples = useMemo(() => {
+    const bySeverity: Record<"critical" | "warning" | "healthy", string[]> = { critical: [], warning: [], healthy: [] }
+    for (const node of activeStatementNodes) {
+      const worst = node.warnings.some((w) => w.severity === "critical")
+        ? "critical"
+        : node.warnings.some((w) => w.severity === "warning")
+          ? "warning"
+          : undefined
+      if (worst && bySeverity[worst].length < 2 && !bySeverity[worst].includes(node.rawOperatorLabel)) {
+        bySeverity[worst].push(node.rawOperatorLabel)
+      }
+    }
+    return bySeverity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStatement])
+
   // Episode 19: `.plan-shell` now mounts unconditionally on first paint
   // (it's the app's only page), so this observes once and never needs to
   // re-attach — unlike before Episode 19, when the section itself only
@@ -899,7 +944,12 @@ export function PlanReaderPage() {
                 </div>
 
                 {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "findings") && (
-                  <FindingsList sources={findingsSources} activeStatementIndex={activeStatementIndex} onSelectNode={handleSelectFinding} />
+                  <FindingsList
+                    summary={activeStatement.summary}
+                    sources={findingsSources}
+                    activeStatementIndex={activeStatementIndex}
+                    onSelectNode={handleSelectFinding}
+                  />
                 )}
               </aside>
 
@@ -941,86 +991,17 @@ export function PlanReaderPage() {
 
               {analyzed && activeStatement && (!isNarrowShell || activeShellTab === "graph") && (
                 <main className="plan-shell__canvas" data-testid="plan-shell-canvas">
-                  {/* Design review — the lead-in clause up to the colon
-                      (`OPENERS[severity]`, summarize.ts) gets a severity
-                      color (bold red for critical, matching the reference
-                      mock); the rest of the sentence stays the normal
-                      muted body color. `summary.text` itself is untouched
-                      — this only affects how it's split for styling. */}
-                  <p className="plan-shell__summary" data-testid="plan-summary">
-                    {activeStatement.summary.severity !== "none" ? (
-                      <>
-                        <span
-                          className={`plan-shell__summary-opener plan-shell__summary-opener--${activeStatement.summary.severity}`}
-                        >
-                          {OPENERS[activeStatement.summary.severity]}
-                        </span>
-                        {activeStatement.summary.text.slice(OPENERS[activeStatement.summary.severity].length)}
-                      </>
-                    ) : (
-                      activeStatement.summary.text
-                    )}
-                  </p>
-
-                  {/* Episode 23, Story 23.3 — additive to the summary
-                      sentence above, not a replacement: two different,
-                      complementary views of the same underlying findings.
-                      Scoped to normal (non-maximized) mode only — a
-                      decision made explicitly, not left to CSS accident
-                      (Episode 22's own edge-case tables set this
-                      precedent): maximized mode's toolbar already has 5
-                      other elements competing for the same top-of-viewport
-                      space (statement dropdown, Beginner/Expert, Walk-me-
-                      through, Findings, the maximize toggle itself — Story
-                      22.1), and this card's own value (an at-a-glance
-                      verdict on load) is squarely a normal-mode, first-
-                      look concern, not something a user who's already
-                      maximized to explore a large plan is reaching for. */}
-                  {queryHealth && !isMaximized && <QueryHealthCard health={queryHealth} />}
-
-                  {/* Design review — completes spec §2's metrics strip:
-                      "total, node count, collapsed count, colour legend,
-                      Width = rows · Arrows = execution order". Node count
-                      and the plain-language caption already shipped with
-                      the shell itself; total time, collapsed count, and
-                      the colour legend were deferred to Story 18.4's node-
-                      encoding work (a legend is meaningless without the
-                      encoding it explains) — that work (buildMetricScale's
-                      colorFor/sizeFor, wired into buildGraphElements.ts)
-                      shipped, but this strip was never circled back to.
-                      `collapsedCount` is reported outward by PlanGraph
-                      itself (see its own `onCollapsedCountChange` prop's
-                      doc comment) — this component never touches collapse
-                      state directly. */}
-                  {/* Design review — `metricLabel` names whatever
-                      `buildGraphElements.ts`'s `pickMetricValue` actually
-                      fell back to for THIS plan (it drives both node
-                      colour and width together — one metric, two
-                      encodings, never two different ones despite the
-                      separate-sounding legend text): "actual time" when
-                      ANALYZE/runtime stats are present, else "estimated
-                      cost" (an estimate-only Postgres/SQL Server plan),
-                      else plain "rows" — Snowflake's own honest floor,
-                      since it exposes neither actual time nor an abstract
-                      cost unit at all (buildStatRows.ts's own `rowsCost`
-                      comment). A hardcoded "actual time" here previously
-                      named a metric that's literally always undefined for
-                      every Snowflake plan — the size/colour encoding was
-                      quietly running on rows the whole time with a label
-                      claiming otherwise. */}
-                  <div className="plan-shell__metrics-strip" data-testid="plan-shell-metrics">
-                    {activeStatement.root.actualTimeMs !== undefined && (
-                      <span>Total {formatNumber(Math.round(activeStatement.root.actualTimeMs))} ms</span>
-                    )}
-                    <span>{activeStatementNodes.length.toLocaleString("en-US")} nodes</span>
-                    {collapsedCount > 0 && <span>{collapsedCount} collapsed</span>}
-                    <span className="plan-shell__colour-legend">
-                      Colour
-                      <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
-                      {metricLabel}
-                    </span>
-                    <span>Width = {metricLabel} · Arrows = execution order</span>
-                  </div>
+                  {/* Design review, spec §2: "Centre: the canvas and
+                      nothing else." The plain-language summary sentence
+                      (Story 5.2) now lives in the left rail's Findings
+                      section; Query Health and the plan-metrics strip
+                      moved below the canvas into `.plan-shell__canvas-
+                      footer` (after the graph pane's closing tag below);
+                      the colour/width/arrows legend moved to a bottom-
+                      left overlay chip ON the canvas itself
+                      (`.plan-shell__canvas-legend`, inside
+                      `.plan-shell__graph`) — none of the three are gone,
+                      only relocated per spec. */}
 
                   {/* Episode 22, Story 22.1 — the whole graph pane (search
                       trigger, PlanGraph, and its own detail panel while
@@ -1070,6 +1051,23 @@ export function PlanReaderPage() {
                         {isMaximized ? "Restore" : "Maximize"}
                       </button>
                     </div>
+
+                    {/* Design review, spec §2: "The only canvas overlays
+                        are the search affordance (top left), the zoom
+                        controls (top right) and the encoding legend
+                        (bottom left)." Spec is explicit this must NOT sit
+                        in the footer strip below — putting it there
+                        "overflowed the bar at every realistic width." */}
+                    {!isMaximized && (
+                      <div className="plan-shell__canvas-legend" data-testid="plan-shell-canvas-legend">
+                        <span className="plan-shell__colour-legend">
+                          Colour
+                          <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
+                          {metricLabel}
+                        </span>
+                        <span>Width = {metricLabel} · Arrows = execution order</span>
+                      </div>
+                    )}
 
                     {/* Confirmed with the user: Findings, the Beginner/Expert
                         toggle, and Walk-me-through all stay reachable while
@@ -1164,6 +1162,62 @@ export function PlanReaderPage() {
                       nodeDetailVariant={isMaximized ? "popup" : "panel"}
                     />
                   </div>
+
+                  {/* Design review, spec §2 "Canvas footer": "A sticky
+                      metrics bar directly under the canvas" — Query
+                      Health (left group) and the plan metrics (right
+                      group) share this one bar. Scoped to normal
+                      (non-maximized) mode only, same reasoning as before
+                      (Episode 22's maximized toolbar already has 5
+                      competing elements; this bar's own at-a-glance
+                      value is a normal-mode, first-look concern). */}
+                  {!isMaximized && (
+                    <div className="plan-shell__canvas-footer" data-testid="plan-shell-canvas-footer">
+                      {queryHealth ? (
+                        <QueryHealthCard health={queryHealth} severityExamples={severityExamples} />
+                      ) : (
+                        <span />
+                      )}
+
+                      <div className="plan-shell__canvas-metrics" data-testid="plan-shell-metrics">
+                        {activeStatement.root.actualTimeMs !== undefined && (
+                          <span className="plan-shell__canvas-metric">
+                            <span className="plan-shell__canvas-metric-label">Total</span>
+                            <span className="plan-shell__canvas-metric-value">
+                              {formatNumber(Math.round(activeStatement.root.actualTimeMs))} ms
+                            </span>
+                          </span>
+                        )}
+                        {slowestNode && (
+                          <span className="plan-shell__canvas-metric">
+                            <span className="plan-shell__canvas-metric-label">Slowest</span>
+                            <span className="plan-shell__canvas-metric-value" title={slowestNode.rawOperatorLabel}>
+                              {slowestNode.rawOperatorLabel}
+                            </span>
+                          </span>
+                        )}
+                        {maxRows > 0 && (
+                          <span className="plan-shell__canvas-metric">
+                            <span className="plan-shell__canvas-metric-label">Rows</span>
+                            <span className="plan-shell__canvas-metric-value">{maxRows.toLocaleString("en-US")}</span>
+                          </span>
+                        )}
+                        <span className="plan-shell__canvas-metric">
+                          <span className="plan-shell__canvas-metric-label">Nodes</span>
+                          <span className="plan-shell__canvas-metric-value">
+                            {activeStatementNodes.length.toLocaleString("en-US")}
+                            {collapsedCount > 0 && ` · ${collapsedCount} hidden`}
+                          </span>
+                        </span>
+                        {planWidthBytes !== undefined && (
+                          <span className="plan-shell__canvas-metric">
+                            <span className="plan-shell__canvas-metric-label">Width</span>
+                            <span className="plan-shell__canvas-metric-value">{planWidthBytes} B</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </main>
               )}
 

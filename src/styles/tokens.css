@@ -163,6 +163,13 @@
   --qh-healthy: var(--color-success);
   --qh-insufficient-bg: color-mix(in srgb, var(--color-text) 6%, var(--color-surface));
   --qh-insufficient-text: var(--color-text-muted);
+  /* Design review, spec §2 canvas footer: the conic-gradient ring's
+     unfilled track, and the "hole" punched through its center so it
+     reads as a ring rather than a filled pie — matched to the footer
+     bar's own ground (`--color-bg-canvas`) so the hole looks cut out,
+     not like a second surface floating on top. */
+  --qh-ring-track: var(--color-border-strong);
+  --qh-ring-hole: var(--color-bg-canvas);
 
   /* src/index.css — the Vite template's own leftover token names. Kept as
      aliases for the same zero-usage-site-risk reason as the rest of this

@@ -809,9 +809,12 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       const leftRail = screen.getByTestId("plan-shell-left-rail")
       expect(within(leftRail).getByTestId("findings-list")).toBeInTheDocument()
+      // Design review, spec §2: the plain-language summary now lives in the
+      // Findings section of the left rail, not the centre canvas — "centre:
+      // the canvas and nothing else."
+      expect(within(leftRail).getByTestId("plan-summary")).toBeInTheDocument()
 
       const canvas = screen.getByTestId("plan-shell-canvas")
-      expect(within(canvas).getByTestId("plan-summary")).toBeInTheDocument()
       expect(within(canvas).getByTestId("plan-shell-metrics")).toBeInTheDocument()
       expect(within(canvas).getByTestId("plan-graph")).toBeInTheDocument()
     })

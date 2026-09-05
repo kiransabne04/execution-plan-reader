@@ -90,13 +90,20 @@ describe("DetailPanel — rapid node switching (Story 16.1 edge case)", () => {
   })
 })
 
-describe("DetailPanel — large raw-attributes bag (Story 16.1 edge case, revised by Story 18.7)", () => {
-  it("Beginner mode never renders attribute content at all, even for a very large attributes bag", () => {
+describe("DetailPanel — large raw-attributes bag (Story 16.1 edge case, revised by Story 18.7 and the spec §5 Beginner-visibility correction)", () => {
+  it("Beginner mode shows the section COLLAPSED, never expanding 500 fields' worth of content by default", () => {
     const bigAttributes = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`field-${i}`, `value-${i}`]))
     const node = makeNode({ attributes: bigAttributes })
     const context = buildPlanContext(node)
     render(<DetailPanel node={node} context={context} onClose={() => {}} />)
-    expect(screen.queryByTestId("raw-attributes")).not.toBeInTheDocument()
+    // Design review, spec §5: Beginner's own numbered section list
+    // includes Raw attributes (item 7) — present, just collapsed. The
+    // real performance guarantee this test locks in is unchanged from
+    // before: the 500-entry JSON block itself never renders unless a
+    // user explicitly expands it.
+    const section = screen.getByTestId("raw-attributes")
+    expect(section).toBeInTheDocument()
+    expect(screen.queryByText(/field-499/)).not.toBeInTheDocument()
   })
 
   it("Story 18.7: Expert mode expands 500 fields by default, within the same bounded-time budget Story 16.2 established for other bulk-content paths, not reintroducing an open-latency regression", () => {
