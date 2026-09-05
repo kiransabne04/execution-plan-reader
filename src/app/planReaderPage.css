@@ -37,24 +37,6 @@
    grep-confirmed zero remaining references before deleting. positioningCopy.ts
    itself is untouched; see PlanReaderPage.tsx's own Episode 19 comment. */
 
-.plan-reader-page__footer {
-  /* Sticky rather than static: pins to the bottom of the viewport so it
-     stays visible instead of scrolling out of sight below a tall shell. */
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  margin-top: 40px;
-  padding: 12px 16px;
-  background: var(--pr-bg);
-  border-top: 1px solid var(--pr-border);
-  color: var(--pr-text-muted);
-  font-size: 13px;
-}
-
-.plan-reader-page__footer p {
-  margin: 0;
-}
-
 .restore-session-banner {
   display: flex;
   align-items: center;

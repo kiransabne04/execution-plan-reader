@@ -1244,9 +1244,7 @@ export function PlanReaderPage() {
           video series/blog post in this project's docs yet (a known,
           tracked gap; see Episode 12's content-linking story), and a
           fabricated link would be worse than none. */}
-      <footer className="plan-reader-page__footer">
-        <p>Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.</p>
-      </footer>
+      <p>Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.</p>
     </main>
   )
 }
