@@ -948,6 +948,11 @@
   border: 1px solid var(--pr-border);
   border-radius: 8px;
   overflow: hidden;
+  /* Design review (spec §2 "2a fluid shell"): "Node cards use min(px, %)
+     widths" — gives PlanNodeCard.tsx's own `min({width}px, 40cqi)` inline
+     style a canvas-scoped (not shell- or viewport-scoped) container to
+     measure against. */
+  container-type: inline-size;
 }
 
 /* Episode 22, Story 22.1 — docked top-left over the canvas, above React

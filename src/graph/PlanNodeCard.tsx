@@ -45,6 +45,7 @@ const CONTRIBUTION_BADGE_THRESHOLD = 20
 export function PlanNodeCard({ data }: PlanNodeCardProps) {
   const {
     planNode,
+    width,
     color,
     hasMismatch,
     mismatchFactor,
@@ -134,6 +135,19 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
           // actually has to be made explicit.
           borderColor: hasMismatch || (comparisonOverlay && comparisonOverlay.status !== "matched") ? undefined : color,
           background: `color-mix(in srgb, ${color} 18%, var(--pg-card-bg))`,
+          // Design review (spec §2 "2a fluid shell"): "Node cards use
+          // min(px, %) widths so the row-count encoding survives a narrow
+          // canvas." `width` here is this node's own row-count-encoded
+          // pixel size (encoding.ts's `sizeFor`) — normally that's exactly
+          // what renders (the React Flow wrapper is already sized to it),
+          // but on a canvas narrower than the encoding calls for, `40cqi`
+          // (of `.plan-shell__graph`, the canvas pane itself —
+          // container-type: inline-size, planGraph.css) caps the VISIBLE
+          // card below its reserved slot rather than letting it overflow.
+          // Handles are positioned as a percentage of this same element
+          // (computeHandleOffsetPercent below), so edges still land
+          // correctly on the smaller rendered size, not the original slot.
+          width: width !== undefined ? `min(${width}px, 40cqi)` : undefined,
         }}
         title={planNode.rawOperatorLabel}
         data-testid="plan-node-card"
