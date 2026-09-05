@@ -568,7 +568,10 @@
   display: flex;
   align-items: center;
   gap: clamp(8px, 1cqi, 14px);
-  padding: 0 clamp(8px, 1cqi, 14px);
+  /* Pixel-diff fix against the reference PNG: the mockup's own padding
+     clamp is a DIFFERENT one from the gap's — 12/1.4cqi/18 vs 8/1cqi/14 —
+     not the same value reused for both. */
+  padding: 0 clamp(12px, 1.4cqi, 18px);
   border-bottom: 1px solid var(--pr-border);
   background: var(--dp-bg);
   overflow-x: auto;
@@ -579,7 +582,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
+  /* Pixel-diff fix: mockup's brand text is `font:500 14px; letter-
+     spacing:-.1px` — was 700 (bold) with no explicit size/tracking. */
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.1px;
   white-space: nowrap;
   color: var(--pr-text);
 }
@@ -592,17 +599,35 @@
 
 .plan-shell__engine-badge {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   white-space: nowrap;
-  background: var(--pr-badge-bg);
-  color: var(--pr-badge-text);
+  /* Pixel-diff fix: mockup's own exact values — a flat 15%/35% accent
+     tint+border and #d2cefd text, not the shared --pr-badge-bg/-text
+     tokens (a differently-formulated color-mix reused by other badges
+     elsewhere in the app, which this specific badge doesn't match). */
+  background: rgba(145, 132, 217, 0.15);
+  border: 1px solid rgba(145, 132, 217, 0.35);
+  color: #d2cefd;
   border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 12px;
+  padding: 2px 9px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 
+.plan-shell__engine-badge-icon {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
 .plan-shell__spacer {
+  /* Pixel-diff fix: mockup's own `<div style="flex:1;min-width:8px">` —
+     guarantees at least 8px between the badge and the mode toggle even
+     when everything else in a tight app-bar is competing for space. */
   flex: 1 1 auto;
+  min-width: 8px;
 }
 
 /* Story 18.3 — the page-level Beginner/Expert segmented control (replaces
@@ -620,12 +645,20 @@
 }
 
 .plan-shell__mode-toggle-button {
-  padding: 2px 10px;
+  /* Pixel-diff fix: mockup's own `.seg-opt` is `padding:4px 11px;
+     font-size:11.5px` — the selected-state color TREATMENT below
+     (solid-fill, not the mockup's accent+inset-ring) is left as-is on
+     purpose, to stay the same control DetailPanel.tsx's own in-panel
+     mode toggle already uses (detailPanel.css's own comment: "the two
+     controls share the exact same state now, so they should read as the
+     same kind of control") — a bigger, more invasive change than this
+     one PNG crop's sizing/spacing is worth for. */
+  padding: 4px 11px;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: var(--pr-text-muted);
-  font-size: 12px;
+  font-size: 11.5px;
   cursor: pointer;
 }
 
@@ -639,18 +672,21 @@
    ORDER is correct per spec §2 today, and each story only has to wire up
    behavior, not also invent where it lives. */
 .plan-shell__app-bar-button {
+  /* Pixel-diff fix: mockup's `.btn.btn-secondary` — padding:4px 11px;
+     font-size:11.5px; gap:5px — plus the Nocturne base `.btn`'s own
+     font-weight:500 (was 600 here). */
   flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   white-space: nowrap;
-  padding: 4px 12px;
+  padding: 4px 11px;
   border-radius: 6px;
   border: 1px solid var(--pr-border);
   background: transparent;
   color: var(--pr-text-muted);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -661,8 +697,8 @@
 
 .plan-shell__app-bar-button-icon {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
 /* Design review (header PNG reference): Share and Export are icon-only
@@ -671,11 +707,27 @@
    (superseding this rule's earlier "drop to icon-only before wrapping"
    reading of spec §2, which had them keeping full text above ~860px).
    The mode toggle/walkthrough/compare buttons are unaffected — they keep
-   their full text at every width, per the spec's own wording. Symmetric
-   padding, since these are bare square icon buttons now, never icon+text. */
+   their full text at every width, per the spec's own wording.
+   Pixel-diff fix: mockup's own `.btn.btn-icon` is an EXACT 28x28px
+   square (`width:28px;height:28px`), not padding-derived sizing — this
+   is now the one, only rule for both icon-only buttons (an identical,
+   more specific `.share-link__button` rule further down this file
+   previously won by source order and silently overrode this block back
+   to text-button padding; that duplicate is removed, not just shadowed). */
 .plan-shell__app-bar-button--icon-only,
 .share-link__button {
-  padding: 6px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Mockup's icon buttons are bare `class="btn btn-icon"` — no
+     `btn-secondary`, so Nocturne's base `.btn { border: 1px solid
+     transparent }` leaves them borderless. `.plan-shell__app-bar-button`
+     (Export's OTHER class, shared with the text buttons) sets a visible
+     border this overrides back to invisible. */
+  border-color: transparent;
 }
 
 /* Design review (header PNG reference): spec §2's app-bar "filename"
@@ -684,17 +736,29 @@
   flex: none;
   width: 1px;
   height: 20px;
-  background: var(--pr-border);
+  /* Pixel-diff fix: mockup's own exact value — rgba(233,233,237,.14) —
+     is close to but not identical to the shared --pr-border token
+     (0.12), which this divider doesn't reuse for that reason. */
+  background: rgba(233, 233, 237, 0.14);
 }
 
 .plan-shell__app-bar-filename {
-  flex: 1 1 auto;
+  /* Pixel-diff fix against the reference PNG: `flex: 1 1 auto` (grow AND
+     shrink) made this box consume all the app-bar's free space up to the
+     mode toggle — `.plan-shell__spacer` (below) already IS that flexible
+     spacer per the mockup's own `<div style="flex:1">` between the badge
+     and the mode toggle, so this only needs to SHRINK (truncate) below
+     its own text width when the bar is tight, never GROW past it. */
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  color: var(--pr-text-muted);
+  /* Pixel-diff fix: mockup is `font:400 11.5px; color:#9397ab`
+     (--color-text-secondary) — was 12px in --pr-text-muted (#75798c,
+     a full shade darker/muter than the mockup's own color). */
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
 }
 
 .plan-shell__body {
@@ -1226,23 +1290,24 @@
 }
 
 .share-link__button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
+  /* Sizing (width/height/padding/display/border-color) now lives
+     entirely in the single icon-only-button rule near
+     .plan-shell__app-bar-button--icon-only, above — this rule used to
+     duplicate that with a wider, text-button-shaped, visibly-bordered
+     box that (by source order) silently won and undid the icon-only
+     fix. Only the properties genuinely specific to THIS button remain. */
   border-radius: 6px;
-  border: 1px solid var(--pr-border);
+  border-style: solid;
+  border-width: 1px;
   background: transparent;
   color: var(--pr-accent);
-  font-size: 12px;
-  font-weight: 600;
   cursor: pointer;
 }
 
 .share-link__button-icon {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
 .share-link__message {

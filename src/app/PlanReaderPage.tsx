@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { DownloadSimple, MagnifyingGlass, TreeStructure } from "@phosphor-icons/react"
+import { CheckCircle, DownloadSimple, MagnifyingGlass, PlayCircle, TreeStructure } from "@phosphor-icons/react"
 import { PasteBox } from "./PasteBox"
 import { Notice } from "./Notice"
 import { ComparePasteBox } from "./ComparePasteBox"
@@ -690,6 +690,7 @@ export function PlanReaderPage() {
                   </>
                 )}
                 <span className="plan-shell__engine-badge" data-testid="detected-engine-badge">
+                  <CheckCircle className="plan-shell__engine-badge-icon" weight="regular" aria-hidden="true" />
                   {ENGINE_LABEL[analyzed.engine]}
                 </span>
                 <span className="plan-shell__spacer" />
@@ -724,6 +725,7 @@ export function PlanReaderPage() {
                   data-testid="walkthrough-open"
                   onClick={() => setIsWalkthroughOpen(true)}
                 >
+                  <PlayCircle className="plan-shell__app-bar-button-icon" weight="regular" aria-hidden="true" />
                   Walk me through it
                 </button>
                 {!compareMode && (
