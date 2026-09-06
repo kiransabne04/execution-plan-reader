@@ -65,12 +65,17 @@
    (.plan-shell__canvas-credit below). This plain, unstyled paragraph is
    the empty-landing-state-only fallback (see PlanReaderPage.tsx's own
    comment) — no border, no background, no sticky positioning, so it
-   never reads as a "bar" of its own. */
+   never reads as a "bar" of its own.
+
+   Bug fix (real-browser review): this was still at its old 13px size
+   from before the canvas footer's own credit (.plan-shell__canvas-credit
+   below) was tuned down to 11px — same line, same fallback role, so it
+   read as inconsistent between the two states. Matched to 11px here. */
 .plan-reader-page__credit {
   margin: 24px 0 0;
   padding: 0 16px;
   color: var(--pr-text-muted);
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .restore-session-banner {
