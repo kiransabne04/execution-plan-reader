@@ -10,7 +10,7 @@
 // doesn't claim a richer arrow-key/search scheme neither mode has built yet.
 
 import type { PlanNode } from "../../parsers/normalize"
-import { countDescendants, type ComparisonOverlay } from "../buildGraphElements"
+import { countDescendants, formatHiddenNodeCountText, type ComparisonOverlay } from "../buildGraphElements"
 import { SEVERITY_LABEL, worstSeverity } from "../nodeSeverity"
 import "./accessiblePlanList.css"
 
@@ -97,7 +97,7 @@ export function AccessiblePlanList({
                 data-testid="accessible-plan-list-collapsed"
                 onClick={() => onExpandCollapsedGroup(row.parentPlanNodeId)}
               >
-                {row.hiddenCount.toLocaleString("en-US")} hidden node{row.hiddenCount === 1 ? "" : "s"} — expand
+                {formatHiddenNodeCountText(row.hiddenCount)}
               </button>
             </li>
           )

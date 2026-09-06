@@ -24,7 +24,7 @@
 // follows the same rule.
 
 import type { PlanGraphEdge, PlanGraphNode } from "../buildGraphElements"
-import { computeHandleOffsetPercent } from "../buildGraphElements"
+import { computeHandleOffsetPercent, formatHiddenNodeCountText } from "../buildGraphElements"
 import type { OperatorIconKey } from "../operatorIcons"
 import type { ViewportTransform } from "./viewportTransform"
 
@@ -64,7 +64,9 @@ export interface DrawGraphParams {
   backgroundColor?: string
 }
 
-const SELECTED_OUTLINE_WIDTH = 3
+// Spec §5 `1i`: "Selection is a drawn 2px accent outline — there is no DOM
+// focus ring to inherit."
+const SELECTED_OUTLINE_WIDTH = 2
 const CORNER_RADIUS = 6
 const MISMATCH_BADGE_TEXT = "est. mismatch"
 const COMPARISON_BADGE_TEXT: Record<"changed" | "addedInB" | "removedFromB", string> = {
@@ -309,7 +311,7 @@ function drawCollapsedGroupNode(ctx: CanvasRenderingContext2D, node: PlanGraphNo
   ctx.setLineDash([])
 
   // Story 18.10 — same legible-zoom-floor rule drawPlanNode follows: its
-  // "N hidden" text is just as illegible at this scale, so it's skipped
+  // hidden-count text is just as illegible at this scale, so it's skipped
   // the same way, leaving the dashed outline (still a real, visible
   // signal — "something's collapsed here") without unreadable text noise.
   if (belowLegibleFloor) return
@@ -318,7 +320,11 @@ function drawCollapsedGroupNode(ctx: CanvasRenderingContext2D, node: PlanGraphNo
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
   ctx.font = "12px system-ui, sans-serif"
-  ctx.fillText(`${node.data.hiddenNodeCount.toLocaleString("en-US")} hidden`, x + width / 2, y + height / 2)
+  // Spec §5 `1i`: same hidden-count wording AccessiblePlanList's collapsed
+  // row uses — fitText guards against overflowing this box's fixed 160px
+  // width at a high hidden-count, which the shared string's own length can
+  // now reach (AccessiblePlanList has no such width limit to worry about).
+  ctx.fillText(fitText(ctx, formatHiddenNodeCountText(node.data.hiddenNodeCount), width - 12), x + width / 2, y + height / 2)
   ctx.textAlign = "left"
   ctx.textBaseline = "alphabetic"
 }

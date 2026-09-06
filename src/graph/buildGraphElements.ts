@@ -176,6 +176,15 @@ export function countDescendants(node: PlanNode): number {
   return node.children.reduce((sum, child) => sum + 1 + countDescendants(child), 0)
 }
 
+/** Spec §5 `1i`: "the collapsed-group row carries the same hidden-count
+ * text as the graph's placeholder node" — one formatter shared by the
+ * canvas placeholder (canvasDraw.ts's `drawCollapsedGroupNode`) and
+ * AccessiblePlanList's own collapsed-group row, rather than two copies of
+ * the same pluralization logic drifting apart. */
+export function formatHiddenNodeCountText(hiddenCount: number): string {
+  return `${hiddenCount.toLocaleString("en-US")} hidden node${hiddenCount === 1 ? "" : "s"} — expand`
+}
+
 function edgeId(sourceId: string, targetId: string): string {
   return `${sourceId}->${targetId}`
 }
