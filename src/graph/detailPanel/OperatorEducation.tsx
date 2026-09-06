@@ -1,5 +1,5 @@
-import { memo } from "react"
-import { Check, GraduationCap, Warning as WarningIcon } from "@phosphor-icons/react"
+import { memo, useState } from "react"
+import { CaretRight, Check, GraduationCap, Warning as WarningIcon } from "@phosphor-icons/react"
 import type { PlanNode } from "../../parsers/normalize"
 import { getGlossaryEntry, getGlossaryFallback } from "../glossary"
 import { getPlannerReasoning } from "./plannerReasoning"
@@ -22,6 +22,41 @@ function EducationHeading({ children }: { children: string }) {
 export interface OperatorEducationProps {
   node: PlanNode
   expertMode: boolean
+}
+
+/** Design review (downloaded "expert overlay details" PNG), spec §1f:
+ * "Expert reorders, it does not just extend. Numbers first, education
+ * last — collapsed to a single disclosure line at the bottom." A clickable
+ * "▸ {displayName} — definition (collapsed)" row, expanding in place to the
+ * same real `shortDefinition` text Expert mode already showed uncollapsed
+ * before this — collapsed by default (matching the mock's own resting
+ * state), never auto-expanded, since an expert who wants the reminder can
+ * open it themselves. `displayName` is real glossary content (e.g.
+ * "Sequential Scan") — no "a"/"an" article is prepended, sidestepping the
+ * exact grammar-risk tradeoff this file's own doc comment already made for
+ * the (unrelated) Beginner-mode heading. */
+function ExpertEducationDisclosure({ displayName, shortDefinition }: { displayName: string; shortDefinition: string }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <section className="detail-panel__section" data-testid="operator-education-what">
+      <button
+        type="button"
+        className="detail-panel__education-disclosure"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+      >
+        <CaretRight weight="bold" aria-hidden="true" className={expanded ? "detail-panel__education-disclosure-caret--open" : undefined} />
+        <span>
+          {displayName} — definition{expanded ? "" : " (collapsed)"}
+        </span>
+      </button>
+      {expanded && (
+        <div className="detail-panel__education detail-panel__education--disclosed">
+          <p>{shortDefinition}</p>
+        </div>
+      )}
+    </section>
+  )
 }
 
 /**
@@ -81,14 +116,7 @@ function OperatorEducationInner({ node, expertMode }: OperatorEducationProps) {
   }
 
   if (expertMode) {
-    return (
-      <section className="detail-panel__section" data-testid="operator-education-what">
-        <EducationHeading>What this operator does</EducationHeading>
-        <div className="detail-panel__education">
-          <p>{entry.shortDefinition}</p>
-        </div>
-      </section>
-    )
+    return <ExpertEducationDisclosure displayName={entry.displayName} shortDefinition={entry.shortDefinition} />
   }
 
   const reasoning = getPlannerReasoning(node)

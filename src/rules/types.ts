@@ -36,6 +36,13 @@ export interface PlanContext {
    * plainly rather than silently showing nothing (see graph-visualization
    * skill). Not a rule-engine signal itself. */
   queryTextRedacted?: boolean
+  /** Episode 25 — Design review (downloaded "expert overlay details" PNG),
+   * spec §1f: the Expert panel's "Nth slowest of N" rank chip needs every
+   * node's own actual-time/cost figure to rank against, which no rule
+   * needs (every `Rule` reasons about its own node, or plan-wide scalars
+   * already above) — a UI-only convenience, not read by any `Rule`. See
+   * `computeNodeRank.ts`. */
+  allNodes: PlanNode[]
 }
 
 export function buildPlanContext(
@@ -55,6 +62,7 @@ export function buildPlanContext(
     statementText: extra?.statementText,
     missingIndexes: extra?.missingIndexes,
     queryTextRedacted: extra?.queryTextRedacted,
+    allNodes: nodes,
   }
 }
 

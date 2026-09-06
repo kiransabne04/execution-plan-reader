@@ -293,6 +293,12 @@ export interface PlanNode {
    * parallel-worker/thread concern, not a Postgres loop-averaging one
    * (Postgres's actualTimeMs is already loop-averaged by the engine itself). */
   actualTimePerExecutionMs?: number
+  /** Episode 25 — Postgres's own `Actual Startup Time` (the per-loop-average
+   * time until this node produced its FIRST row, distinct from the total
+   * time above) — real, engine-reported, not derived. Postgres-only: SQL
+   * Server's `RunTimeCountersPerThread`/Snowflake's operator stats expose
+   * no equivalent "time to first row" figure in this app's current parsers. */
+  actualStartupTimeMs?: number
   loops?: number
   role: PlanNodeRole
 

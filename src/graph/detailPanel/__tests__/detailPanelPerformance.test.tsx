@@ -7,6 +7,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 import * as buildStatRowsModule from "../buildStatRows"
+import * as buildExpertSectionsModule from "../buildExpertSections"
 import * as glossaryModule from "../../glossary"
 import { DetailPanel } from "../DetailPanel"
 import { PlanGraph } from "../../PlanGraph"
@@ -15,29 +16,32 @@ import { makeNode } from "../../../rules/__tests__/testHelpers"
 import type { PlanNode } from "../../../parsers/normalize"
 
 describe("DetailPanel — memoization (Story 16.1)", () => {
-  it("re-derives stat rows exactly once across a Beginner/Expert toggle (a genuine reorder, not a plain re-render) — never a second time after that for the same node", () => {
-    // Design review, spec §1f: "Expert reorders, it does not just extend.
-    // Numbers first, education last." DetailPanel.tsx now renders two
-    // structurally different JSX branches for the two modes — React
-    // remounts StatsTable across that switch (a different position in a
-    // different subtree, not the same element re-rendered in place),
-    // so buildStatRows legitimately runs again ONCE on the toggle itself.
-    // What this test still guards, unchanged from before the reorder:
-    // that single remount doesn't cascade into repeated recomputation on
-    // every subsequent unrelated re-render once settled in the new mode.
-    const spy = vi.spyOn(buildStatRowsModule, "buildStatRows")
+  it("switching Beginner -> Expert unmounts StatsTable (no re-derive) and derives the Expert sections exactly once — never again on an unrelated re-render", () => {
+    // Design review, spec §1f: Expert mode no longer reuses buildStatRows's
+    // single flat table at all — it has its own grouped-sections derivation
+    // (buildExpertSections.ts, rendered by ExpertStatsSections). Beginner's
+    // StatsTable is simply absent from the Expert branch's JSX (not
+    // remounted in a new position the way it briefly was mid-session) —
+    // toggling to Expert must NOT call buildStatRows again, and must call
+    // buildExpertSections exactly once; a subsequent unrelated re-render
+    // while already in Expert mode must not re-derive either one again.
+    const statRowsSpy = vi.spyOn(buildStatRowsModule, "buildStatRows")
+    const expertSectionsSpy = vi.spyOn(buildExpertSectionsModule, "buildExpertSections")
     const node = makeNode({ actualTimeMs: 5 })
     const context = buildPlanContext(node)
     const { rerender } = render(<DetailPanel node={node} context={context} onClose={() => {}} />)
-    const callsAfterMount = spy.mock.calls.length
+    const statRowCallsAfterMount = statRowsSpy.mock.calls.length
+    expect(expertSectionsSpy).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "Expert" }))
-    expect(spy.mock.calls.length).toBe(callsAfterMount + 1)
+    expect(statRowsSpy.mock.calls.length).toBe(statRowCallsAfterMount)
+    expect(expertSectionsSpy.mock.calls.length).toBe(1)
 
     // An unrelated re-render (same node/context, new onClose identity)
     // while ALREADY in Expert mode must not re-derive again.
     rerender(<DetailPanel node={node} context={context} onClose={() => {}} />)
-    expect(spy.mock.calls.length).toBe(callsAfterMount + 1)
+    expect(statRowsSpy.mock.calls.length).toBe(statRowCallsAfterMount)
+    expect(expertSectionsSpy.mock.calls.length).toBe(1)
   })
 
   it("does not re-look-up the glossary entry when the panel re-renders for an unrelated reason", () => {

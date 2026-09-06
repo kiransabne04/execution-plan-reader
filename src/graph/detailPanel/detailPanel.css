@@ -231,19 +231,39 @@
   border-color: var(--color-accent);
 }
 
-/* Design review, spec §1f: "copy node JSON" — one of the Expert-only
-   header actions. A plain small button, not a full section — it sits
-   right under the mode toggle, before the reordered Expert content
-   begins. */
-.detail-panel__copy-json {
-  display: block;
+/* Design review, spec §1f: Expert's own header-chip row — rank/contribution
+   pills plus "copy node JSON", pushed right via margin-left: auto on the
+   button — sits right under the mode toggle, before the reordered Expert
+   content begins. */
+.detail-panel__header-chips {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
   margin: 0 0 14px;
-  padding: 4px 10px;
-  border-radius: 6px;
+}
+
+.detail-panel__chip {
+  border-radius: 999px;
+  background: var(--dp-chip-bg, rgba(233, 233, 237, 0.07));
+  border: 1px solid var(--dp-border);
+  color: var(--dp-text-muted);
+  font: 500 10px var(--font-mono);
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.detail-panel__copy-json {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
   border: 1px solid var(--dp-border);
   background: transparent;
   color: var(--dp-text-muted);
-  font-size: 11.5px;
+  font-size: 10px;
   cursor: pointer;
 }
 
@@ -326,6 +346,41 @@
   border-top: 1px solid var(--dp-border);
   font-size: 11px;
   color: var(--dp-text-muted);
+}
+
+/* Design review (downloaded "expert overlay details" PNG), spec §1f:
+   Expert's education is collapsed to a single clickable disclosure line —
+   a plain bordered row, not the tinted education box (that treatment is
+   reserved for the uncollapsed Beginner content, per Story 6.2's own
+   "these must read as visually distinct" criterion applied the other way:
+   a collapsed one-liner shouldn't borrow the same tint either). */
+.detail-panel__education-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--dp-border);
+  background: none;
+  color: var(--dp-text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.detail-panel__education-disclosure svg {
+  flex: none;
+  font-size: 12px;
+  transition: transform 0.1s ease;
+}
+
+.detail-panel__education-disclosure-caret--open {
+  transform: rotate(90deg);
+}
+
+.detail-panel__education--disclosed {
+  margin-top: 6px;
 }
 
 .detail-panel__warning {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, fireEvent } from "@testing-library/react"
 import { buildStepNarration } from "../walkthroughNarration"
 import { OperatorEducation } from "../../detailPanel/OperatorEducation"
 import { WarningsSection } from "../../detailPanel/WarningsSection"
@@ -73,6 +73,11 @@ describe("buildStepNarration", () => {
       const narration = buildStepNarration(node, buildPlanContext(node), expertMode)
 
       render(<OperatorEducation node={node} expertMode={expertMode} />)
+      // Expert mode collapses this to a one-line disclosure by default (spec
+      // §1f) — the short definition itself isn't in the DOM until expanded,
+      // so this guard has to open it before comparing text, same real text
+      // either way.
+      if (expertMode) fireEvent.click(screen.getByRole("button", { name: /— definition/ }))
       const rendered = screen.getByTestId("operator-education-what").textContent
       expect(rendered).toContain(narration.explanation)
     })

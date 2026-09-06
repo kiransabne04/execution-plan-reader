@@ -25,6 +25,7 @@ export interface ExtendedFields {
   rowsRemovedByJoinFilter?: PlanNode["rowsRemovedByJoinFilter"]
   heapFetches?: PlanNode["heapFetches"]
   actualTimePerExecutionMs?: PlanNode["actualTimePerExecutionMs"]
+  actualStartupTimeMs?: PlanNode["actualStartupTimeMs"]
   startupCost?: PlanNode["startupCost"]
   planWidth?: PlanNode["planWidth"]
   outputColumns?: PlanNode["outputColumns"]
@@ -117,6 +118,7 @@ export function derivePostgresExtendedFields(
   const heapFetches = toNumber(attrs["Heap Fetches"])
   const startupCost = toNumber(attrs["Startup Cost"])
   const planWidth = toNumber(attrs["Plan Width"])
+  const actualStartupTimeMs = toNumber(attrs["Actual Startup Time"])
   const outputColumns = toStringArray(attrs["Output"])
 
   // Episode 24, Story 24.5 — Sort nodes only; `Sort Space Used`/`Sort Space
@@ -176,6 +178,7 @@ export function derivePostgresExtendedFields(
     rowsRemovedByJoinFilter,
     heapFetches,
     actualTimePerExecutionMs,
+    actualStartupTimeMs,
     startupCost,
     planWidth,
     outputColumns,

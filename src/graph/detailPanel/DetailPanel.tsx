@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { PlanNode } from "../../parsers/normalize"
 import type { PlanContext } from "../../rules/types"
 import { computeContributionPercent } from "./computeContributionPercent"
+import { computeNodeRank, formatOrdinal } from "./computeNodeRank"
 import { ContentStack } from "../content/ContentStack"
+import { ExpertStatsSections } from "./ExpertStatsSections"
 import { OperatorEducation } from "./OperatorEducation"
 import { QueryCorrelation } from "./QueryCorrelation"
 import { RawAttributes } from "./RawAttributes"
@@ -106,6 +108,11 @@ export function DetailPanel({
   // DetailPanel re-renders for a reason unrelated to `node`/`context`
   // (e.g. the Beginner/Expert toggle, which this value doesn't depend on).
   const contributionPercent = useMemo(() => computeContributionPercent(node, context), [node, context])
+  // Design review, spec §1f: Expert's own header chips — "3rd slowest of
+  // 7"/"32.3% of plan" — replace Beginner's dedicated "Contribution to the
+  // plan" bar section with the same underlying number in a smaller, denser
+  // form; see the mutually-exclusive rendering below.
+  const rank = useMemo(() => computeNodeRank(node, context), [node, context])
 
   // Design review, spec §1f: "copy node JSON" — one of the Expert-only
   // header actions. `node` is already the exact, already-normalized
@@ -195,35 +202,55 @@ export function DetailPanel({
         </div>
       )}
 
+      {/* Design review, spec §1f: Expert's own header-chip row — rank among
+          all nodes, contribution to the plan, and "copy node JSON" —
+          replacing Beginner's dedicated "Contribution to the plan" bar
+          section (below) with the same real numbers in a denser form.
+          Either chip is simply absent (never a fabricated "1st of 1" or
+          "0.0%") when the underlying figure isn't available for this plan. */}
       {expertMode && (
-        <button type="button" className="detail-panel__copy-json" data-testid="detail-panel-copy-json" onClick={handleCopyJson}>
-          {copyJsonStatus === "copied" ? "Copied" : copyJsonStatus === "failed" ? "Couldn't copy" : "Copy node JSON"}
-        </button>
+        <div className="detail-panel__header-chips" data-testid="detail-panel-header-chips">
+          {rank && (
+            <span className="detail-panel__chip" data-testid="detail-panel-rank-chip">
+              {formatOrdinal(rank.rank)} slowest of {rank.total}
+            </span>
+          )}
+          {contributionPercent !== undefined && (
+            <span className="detail-panel__chip" data-testid="detail-panel-contribution-chip">
+              {contributionPercent.toFixed(1)}% of plan
+            </span>
+          )}
+          <button type="button" className="detail-panel__copy-json" data-testid="detail-panel-copy-json" onClick={handleCopyJson}>
+            {copyJsonStatus === "copied" ? "Copied" : copyJsonStatus === "failed" ? "Couldn't copy" : "Copy node JSON"}
+          </button>
+        </div>
       )}
 
-      <section className="detail-panel__section" data-testid="contribution-summary">
-        <h3 className="detail-panel__section-heading">Contribution to the plan</h3>
-        {contributionPercent !== undefined ? (
-          <div className="detail-panel__contribution-bar" data-testid="contribution-bar">
-            <div
-              className="detail-panel__contribution-bar-track"
-              role="progressbar"
-              aria-valuenow={Math.round(contributionPercent)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Contribution to the plan's total cost/time"
-            >
+      {!expertMode && (
+        <section className="detail-panel__section" data-testid="contribution-summary">
+          <h3 className="detail-panel__section-heading">Contribution to the plan</h3>
+          {contributionPercent !== undefined ? (
+            <div className="detail-panel__contribution-bar" data-testid="contribution-bar">
               <div
-                className="detail-panel__contribution-bar-fill"
-                style={{ width: `${Math.min(100, Math.max(0, contributionPercent))}%` }}
-              />
+                className="detail-panel__contribution-bar-track"
+                role="progressbar"
+                aria-valuenow={Math.round(contributionPercent)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Contribution to the plan's total cost/time"
+              >
+                <div
+                  className="detail-panel__contribution-bar-fill"
+                  style={{ width: `${Math.min(100, Math.max(0, contributionPercent))}%` }}
+                />
+              </div>
+              <span className="detail-panel__contribution-value">{contributionPercent.toFixed(1)}%</span>
             </div>
-            <span className="detail-panel__contribution-value">{contributionPercent.toFixed(1)}%</span>
-          </div>
-        ) : (
-          <p className="detail-panel__stat-gap">Not available for this plan.</p>
-        )}
-      </section>
+          ) : (
+            <p className="detail-panel__stat-gap">Not available for this plan.</p>
+          )}
+        </section>
+      )}
 
       {/* Design review, spec §1f: "Expert reorders, it does not just
           extend. Numbers first, education last — collapsed to a single
@@ -236,7 +263,7 @@ export function DetailPanel({
           these five calls differs between the two branches below. */}
       {expertMode ? (
         <>
-          <StatsTable node={node} expertMode={expertMode} />
+          <ExpertStatsSections node={node} />
           <WarningsSection warnings={node.warnings} expertMode={expertMode} engine={node.engine} />
           <QueryCorrelation queryText={context.statementText} queryTextRedacted={context.queryTextRedacted} />
           <RawAttributes attributes={node.attributes} expertMode={expertMode} />

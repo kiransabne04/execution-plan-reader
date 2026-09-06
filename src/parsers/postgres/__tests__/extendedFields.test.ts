@@ -11,6 +11,11 @@ describe("Postgres extended fields (docs/10-node-stats-field-catalog.md)", () =>
     expect(root.planWidth).toBe(36)
   })
 
+  it("promotes actualStartupTimeMs from Actual Startup Time, via both parsers", () => {
+    expect(parsePostgresJsonPlan(loadFixture("simple-seq-scan.json")).actualStartupTimeMs).toBe(0.012)
+    expect(parsePostgresTextPlan(loadFixture("simple-seq-scan-text.txt")).actualStartupTimeMs).toBe(0.012)
+  })
+
   it("promotes outputColumns from the raw Output array, leaves it undefined when absent", () => {
     const withOutput = JSON.stringify([
       {

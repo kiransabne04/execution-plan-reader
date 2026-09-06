@@ -4,6 +4,7 @@
 // "not available" row, never a blank space or a fabricated zero.
 
 import type { PlanNode } from "../../parsers/normalize"
+import { NOT_APPLICABLE, NOT_CAPTURED, formatMs, formatNumber } from "./statFormat"
 
 export interface StatRow {
   label: string
@@ -25,19 +26,6 @@ export interface StatRow {
    * "flag this specific row, not the whole section" treatment could
    * apply to a future stat with its own real-vs-expected shortfall. */
   isWarning?: boolean
-}
-
-const NOT_CAPTURED = "not captured in this plan"
-const NOT_APPLICABLE = "not applicable for this engine"
-
-// Defensive final layer: whatever upstream check let a value through, a
-// non-finite number must never surface as the literal text "NaN"/"Infinity".
-function formatNumber(value: number): string {
-  return Number.isFinite(value) ? value.toLocaleString("en-US") : "—"
-}
-
-function formatMs(value: number): string {
-  return Number.isFinite(value) ? `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} ms` : "—"
 }
 
 export function buildStatRows(node: PlanNode): StatRow[] {

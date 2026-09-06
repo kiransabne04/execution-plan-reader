@@ -213,11 +213,18 @@ describe("DetailPanel", () => {
       expect(screen.queryByText(/^Reads every row in a table/)).not.toBeInTheDocument()
     })
 
-    it("Expert collapses education to the one-line short definition, omitting the fine/look-closer bullets entirely", () => {
+    it("Expert collapses education to a single disclosure line, closed by default, expanding to the short definition on click — never the fine/look-closer bullets", () => {
       const node = makeNode({ operatorType: "seq_scan" })
       renderPanel(node)
       fireEvent.click(screen.getByRole("button", { name: "Expert" }))
 
+      // Design review (downloaded "expert overlay details" PNG), spec §1f:
+      // "collapsed to a single disclosure line at the bottom" — closed by
+      // default, the short definition itself not yet in the DOM at all.
+      expect(screen.getByText(/Sequential Scan — definition \(collapsed\)/)).toBeInTheDocument()
+      expect(screen.queryByText(/Reads every row in a table/)).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: /Sequential Scan — definition/ }))
       expect(screen.getByText(/Reads every row in a table/)).toBeInTheDocument()
       expect(screen.queryByText(/also called a table scan or full scan/)).not.toBeInTheDocument()
       expect(screen.queryByText(/an index lookup has its own overhead/)).not.toBeInTheDocument()
@@ -232,7 +239,7 @@ describe("DetailPanel", () => {
       expect(screen.getByTestId("warning-rule-id")).toHaveTextContent("seq-scan-on-large-table")
     })
 
-    it("Beginner curates stat rows (hides gaps), Expert shows the full set including them", () => {
+    it("Beginner curates stat rows (hides gaps), Expert's grouped sections show real gaps (e.g. Snowflake's no-cost-concept)", () => {
       // Snowflake nodes never populate ioReadTimeMs/ioWriteTimeMs — a
       // real, honest gap (field catalog), not a fabricated zero.
       const node = makeNode({ engine: "snowflake", operatorType: "seq_scan", actualRows: 100 })
@@ -241,7 +248,12 @@ describe("DetailPanel", () => {
       expect(statsTable.querySelector(".detail-panel__stat-gap")).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "Expert" }))
-      expect(screen.getByTestId("stats-table").querySelector(".detail-panel__stat-gap")).toBeInTheDocument()
+      // Snowflake's own "Cost" gap row (buildExpertSections.ts's
+      // costAndTimingSection) — an engine-limitation gap, not a curated-away
+      // Beginner one, so it's expected to be visible now that Expert
+      // renders the grouped sections rather than Beginner's curated table.
+      const gapRows = screen.getAllByTestId("expert-stats-section").flatMap((section) => Array.from(section.querySelectorAll(".detail-panel__stat-gap")))
+      expect(gapRows.length).toBeGreaterThan(0)
     })
   })
 })
