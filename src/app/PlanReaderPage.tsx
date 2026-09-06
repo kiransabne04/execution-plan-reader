@@ -1139,7 +1139,19 @@ export function PlanReaderPage() {
                           <span className="plan-shell__canvas-metric-label">Nodes</span>
                           <span className="plan-shell__canvas-metric-value">
                             {activeStatementNodes.length.toLocaleString("en-US")}
-                            {collapsedCount > 0 && ` · ${collapsedCount} hidden`}
+                            {/* Bug fix (real browser report): "· N hidden" at full
+                                value-text weight made this one tile far wider
+                                than every sibling metric's short value — the
+                                footer's own gaps stayed a uniform 18px the whole
+                                time (verified via getBoundingClientRect), but
+                                the mismatched value LENGTHS read as a misaligned
+                                row. Large plans are exactly where this always
+                                shows (collapse.ts's own default-collapse only
+                                triggers above 150 nodes) — a muted, smaller
+                                annotation instead of full-weight value text
+                                keeps this tile's visual footprint close to its
+                                neighbors' without hiding the count. */}
+                            {collapsedCount > 0 && <span className="plan-shell__canvas-metric-annotation"> · {collapsedCount} hidden</span>}
                           </span>
                         </span>
                         {planWidthBytes !== undefined && (

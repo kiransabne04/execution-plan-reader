@@ -1024,6 +1024,18 @@
   text-overflow: ellipsis;
 }
 
+/* Bug fix (real browser report, large plans): "· N hidden" at the value's
+   own full weight made the Nodes tile far wider than its short-value
+   siblings (Total/Rows/Width are all a few characters; this could be
+   "· 216 hidden") — every tile's own gap stayed correctly uniform the
+   whole time, but the mismatched value LENGTHS read as a misaligned row.
+   A smaller, muted annotation keeps this tile's visual footprint close to
+   its neighbors' without dropping the count. */
+.plan-shell__canvas-metric-annotation {
+  font-size: 10.5px;
+  color: var(--pr-text-muted);
+}
+
 /* Design review (spec §2 "2a fluid shell"): marks where the credit
    begins, right after the plan-metrics group (which carries the
    `margin-left: auto` that clusters this whole trailing group at the
