@@ -25,6 +25,7 @@ import {
   WalkthroughOverlay,
   SEVERITY_LABEL,
   QueryHealthCard,
+  CANVAS_NODE_COUNT_THRESHOLD,
   type PlanGraphHandle,
 } from "../graph"
 import { PlanParseError, collectNodes, type PlanNode } from "../parsers/normalize"
@@ -450,6 +451,19 @@ export function PlanReaderPage() {
   // means its root always carries the figure when any node has one, so
   // this is strictly more correct there too, never less.
   const activeStatementNodes = activeStatement ? collectNodes(activeStatement.root) : []
+  // Design review (downloaded "large execution plan node" PNG) — above
+  // this same threshold, PlanGraph switches to its OWN internal canvas
+  // rendering, which now owns the top-left corner with its own real
+  // (not absolutely-positioned) toolbar row (mode badge, banner, the
+  // accessible-list toggle) and its own bottom-left legend chip (metric,
+  // node count, warning count). This shell's own floating search trigger
+  // and Width/Arrows legend chip would otherwise render on top of/
+  // duplicate those — both suppressed here, computed from the exact same
+  // basis PlanGraph.tsx's own `useCanvas` uses, never a second guess at
+  // when that switch happens. The search palette itself stays reachable
+  // via its `/`/⌘K shortcuts either way — this button was always just a
+  // second, discoverable way to open it, not the only one.
+  const isLargePlanCanvasMode = activeStatementNodes.length > CANVAS_NODE_COUNT_THRESHOLD
 
   // Episode 23, Story 23.1/23.3 — recomputed on every `activeStatement`
   // change (a fresh call keyed by object identity via useMemo, not cached
@@ -1030,40 +1044,49 @@ export function PlanReaderPage() {
                       trigger and PlanGraph) — the graph's search entry
                       point and the canvas itself. */}
                   <div className="plan-shell__graph" data-testid="plan-shell-graph">
-                    <div className="plan-shell__graph-toolbar">
-                      {/* Design review (reference mock) — a persistent, always-
-                          visible entry point into the search palette (the
-                          modal itself, and its `/`/⌘K shortcuts, are
-                          unchanged — Story 18.8's own tests still cover
-                          those); this is just a second, discoverable way to
-                          open the same thing for anyone who'd never guess a
-                          keyboard shortcut exists. */}
-                      <button
-                        type="button"
-                        className="plan-shell__search-trigger"
-                        data-testid="graph-search-trigger"
-                        onClick={() => setIsSearchPaletteOpen(true)}
-                      >
-                        <MagnifyingGlass aria-hidden="true" />
-                        <span>Find operator, table, or index…</span>
-                        <kbd>/</kbd>
-                      </button>
-                    </div>
+                    {!isLargePlanCanvasMode && (
+                      <div className="plan-shell__graph-toolbar">
+                        {/* Design review (reference mock) — a persistent, always-
+                            visible entry point into the search palette (the
+                            modal itself, and its `/`/⌘K shortcuts, are
+                            unchanged — Story 18.8's own tests still cover
+                            those); this is just a second, discoverable way to
+                            open the same thing for anyone who'd never guess a
+                            keyboard shortcut exists. */}
+                        <button
+                          type="button"
+                          className="plan-shell__search-trigger"
+                          data-testid="graph-search-trigger"
+                          onClick={() => setIsSearchPaletteOpen(true)}
+                        >
+                          <MagnifyingGlass aria-hidden="true" />
+                          <span>Find operator, table, or index…</span>
+                          <kbd>/</kbd>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Design review, spec §2: "The only canvas overlays
                         are the search affordance (top left), the zoom
                         controls (top right) and the encoding legend
                         (bottom left)." Spec is explicit this must NOT sit
                         in the footer strip below — putting it there
-                        "overflowed the bar at every realistic width." */}
-                    <div className="plan-shell__canvas-legend" data-testid="plan-shell-canvas-legend">
-                      <span className="plan-shell__colour-legend">
-                        Colour
-                        <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
-                        {metricLabel}
-                      </span>
-                      <span>Width = {metricLabel} · Arrows = execution order</span>
-                    </div>
+                        "overflowed the bar at every realistic width."
+                        Suppressed in large-plan canvas mode — PlanGraph
+                        renders its own richer legend chip there instead
+                        (metric name + node/warning counts, not Width/
+                        Arrows — canvas mode draws its own encoding
+                        directly, so that explanation doesn't apply). */}
+                    {!isLargePlanCanvasMode && (
+                      <div className="plan-shell__canvas-legend" data-testid="plan-shell-canvas-legend">
+                        <span className="plan-shell__colour-legend">
+                          Colour
+                          <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
+                          {metricLabel}
+                        </span>
+                        <span>Width = {metricLabel} · Arrows = execution order</span>
+                      </div>
+                    )}
 
                     <PlanGraph
                       ref={planGraphRef}

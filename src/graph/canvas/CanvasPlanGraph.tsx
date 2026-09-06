@@ -63,6 +63,13 @@ export function CanvasPlanGraph({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [transform, setTransform] = useState<ViewportTransform>(IDENTITY_TRANSFORM)
+  // Design review (downloaded "large execution plan node" PNG) — a
+  // lightweight hover preview (operator name, rows/time, warning count),
+  // since canvas mode has no per-node DOM element a real `title` attribute
+  // could live on. `screenPoint` is canvas-relative (not world/graph
+  // coordinates — see `getCanvasRelativePoint`), so the tooltip tracks the
+  // cursor directly with no transform math on render.
+  const [hover, setHover] = useState<{ node: PlanGraphNode; screenPoint: { x: number; y: number } } | undefined>(undefined)
 
   // Rule 4 — devicePixelRatio. Read once per render pass rather than
   // cached in state; a DPR change (dragging the window to a different
@@ -242,6 +249,7 @@ export function CanvasPlanGraph({
 
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {
+      setHover(undefined) // about to pan or click — a stale tooltip from before this gesture must not linger
       dragState.current = {
         pointerId: event.pointerId,
         startScreen: getCanvasRelativePoint(event.clientX, event.clientY),
@@ -260,16 +268,32 @@ export function CanvasPlanGraph({
   const handlePointerMove = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {
       const drag = dragState.current
-      if (!drag || drag.pointerId !== event.pointerId) return
       const point = getCanvasRelativePoint(event.clientX, event.clientY)
+
+      // Design review (downloaded "large execution plan node" PNG) — hover
+      // preview only while NOT actively panning (a real drag in progress
+      // would make a tooltip that tracks the cursor pure visual noise, and
+      // this reuses the exact same hit-test the click handler already
+      // does, so hover and click can never disagree about which node is
+      // under the cursor).
+      if (!drag) {
+        const worldPoint = screenToWorld(point, transform)
+        const hit = findNodeAtPoint(nodes, worldPoint)
+        setHover(hit && hit.data.kind === "plan" ? { node: hit, screenPoint: point } : undefined)
+      }
+
+      if (!drag || drag.pointerId !== event.pointerId) return
       const dx = point.x - drag.startScreen.x
       const dy = point.y - drag.startScreen.y
       if (!drag.dragged && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return
       drag.dragged = true
+      setHover(undefined) // a pan gesture in progress — same reasoning as the gate above
       setTransform({ ...drag.startTransform, x: drag.startTransform.x + dx, y: drag.startTransform.y + dy })
     },
-    [getCanvasRelativePoint],
+    [getCanvasRelativePoint, nodes, transform],
   )
+
+  const handlePointerLeave = useCallback(() => setHover(undefined), [])
 
   const handlePointerUp = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {
@@ -317,8 +341,42 @@ export function CanvasPlanGraph({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         onWheel={handleWheel}
       />
+      {hover && hover.node.data.kind === "plan" && <CanvasNodeHoverPreview node={hover.node} screenPoint={hover.screenPoint} />}
+    </div>
+  )
+}
+
+/** Design review (downloaded "large execution plan node" PNG) — a
+ * lightweight hover preview: operator name, rows/time, and (when this
+ * node has any) its warning count with a "hover to preview" hint —
+ * canvas has no per-node DOM element to hang a real `title` on, so this is
+ * the whole substitute. Reuses the SAME already-computed badge/severity
+ * fields buildGraphElements.ts put on this node's own `data` (never a
+ * second, independent read of the raw PlanNode). Deliberately NOT the
+ * full detail panel — that's still a real click away, same "preview vs.
+ * details" split the mockup's own "hover to preview" wording names. */
+function CanvasNodeHoverPreview({ node, screenPoint }: { node: PlanGraphNode; screenPoint: { x: number; y: number } }) {
+  if (node.data.kind !== "plan") return null
+  const planNode = node.data.planNode
+  const rows = planNode.actualRows ?? planNode.estimatedRows
+  const time = planNode.actualTimeMs
+  const metaParts: string[] = []
+  if (rows !== undefined) metaParts.push(`${rows.toLocaleString("en-US")} rows`)
+  if (time !== undefined) metaParts.push(`${time.toLocaleString("en-US", { maximumFractionDigits: 1 })} ms`)
+  const warningCount = planNode.warnings.length
+
+  return (
+    <div className="canvas-plan-graph__hover-preview" style={{ left: screenPoint.x + 14, top: screenPoint.y + 14 }} role="presentation">
+      <p className="canvas-plan-graph__hover-preview-title">{planNode.rawOperatorLabel}</p>
+      {metaParts.length > 0 && <p className="canvas-plan-graph__hover-preview-meta">{metaParts.join(" · ")}</p>}
+      {warningCount > 0 && (
+        <p className="canvas-plan-graph__hover-preview-warnings">
+          {warningCount} warning{warningCount === 1 ? "" : "s"} · hover to preview
+        </p>
+      )}
     </div>
   )
 }

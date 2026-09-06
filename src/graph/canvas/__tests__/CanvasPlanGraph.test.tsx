@@ -95,6 +95,40 @@ describe("CanvasPlanGraph", () => {
     expect(onSelectNode).not.toHaveBeenCalled()
   })
 
+  // Design review (downloaded "large execution plan node" PNG) — the
+  // mouse-only hover preview (canvas has no per-node DOM element for a
+  // real browser tooltip to hang off of).
+  it("hovering a node shows its own preview (operator name), moving off it clears the preview", () => {
+    render(<CanvasPlanGraph nodes={[singleNode("only")]} edges={[]} onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
+    const canvas = screen.getByTestId("canvas-plan-graph-surface")
+
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 400, clientY: 300 })
+    expect(screen.getByText(/Seq Scan/)).toBeInTheDocument() // makeNode()'s own default rawOperatorLabel
+
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 5, clientY: 5 })
+    expect(screen.queryByText(/Seq Scan/)).not.toBeInTheDocument()
+  })
+
+  it("leaving the canvas entirely clears any showing hover preview", () => {
+    render(<CanvasPlanGraph nodes={[singleNode("only")]} edges={[]} onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
+    const canvas = screen.getByTestId("canvas-plan-graph-surface")
+
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 400, clientY: 300 })
+    expect(screen.getByText(/Seq Scan/)).toBeInTheDocument()
+
+    fireEvent.pointerLeave(canvas)
+    expect(screen.queryByText(/Seq Scan/)).not.toBeInTheDocument()
+  })
+
+  it("a drag in progress suppresses the hover preview — a tooltip tracking the cursor mid-pan would be noise, not information", () => {
+    render(<CanvasPlanGraph nodes={[singleNode("only")]} edges={[]} onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
+    const canvas = screen.getByTestId("canvas-plan-graph-surface")
+
+    fireEvent.pointerDown(canvas, { pointerId: 1, clientX: 400, clientY: 300 })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 460, clientY: 300 }) // past DRAG_THRESHOLD_PX
+    expect(screen.queryByText(/Seq Scan/)).not.toBeInTheDocument()
+  })
+
   it("a drag gesture (movement past the threshold) pans instead of selecting — no onSelectNode call", () => {
     const onSelectNode = vi.fn()
     render(<CanvasPlanGraph nodes={[singleNode("only")]} edges={[]} onSelectNode={onSelectNode} onExpandCollapsedGroup={vi.fn()} />)

@@ -324,7 +324,7 @@ function drawCollapsedGroupNode(ctx: CanvasRenderingContext2D, node: PlanGraphNo
   // row uses — fitText guards against overflowing this box's fixed 160px
   // width at a high hidden-count, which the shared string's own length can
   // now reach (AccessiblePlanList has no such width limit to worry about).
-  ctx.fillText(fitText(ctx, formatHiddenNodeCountText(node.data.hiddenNodeCount), width - 12), x + width / 2, y + height / 2)
+  ctx.fillText(fitText(ctx, formatHiddenNodeCountText(node.data.hiddenNodeCount, "click"), width - 12), x + width / 2, y + height / 2)
   ctx.textAlign = "left"
   ctx.textBaseline = "alphabetic"
 }

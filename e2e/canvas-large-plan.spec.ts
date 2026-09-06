@@ -79,14 +79,39 @@ test("a plan large enough to cross the canvas threshold renders via the canvas p
   await expect(page.getByTestId("detail-panel")).toBeVisible()
 })
 
-// Episode 18, Story 18.10, spec §5 `1i`.
-test("shows a banner explaining the DOM->canvas switch", async ({ page }) => {
+// Design review (downloaded "large execution plan node" PNG).
+test("canvas mode shows its own legend chip (metric, node count, warning count); the list mode shows a descriptive subtitle instead of a redundant one", async ({
+  page,
+}) => {
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(buildLargePostgresPlanJson(320))
   await page.getByRole("button", { name: /analyze plan/i }).click()
 
+  const legend = page.getByTestId("plan-graph-canvas-legend")
+  await expect(legend).toBeVisible()
+  await expect(legend).toContainText("actual time")
+  await expect(legend).toContainText(/321 nodes/)
+  await expect(legend).toContainText(/\d+ warnings?/) // a real, non-fabricated count — not asserting a specific number here
+
+  await page.getByTestId("accessible-list-toggle").click()
+  await expect(legend).not.toBeVisible() // the list is a real semantic list, not a canvas rendering — no colour legend applies to it
+  await expect(page.getByRole("button", { name: "Back to graph view" })).toBeVisible()
+  await expect(page.getByTestId("canvas-mode-banner")).toContainText(/same tree, keyboard and screen-reader navigable/)
+})
+
+// Episode 18, Story 18.10, spec §5 `1i`. Design review (downloaded "large
+// execution plan node" PNG): the node count moved from the banner
+// paragraph itself onto its own pill badge ("Canvas rendering · N nodes"),
+// with the banner now a plain description of the threshold rule.
+test("shows a mode badge (with the node count) and a banner explaining the DOM->canvas switch", async ({ page }) => {
+  await page.goto("/")
+  await page.getByTestId("paste-textarea").fill(buildLargePostgresPlanJson(320))
+  await page.getByRole("button", { name: /analyze plan/i }).click()
+
+  await expect(page.getByTestId("canvas-mode-badge")).toBeVisible()
+  await expect(page.getByTestId("canvas-mode-badge")).toContainText(/321/) // chainLength leaves + the chain itself = 321 nodes
   await expect(page.getByTestId("canvas-mode-banner")).toBeVisible()
-  await expect(page.getByTestId("canvas-mode-banner")).toContainText(/321/) // chainLength leaves + the chain itself = 321 nodes
+  await expect(page.getByTestId("canvas-mode-banner")).toContainText(/300/) // CANVAS_NODE_COUNT_THRESHOLD
 })
 
 test("labels below the legible-zoom floor degrade to solid blocks — real canvas, not clipped/overlapping text", async ({ page }) => {

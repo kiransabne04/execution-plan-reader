@@ -19,6 +19,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
+import { Lightning } from "@phosphor-icons/react"
 import { collectNodes, type PlanNode } from "../parsers/normalize"
 import { buildPlanContext, type PlanContext } from "../rules/types"
 import { buildGraphElements, type ComparisonOverlay, type PlanGraphNode } from "./buildGraphElements"
@@ -53,6 +54,19 @@ const MIN_LEGIBLE_ZOOM = 0.5
 // benchmark (50/100/250/500/1000+ node sizes, render + interaction
 // latency) before trusting this number in production. Revisit then.
 export const CANVAS_NODE_COUNT_THRESHOLD = 300
+
+/** Design review (downloaded "large execution plan node" PNG) — canvas
+ * mode's own legend bar names whichever metric is actually driving
+ * color/size (the `metric` prop, already the single source of truth
+ * buildGraphElements.ts itself uses) rather than re-deriving a label from
+ * which fields happen to be present on the data, a second, looser
+ * definition of the same fact. */
+const METRIC_LABEL: Record<MetricKey, string> = {
+  actualTimeMs: "actual time",
+  estimatedCost: "estimated cost",
+  actualRows: "actual rows",
+  estimatedRows: "estimated rows",
+}
 
 export interface PlanGraphProps {
   root: PlanNode
@@ -172,6 +186,10 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
 ) {
   const allNodes = useMemo(() => collectNodes(root), [root])
   const resolvedContext = useMemo(() => context ?? buildPlanContext(root), [context, root])
+  // Design review (downloaded "large execution plan node" PNG) — canvas
+  // mode's own legend bar names the total warning count across the whole
+  // tree, not just the selected node's own findings.
+  const totalWarningCount = useMemo(() => allNodes.reduce((sum, n) => sum + n.warnings.length, 0), [allNodes])
 
   // Collapse state lives here, keyed by PlanNode id — never on the PlanNode
   // model itself, which stays pure/serializable. Which subtrees are
@@ -431,28 +449,56 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
   if (useCanvas) {
     return (
       <div className="plan-graph plan-graph--canvas" data-testid="plan-graph" ref={containerRef}>
+        {/* Story 18.10, spec §5 `1i` — explains the DOM->canvas switch
+            rather than leaving a large plan to just feel like a
+            different, possibly-broken tool. A local element (not
+            src/app/Notice.tsx) deliberately: src/graph never imports from
+            src/app (the composing layer imports FROM graph, not the
+            reverse) — this matches Notice's info-tier visual language in
+            planGraph.css without crossing that layering boundary for one
+            banner.
+            Design review (downloaded "large execution plan node" PNG):
+            the toggle's own position flips with it — flush right next to
+            the mode badge/description in canvas view, flush LEFT ahead of
+            its own description once the list is showing (the list's own
+            description reads as "what you're looking at now," following
+            its trigger, the same way the canvas mode's badge leads here). */}
         <div className="plan-graph__canvas-toolbar">
-          {/* Story 18.10, spec §5 `1i` — explains the DOM->canvas switch
-              rather than leaving a large plan to just feel like a
-              different, possibly-broken tool. A local element (not
-              src/app/Notice.tsx) deliberately: src/graph never imports
-              from src/app (the composing layer imports FROM graph, not
-              the reverse) — this matches Notice's info-tier visual
-              language in planGraph.css without crossing that layering
-              boundary for one banner. */}
-          <p className="plan-graph__canvas-banner" data-testid="canvas-mode-banner" role="status">
-            <span className="plan-graph__canvas-banner-label">Note:</span> This plan has {allNodes.length.toLocaleString("en-US")} nodes —
-            switched to a faster rendering mode for large plans. Everything still works the same.
-          </p>
-          <button
-            type="button"
-            className="plan-graph__accessible-list-toggle"
-            data-testid="accessible-list-toggle"
-            aria-pressed={showAccessibleList}
-            onClick={() => setShowAccessibleList((v) => !v)}
-          >
-            {showAccessibleList ? "Back to graph view" : "View as accessible list"}
-          </button>
+          {showAccessibleList ? (
+            <>
+              <button
+                type="button"
+                className="plan-graph__accessible-list-toggle"
+                data-testid="accessible-list-toggle"
+                aria-pressed={showAccessibleList}
+                onClick={() => setShowAccessibleList((v) => !v)}
+              >
+                Back to graph view
+              </button>
+              <p className="plan-graph__canvas-banner" data-testid="canvas-mode-banner" role="status">
+                Accessible list — same tree, keyboard and screen-reader navigable
+              </p>
+            </>
+          ) : (
+            <>
+              <span className="plan-graph__canvas-mode-badge" data-testid="canvas-mode-badge">
+                <Lightning weight="fill" aria-hidden="true" />
+                Canvas rendering · {allNodes.length.toLocaleString("en-US")} nodes
+              </span>
+              <p className="plan-graph__canvas-banner" data-testid="canvas-mode-banner" role="status">
+                Above {CANVAS_NODE_COUNT_THRESHOLD} nodes PlanReader draws to a single canvas instead of one element per node.
+              </p>
+              <button
+                type="button"
+                className="plan-graph__accessible-list-toggle"
+                data-testid="accessible-list-toggle"
+                aria-pressed={showAccessibleList}
+                onClick={() => setShowAccessibleList((v) => !v)}
+              >
+                View as accessible list
+              </button>
+            </>
+          )}
         </div>
         {showAccessibleList ? (
           <AccessiblePlanList
@@ -481,6 +527,25 @@ const PlanGraphInner = forwardRef<PlanGraphHandle, PlanGraphProps>(function Plan
             // simply isn't mounted at all outside popup mode.
             onSelectedNodeScreenAnchorChange={nodeDetailVariant === "popup" ? setCanvasPopupAnchor : undefined}
           />
+        )}
+        {/* Design review (downloaded "large execution plan node" PNG) —
+            canvas mode's own legend bar: color always means the same
+            metric buildGraphElements.ts is actually encoding with (never
+            re-derived from which fields happen to be present), plus a
+            plan-wide node/warning count. Canvas-view only — the
+            accessible list is already a real semantic list; it doesn't
+            need a color-legend for a rendering it doesn't use. */}
+        {!showAccessibleList && (
+          <div className="plan-graph__canvas-legend" data-testid="plan-graph-canvas-legend">
+            <span className="plan-graph__canvas-legend-label">
+              Colour
+              <span className="plan-graph__canvas-legend-swatch" aria-hidden="true" />
+            </span>
+            <span>
+              {METRIC_LABEL[metric]} · {allNodes.length.toLocaleString("en-US")} nodes · {totalWarningCount.toLocaleString("en-US")} warning
+              {totalWarningCount === 1 ? "" : "s"}
+            </span>
+          </div>
         )}
         {/* Story 22.3 — same "popup" vs "panel" split Story 22.2 gave the
             DOM/SVG branch above, via the SAME `nodeDetailVariant` prop —

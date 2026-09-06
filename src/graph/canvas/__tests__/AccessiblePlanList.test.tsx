@@ -52,7 +52,11 @@ describe("AccessiblePlanList", () => {
 
     expect(screen.getAllByTestId("accessible-plan-list-item")).toHaveLength(2) // root + collapsed-parent still render
     expect(screen.queryByText(/hidden-child/)).not.toBeInTheDocument()
-    expect(screen.getByTestId("accessible-plan-list-collapsed")).toHaveTextContent("1 hidden node")
+    // Design review (downloaded "large execution plan node" PNG): "fast" —
+    // collapse.ts's own real rule for what gets auto-hidden here is a
+    // low-contribution subtree — and "press Enter to expand" (a real
+    // <button>, not canvasDraw.ts's mouse-only placeholder).
+    expect(screen.getByTestId("accessible-plan-list-collapsed")).toHaveTextContent("1 fast node hidden — press Enter to expand")
   })
 
   it("clicking the collapsed-group row calls onExpandCollapsedGroup with the parent node's id", () => {
@@ -91,6 +95,43 @@ describe("AccessiblePlanList", () => {
     const root = makeNode({ id: "root" })
     render(<AccessiblePlanList root={root} collapsedIds={new Set()} onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
     expect(screen.queryByTestId("accessible-plan-list-severity")).not.toBeInTheDocument()
+  })
+
+  // Design review (downloaded "large execution plan node" PNG): the same
+  // specific-over-generic badge text (est. mismatch / spill size / loop
+  // count) PlanNodeCard/canvasDraw already show, not just a plain severity
+  // word — each of the mockup's own three row examples showed exactly this.
+  it("prefers a specific mismatch/spill/loop badge over the plain severity word when one applies", () => {
+    const spilled = withWarnings(makeNode({ id: "spilled", spill: { occurred: true, bytesLocal: 88_080_384 } }), [
+      { ruleId: "disk-spill", severity: "warning", shortText: "x", longText: "y" },
+    ])
+    const root = makeNode({ id: "root", children: [spilled] })
+    render(<AccessiblePlanList root={root} collapsedIds={new Set()} onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
+
+    const badge = screen.getByTestId("accessible-plan-list-severity")
+    expect(badge).toHaveTextContent("spilled 84 MB") // real spillBadgeTextFor() output, not the generic "Warning"
+  })
+
+  it("renders an operator icon and the real table/index subtitle on each row", () => {
+    const scan = makeNode({ id: "scan", operatorType: "seq_scan", attributes: { "Relation Name": "orders" } })
+    const root = makeNode({ id: "root", children: [scan] })
+    render(<AccessiblePlanList root={root} collapsedIds={new Set()} onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
+
+    const scanRow = screen.getAllByTestId("accessible-plan-list-item").find((i) => i.getAttribute("data-node-id") === "scan")!
+    expect(scanRow.querySelector(".accessible-plan-list__icon")).toBeInTheDocument()
+    expect(scanRow).toHaveTextContent("orders")
+  })
+
+  it("shows an 'Enter opens details' hint only on the selected row", () => {
+    const child = makeNode({ id: "child" })
+    const root = makeNode({ id: "root", children: [child] })
+    render(<AccessiblePlanList root={root} collapsedIds={new Set()} selectedNodeId="child" onSelectNode={vi.fn()} onExpandCollapsedGroup={vi.fn()} />)
+
+    const items = screen.getAllByTestId("accessible-plan-list-item")
+    const rootRow = items.find((i) => i.getAttribute("data-node-id") === "root")!
+    const childRow = items.find((i) => i.getAttribute("data-node-id") === "child")!
+    expect(childRow).toHaveTextContent("Enter opens details")
+    expect(rootRow).not.toHaveTextContent("Enter opens details")
   })
 
   it("renders a shared-reference node once as a normal row and again marked as a linked reference, never as a duplicated subtree", () => {

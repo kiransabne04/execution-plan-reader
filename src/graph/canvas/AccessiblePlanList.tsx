@@ -10,8 +10,10 @@
 // doesn't claim a richer arrow-key/search scheme neither mode has built yet.
 
 import type { PlanNode } from "../../parsers/normalize"
-import { countDescendants, formatHiddenNodeCountText, type ComparisonOverlay } from "../buildGraphElements"
+import { computeMismatchFactor } from "../../rules/badRowEstimate"
+import { countDescendants, formatHiddenNodeCountText, buildSubtitle, spillBadgeTextFor, type ComparisonOverlay } from "../buildGraphElements"
 import { SEVERITY_LABEL, worstSeverity } from "../nodeSeverity"
+import { OPERATOR_ICON_COMPONENT, operatorIconKey } from "../operatorIcons"
 import "./accessiblePlanList.css"
 
 export interface AccessiblePlanListProps {
@@ -46,6 +48,29 @@ function formatMeta(node: PlanNode): string {
   if (rows !== undefined) parts.push(`${rows.toLocaleString("en-US")} rows`)
   if (time !== undefined) parts.push(`${time.toFixed(1)}ms`)
   return parts.join(" · ")
+}
+
+/** Design review (downloaded "large execution plan node" PNG) — the same
+ * specific-over-generic badge text PlanNodeCard/canvasDraw already show
+ * (est. mismatch factor, spill size, loop count), not a second,
+ * independently-computed set: reuses each rule's own real
+ * computeMismatchFactor/spillBadgeTextFor rather than re-deriving them.
+ * Mismatch, then spill, then loop count — priority only matters on the
+ * rare node with more than one applicable badge; the mockup's own three
+ * examples each had exactly one. Falls back to the plain severity word
+ * (`SEVERITY_LABEL`) only when none of the three specific badges apply —
+ * matching the mockup's own Seq Scan row, which shows a bare "warning"
+ * pill precisely because it had nothing more specific to say. */
+function badgeTextFor(node: PlanNode): string | undefined {
+  const mismatch = computeMismatchFactor(node.estimatedRows, node.actualRows)
+  // Same "est. mismatch" wording as canvasDraw.ts's own MISMATCH_BADGE_TEXT
+  // constant, factor suffix omitted for the same near-infinite-ratio case
+  // that has no clean number to show (this rule's own `factor: undefined`).
+  if (mismatch?.isBad) return mismatch.factor !== undefined ? `est. mismatch ${mismatch.factor}×` : "est. mismatch"
+  const spill = spillBadgeTextFor(node)
+  if (spill) return spill
+  if (node.loops !== undefined && node.loops > 1) return `×${node.loops.toLocaleString("en-US")}`
+  return undefined
 }
 
 /** Same traversal shape as buildGraphElements.ts (a shared-reference node
@@ -97,7 +122,7 @@ export function AccessiblePlanList({
                 data-testid="accessible-plan-list-collapsed"
                 onClick={() => onExpandCollapsedGroup(row.parentPlanNodeId)}
               >
-                {formatHiddenNodeCountText(row.hiddenCount)}
+                {formatHiddenNodeCountText(row.hiddenCount, "enter")}
               </button>
             </li>
           )
@@ -106,6 +131,13 @@ export function AccessiblePlanList({
         const severity = worstSeverity(row.node)
         const isSelected = row.node.id === selectedNodeId
         const comparisonStatus = comparisonOverlays?.get(row.node.id)?.status
+        // Design review (downloaded "large execution plan node" PNG) — the
+        // same operator icon PlanNodeCard/canvasDraw show, and the same
+        // table/index subtitle (join-aware — buildSubtitle's own doc
+        // comment), not a text-only row.
+        const Icon = OPERATOR_ICON_COMPONENT[operatorIconKey(row.node.operatorType)]
+        const subtitle = buildSubtitle(row.node)
+        const badgeText = badgeTextFor(row.node) ?? (severity ? SEVERITY_LABEL[severity] : undefined)
         return (
           <li key={`${row.node.id}-${row.isSharedReference ? "ref" : "main"}`} style={{ paddingLeft: row.depth * 16 }}>
             <button
@@ -116,17 +148,20 @@ export function AccessiblePlanList({
               aria-current={isSelected ? "true" : undefined}
               onClick={() => onSelectNode(row.node.id)}
             >
+              <Icon className="accessible-plan-list__icon" aria-hidden="true" />
               <span className="accessible-plan-list__label">{row.node.rawOperatorLabel}</span>
+              {subtitle && <span className="accessible-plan-list__subtitle">{subtitle}</span>}
               {row.isSharedReference && <span className="accessible-plan-list__ref-note">(shared reference, see above)</span>}
               {formatMeta(row.node) && <span className="accessible-plan-list__meta">{formatMeta(row.node)}</span>}
-              {severity && (
+              {badgeText && (
                 <span
-                  className={`accessible-plan-list__severity accessible-plan-list__severity--${severity}`}
+                  className={`accessible-plan-list__severity accessible-plan-list__severity--${severity ?? "info"}`}
                   data-testid="accessible-plan-list-severity"
                 >
-                  {SEVERITY_LABEL[severity]}
+                  {badgeText}
                 </span>
               )}
+              {isSelected && <span className="accessible-plan-list__enter-hint">Enter opens details</span>}
               {comparisonStatus && comparisonStatus !== "matched" && (
                 <span
                   className={`accessible-plan-list__comparison accessible-plan-list__comparison--${comparisonStatus}`}

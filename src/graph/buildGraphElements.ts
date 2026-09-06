@@ -180,9 +180,21 @@ export function countDescendants(node: PlanNode): number {
  * text as the graph's placeholder node" — one formatter shared by the
  * canvas placeholder (canvasDraw.ts's `drawCollapsedGroupNode`) and
  * AccessiblePlanList's own collapsed-group row, rather than two copies of
- * the same pluralization logic drifting apart. */
-export function formatHiddenNodeCountText(hiddenCount: number): string {
-  return `${hiddenCount.toLocaleString("en-US")} hidden node${hiddenCount === 1 ? "" : "s"} — expand`
+ * the same pluralization logic drifting apart.
+ *
+ * "Fast" (not just "hidden") — design review (downloaded "large execution
+ * plan node" PNG): collapse.ts's own real rule for what gets auto-hidden
+ * here is a subtree contributing under 1% of the plan's total metric, so
+ * "fast" is a real, accurate description of these nodes, not decoration.
+ *
+ * `interaction` differs by surface, deliberately: the canvas placeholder is
+ * a drawn pixel region with no real keyboard focus of its own (spec's own
+ * "there is no DOM focus ring to inherit" note applies here too) — a click
+ * is genuinely the only way to expand it. AccessiblePlanList's row is a
+ * real `<button>`, where "press Enter" is literally accurate. */
+export function formatHiddenNodeCountText(hiddenCount: number, interaction: "click" | "enter"): string {
+  const action = interaction === "click" ? "click to expand" : "press Enter to expand"
+  return `${hiddenCount.toLocaleString("en-US")} fast node${hiddenCount === 1 ? "" : "s"} hidden — ${action}`
 }
 
 function edgeId(sourceId: string, targetId: string): string {
@@ -230,7 +242,7 @@ function exclusiveContributionPercent(node: PlanNode, context: PlanContext): num
 /** Design-mockup review (post-Episode-18): spec §3's badge table names
  * "spill size" as its own badge, distinct from the mismatch-factor/loop-
  * count badges — never built until this pass caught the gap. */
-function spillBadgeTextFor(node: PlanNode): string | undefined {
+export function spillBadgeTextFor(node: PlanNode): string | undefined {
   if (!node.spill?.occurred) return undefined
   const totalBytes = (node.spill.bytesLocal ?? 0) + (node.spill.bytesRemote ?? 0)
   return totalBytes > 0 ? `spilled ${formatBytesCompact(totalBytes)}` : "spilled to disk"
@@ -264,7 +276,7 @@ function representativeIdentity(node: PlanNode): string | undefined {
  * (operatorIconKey's own "join" category, per spec §3's icon table) or
  * either side's identity can't be resolved at all — an honest gap, not a
  * fabricated label, same principle `subtitle` already followed. */
-function buildSubtitle(node: PlanNode): string | undefined {
+export function buildSubtitle(node: PlanNode): string | undefined {
   if (operatorIconKey(node.operatorType) === "join" && node.children.length >= 2) {
     const left = representativeIdentity(node.children[0])
     const right = representativeIdentity(node.children[1])

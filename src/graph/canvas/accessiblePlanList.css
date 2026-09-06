@@ -44,8 +44,26 @@
   opacity: 0.8;
 }
 
+/* Design review (downloaded "large execution plan node" PNG) — the same
+   operator icon PlanNodeCard/canvasDraw already draw per node. */
+.accessible-plan-list__icon {
+  flex: none;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
 .accessible-plan-list__label {
   font-weight: 600;
+}
+
+/* Table/index identity, mono — same treatment as PlanNodeCard's own
+   subtitle line, just inline instead of on its own row (list rows are
+   flatter than cards). */
+.accessible-plan-list__subtitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
 }
 
 .accessible-plan-list__ref-note,
@@ -55,28 +73,51 @@
   white-space: nowrap;
 }
 
+/* Pixel-diff fix (downloaded "large execution plan node" PNG): a
+   translucent tint + border pill — matching the detail panel's own
+   per-severity finding-card treatment (`--dp-finding-*`) — not the earlier
+   solid-fill badge this replaces. */
 .accessible-plan-list__severity {
-  margin-left: auto;
+  flex: none;
   font-size: 10px;
   font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid;
   white-space: nowrap;
 }
 
 .accessible-plan-list__severity--critical {
-  background: var(--pg-mismatch-border, #f97066);
-  color: #ffffff;
+  background: var(--dp-finding-critical-bg, rgba(249, 112, 102, 0.14));
+  border-color: var(--dp-finding-critical-border, #f97066);
+  color: var(--dp-finding-critical-text, #f97066);
 }
 
 .accessible-plan-list__severity--warning {
-  background: var(--color-warning, #f79009);
-  color: #1a1a1a;
+  background: var(--dp-finding-warning-bg, rgba(247, 144, 9, 0.14));
+  border-color: var(--dp-finding-warning-border, #f79009);
+  color: var(--dp-finding-warning-text, #fdb022);
 }
 
 .accessible-plan-list__severity--info {
-  background: var(--pg-card-text-muted, #9397ab);
-  color: #ffffff;
+  background: var(--dp-finding-info-bg, rgba(145, 132, 217, 0.14));
+  border-color: var(--dp-finding-info-border, #9184d9);
+  color: var(--dp-finding-info-text, #b5abfc);
+}
+
+/* Design review (downloaded "large execution plan node" PNG) — a small
+   mono hint chip, visible only on the currently-selected row (matching
+   the mockup's own "Enter opens details" tag). */
+.accessible-plan-list__enter-hint {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 1px solid var(--pg-card-border, #3f424d);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  opacity: 0.7;
+  white-space: nowrap;
 }
 
 /* Episode 14, Story 14.2 — same three comparison states/tokens as
