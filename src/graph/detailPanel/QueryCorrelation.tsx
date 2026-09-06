@@ -18,7 +18,10 @@ export interface QueryCorrelationProps {
 function QueryCorrelationInner({ queryText, queryTextRedacted }: QueryCorrelationProps) {
   return (
     <section className="detail-panel__section" data-testid="query-correlation">
-      <h3 className="detail-panel__section-heading">Query</h3>
+      {/* Pixel-diff fix (downloaded "beginner overlay details" PNG):
+          heading text is "In your query", not the plain "Query" this
+          shipped with. */}
+      <h3 className="detail-panel__section-heading">In your query</h3>
       {queryText ? (
         <pre className="detail-panel__query-text">{queryText}</pre>
       ) : queryTextRedacted ? (

@@ -1112,13 +1112,15 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       pasteAndAnalyze(loadFixture("postgres", "initplan-subplan.json"))
       fireEvent.click(screen.getAllByTestId("plan-node-card")[0])
       const rightRail = screen.getByTestId("plan-shell-right-rail")
-      // Beginner (the default) shows the "In general" education section;
-      // Expert collapses it away entirely — see OperatorEducation.tsx.
-      expect(within(rightRail).queryByTestId("operator-education-general")).toBeInTheDocument()
+      // Beginner (the default) shows the fine/look-closer guidance inside
+      // operator-education-what (its own caption line); Expert collapses
+      // education away to the one-line short definition — see
+      // OperatorEducation.tsx.
+      expect(within(rightRail).getByText(/not a finding about your node/)).toBeInTheDocument()
 
       fireEvent.click(screen.getByTestId("shell-mode-expert"))
 
-      expect(within(rightRail).queryByTestId("operator-education-general")).not.toBeInTheDocument()
+      expect(within(rightRail).queryByText(/not a finding about your node/)).not.toBeInTheDocument()
     })
 
     it("the mode persists when a different node is opened — not reset per node", () => {
@@ -1133,7 +1135,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       fireEvent.click(cards[1])
       const rightRail = screen.getByTestId("plan-shell-right-rail")
-      expect(within(rightRail).queryByTestId("operator-education-general")).not.toBeInTheDocument()
+      expect(within(rightRail).queryByText(/not a finding about your node/)).not.toBeInTheDocument()
       expect(screen.getByTestId("shell-mode-expert")).toHaveAttribute("aria-pressed", "true")
     })
   })

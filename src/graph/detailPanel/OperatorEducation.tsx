@@ -1,5 +1,5 @@
 import { memo } from "react"
-import { GraduationCap } from "@phosphor-icons/react"
+import { Check, GraduationCap, Warning as WarningIcon } from "@phosphor-icons/react"
 import type { PlanNode } from "../../parsers/normalize"
 import { getGlossaryEntry, getGlossaryFallback } from "../glossary"
 import { getPlannerReasoning } from "./plannerReasoning"
@@ -46,17 +46,26 @@ export interface OperatorEducationProps {
  * updated field docs (that skill's own instruction: "if this skill and
  * those docs disagree, the docs win and this file should be updated").
  *
- * Design review, spec §5 Beginner item 1: "'Why the planner chose it
- * here'" is a SECOND, separate box alongside "What this operator does" —
- * both in the same blurple education tint, but the "why" is generated
- * per-node from real data (`plannerReasoning.ts`), never from the
- * operator-glossary-content skill's static, plan-independent entries.
- * Beginner only, same as the rest of this section's long-form content —
- * Expert's one-line collapse has no room for a second box, and an expert
- * reading Cost & timing/Buffers/Operator internals directly has less use
- * for a plain-language "why" than a beginner does. Omitted silently when
- * `plannerReasoning.ts` has no template for this operatorType yet (an
- * honest, tracked gap — never a fabricated generic sentence).
+ * Design review (downloaded "beginner overlay details" PNG): the mockup
+ * merges what used to be two boxes ("What this operator does" and a
+ * separate "In general") into ONE card — long definition, then
+ * `whenItsFine`/`whenToLookCloser` as a green-check / amber-warning
+ * bullet pair instead of two plain paragraphs, closed with a small
+ * "General education — not a finding about your node." caption
+ * (`operator-education-general` as a distinct testid is gone; the
+ * content lives inside `operator-education-what` now). Heading text
+ * stays the existing generic "What this operator does" rather than the
+ * mockup's own dynamic "WHAT A SEQUENTIAL SCAN IS" — building a
+ * grammatically correct "a"/"an" per operator name from
+ * `entry.displayName` is a real correctness risk across dozens of
+ * glossary entries (an "AN HASH JOIN" typo is worse than a slightly
+ * less punchy but always-correct heading) for a purely cosmetic gain.
+ *
+ * "Why the planner chose it here" isn't in that PNG at all — kept
+ * anyway, as its own section right after, per this session's explicit
+ * "any extra feature already in the app, keep it" instruction: real,
+ * per-node-generated content (`plannerReasoning.ts`), not something the
+ * PNG's absence should delete.
  */
 function OperatorEducationInner({ node, expertMode }: OperatorEducationProps) {
   const entry = getGlossaryEntry(node.operatorType)
@@ -90,6 +99,17 @@ function OperatorEducationInner({ node, expertMode }: OperatorEducationProps) {
         <EducationHeading>What this operator does</EducationHeading>
         <div className="detail-panel__education">
           <p>{entry.longDefinition}</p>
+          <ul className="detail-panel__education-bullets">
+            <li className="detail-panel__education-bullet detail-panel__education-bullet--fine">
+              <Check weight="bold" aria-hidden="true" />
+              <span>{entry.whenItsFine}</span>
+            </li>
+            <li className="detail-panel__education-bullet detail-panel__education-bullet--warning">
+              <WarningIcon weight="fill" aria-hidden="true" />
+              <span>{entry.whenToLookCloser}</span>
+            </li>
+          </ul>
+          <p className="detail-panel__education-caption">General education — not a finding about your node.</p>
         </div>
       </section>
       {reasoning && (
@@ -100,13 +120,6 @@ function OperatorEducationInner({ node, expertMode }: OperatorEducationProps) {
           </div>
         </section>
       )}
-      <section className="detail-panel__section" data-testid="operator-education-general">
-        <h3 className="detail-panel__section-heading">In general</h3>
-        <div className="detail-panel__education">
-          <p>{entry.whenItsFine}</p>
-          <p>{entry.whenToLookCloser}</p>
-        </div>
-      </section>
     </>
   )
 }

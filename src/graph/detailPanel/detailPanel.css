@@ -221,10 +221,14 @@
   cursor: pointer;
 }
 
+/* Pixel-diff fix against the downloaded "beginner overlay details" PNG:
+   the selected state is an accent OUTLINE (border + text color), not a
+   solid white fill — corrects an earlier guess made without a direct
+   reference for this specific control. */
 .detail-panel__mode-button[aria-pressed="true"] {
-  background: var(--dp-text);
-  color: var(--dp-bg);
-  border-color: var(--dp-text);
+  background: transparent;
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 /* Design review, spec §1f: "copy node JSON" — one of the Expert-only
@@ -281,6 +285,47 @@
 .detail-panel__education-heading svg {
   flex: none;
   font-size: 14px;
+}
+
+/* Pixel-diff fix (downloaded "beginner overlay details" PNG): the merged
+   education box's own bullet pair — green check for "fine", amber
+   warning triangle for "look closer" — replacing two plain paragraphs
+   under a separate "In general" heading. */
+.detail-panel__education-bullets {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-panel__education-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.detail-panel__education-bullet svg {
+  flex: none;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.detail-panel__education-bullet--fine svg {
+  color: var(--color-success);
+}
+
+.detail-panel__education-bullet--warning svg {
+  color: var(--dp-finding-warning-text);
+}
+
+.detail-panel__education-caption {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--dp-border);
+  font-size: 11px;
+  color: var(--dp-text-muted);
 }
 
 .detail-panel__warning {

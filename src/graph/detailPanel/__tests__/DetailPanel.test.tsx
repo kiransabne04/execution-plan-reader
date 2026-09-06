@@ -22,7 +22,6 @@ describe("DetailPanel", () => {
     expect(screen.getByTestId("detail-panel-display-name")).toHaveTextContent("Hash Join")
     expect(screen.getByText("Postgres")).toBeInTheDocument()
     expect(screen.getByTestId("operator-education-what")).toBeInTheDocument()
-    expect(screen.getByTestId("operator-education-general")).toBeInTheDocument()
     expect(screen.getByTestId("stats-table")).toBeInTheDocument()
     expect(screen.getByTestId("contribution-summary")).toBeInTheDocument()
     expect(screen.getByTestId("query-correlation")).toBeInTheDocument()
@@ -200,23 +199,28 @@ describe("DetailPanel", () => {
   })
 
   describe("Episode 18, Story 18.7 — Beginner/Expert densities (spec §5 1f)", () => {
-    it("Beginner shows the LONG definition plus the full 'In general' guidance", () => {
+    it("Beginner shows the LONG definition plus the full 'fine'/'look closer' guidance", () => {
       const node = makeNode({ operatorType: "seq_scan" })
       renderPanel(node)
       expect(screen.getByText(/also called a table scan or full scan/)).toBeInTheDocument()
-      expect(screen.getByTestId("operator-education-general")).toBeInTheDocument()
+      // Design review (downloaded "beginner overlay details" PNG): the
+      // fine/look-closer guidance is now inside operator-education-what
+      // itself (a green-check/amber-warning bullet pair), not a separate
+      // "In general" section.
+      expect(screen.getByText(/an index lookup has its own overhead/)).toBeInTheDocument()
+      expect(screen.getByText(/usually a sign that a suitable index is missing/)).toBeInTheDocument()
       // The short (Expert) definition is NOT also shown alongside it.
       expect(screen.queryByText(/^Reads every row in a table/)).not.toBeInTheDocument()
     })
 
-    it("Expert collapses education to the one-line short definition, omitting 'In general' entirely", () => {
+    it("Expert collapses education to the one-line short definition, omitting the fine/look-closer bullets entirely", () => {
       const node = makeNode({ operatorType: "seq_scan" })
       renderPanel(node)
       fireEvent.click(screen.getByRole("button", { name: "Expert" }))
 
       expect(screen.getByText(/Reads every row in a table/)).toBeInTheDocument()
       expect(screen.queryByText(/also called a table scan or full scan/)).not.toBeInTheDocument()
-      expect(screen.queryByTestId("operator-education-general")).not.toBeInTheDocument()
+      expect(screen.queryByText(/an index lookup has its own overhead/)).not.toBeInTheDocument()
     })
 
     it("shows each finding's ruleId in Expert mode, never in Beginner", () => {
