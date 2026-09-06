@@ -7,9 +7,23 @@
    full-card severity treatment (colored border + tinted background)
    rather than a small inline badge. */
 .findings-list {
+  /* Bug fix (pixel match, downloaded left-sidebar mockup): #root (index.css)
+     sets a global `text-align: center` (an old Vite-template leftover),
+     which this section never overrode — invisible for single-line labels/
+     buttons, but the multi-line Summary sentence was rendering as
+     centered wrapped text instead of the mock's plainly left-aligned
+     paragraph. `.findings-list__item` already had its own `text-align:
+     left` for the same reason; this just makes it the default for
+     everything in this section instead of one card type. */
+  text-align: left;
   margin-top: 12px;
   border-top: 1px solid var(--fl-border);
   padding-top: 12px;
+  /* Bug fix (pixel match, downloaded left-sidebar mockup — its own saved
+     source): the mock's own vertical rhythm between summary/header/
+     filters/list is one uniform 7px flex gap, not each section's own
+     ad hoc margin-bottom (9px/12px/12px, all different). */
+  gap: 7px;
   /* Design review, spec §2: only the card list itself scrolls
      (`.findings-list__items` below) — this section fills whatever
      height `.plan-shell__rail--left`'s flex layout leaves it, and
@@ -31,13 +45,12 @@
   flex-direction: column;
   gap: 5px;
   padding-bottom: 9px;
-  margin-bottom: 9px;
   border-bottom: 1px solid var(--fl-border);
 }
 
 .findings-list__summary-label {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--fl-text-muted);
@@ -78,25 +91,23 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
+/* Bug fix (pixel match): the mock's own saved source uses the IDENTICAL
+   inline style for this label and .findings-list__summary-label above —
+   10px/600/.08em, not this section's earlier, different 12px/700/.04em. */
 .findings-list__title {
   margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--fl-text-muted);
 }
 
-.findings-list__count {
-  font-weight: 400;
-}
-
 .findings-list__sort-label {
   flex: none;
-  font-size: 12px;
+  font-size: 10.5px;
   color: var(--fl-text-muted);
 }
 
@@ -111,13 +122,18 @@
   flex: none;
   display: flex;
   gap: 10px;
-  margin-bottom: 12px;
 }
 
 /* A custom chevron replaces the native select arrow (`appearance: none`)
    so the pill reads the same in every browser — a plain light-gray
    down-caret, inlined as a data URI rather than an icon-font glyph since
-   it's inside a `<select>`, not a place a React icon component can render. */
+   it's inside a `<select>`, not a place a React icon component can render.
+   Bug fix (pixel match): the mock's own select is a much more compact
+   pill (3px/6px padding, 11px text, bg one shade lighter than the rail
+   behind it — --pr-bg, not --fl-bg/--color-bg-rail which is the SAME
+   shade as that backdrop and made the pill invisible against it) — was
+   sized like a full form control (10px/34px/10px/14px padding, 13.5px
+   text) instead. */
 .findings-list__filter-select {
   flex: 1 1 0;
   width: 100%;
@@ -126,14 +142,14 @@
   -webkit-appearance: none;
   border: 1px solid var(--fl-border);
   border-radius: 8px;
-  background-color: var(--fl-bg);
+  background-color: var(--pr-bg);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238a8a99' stroke-width='1.5'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 14px;
+  background-position: right 6px center;
+  background-size: 10px;
   color: var(--fl-text);
-  padding: 10px 34px 10px 14px;
-  font-size: 13.5px;
+  padding: 3px 20px 3px 6px;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -156,16 +172,15 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 3px;
   width: 100%;
   box-sizing: border-box;
   text-align: left;
   background: var(--fl-item-bg);
   border: 1px solid var(--fl-border);
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: 6px;
+  padding: 7px 9px;
   cursor: pointer;
-  font-size: 14px;
   color: var(--fl-text);
 }
 
@@ -191,24 +206,29 @@
   filter: brightness(1.15);
 }
 
-/* Design review (per reference PNG): critical/warning are light pastel
-   alert cards — a deliberate departure from the app's otherwise dark-only
-   theme, matching that PNG's literal colors rather than color-mixing the
-   severity accent into the dark surface the way the rest of the app does.
-   INFO stays a normal dark card (that PNG's own INFO card is opaque dark
-   navy, same as everywhere else). Text color is overridden per-card below
-   since these sit on a light background now, not the dark one every other
-   `--fl-text`/`--fl-text-muted` use assumes. */
+/* Bug fix (pixel match, downloaded left-sidebar mockup — its own saved
+   source): a previous pass read a white-canvas export of these same
+   translucent cards at face value and shipped opaque light-pastel cards
+   instead (see git history) — but that PNG's "pastel" look was purely a
+   transparency-compositing artifact of viewing an ~10%-opacity dark-theme
+   tint against a white background, not the real design. Confirmed by
+   reading the PNG's own raw alpha channel: the critical card's pixels are
+   rgba(245,108,98,26) — 26/255 ≈ 10% alpha, the SAME rgba(249,112,102,.10)
+   the mockup's saved HTML source specifies — a translucent tint meant to
+   sit over this rail's own dark background, not an opaque light card.
+   INFO is unaffected (that PNG crop had no info-severity example; its
+   existing accent-tinted-dark treatment already matches the app's own
+   established pattern elsewhere). */
 .findings-list__item--critical {
-  background: #fbe4e2;
-  border-color: #f3aca6;
-  color: #3a1210;
+  background: var(--fl-critical-bg);
+  border-color: var(--fl-critical-border);
+  color: var(--color-text-on-tint);
 }
 
 .findings-list__item--warning {
-  background: #fdf1d9;
-  border-color: #f0c987;
-  color: #3a2a05;
+  background: var(--fl-warning-bg);
+  border-color: var(--fl-warning-border);
+  color: var(--color-text-on-tint);
 }
 
 .findings-list__item--info {
@@ -216,33 +236,26 @@
   border-color: var(--fl-info-border);
 }
 
-.findings-list__item--critical .findings-list__category,
-.findings-list__item--warning .findings-list__category {
-  color: rgba(0, 0, 0, 0.55);
-}
-
 .findings-list__item-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .findings-list__severity-label {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 9.5px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
 }
 
-/* Darker/more saturated than --fl-critical-text/--fl-warning-text (tuned
-   for a dark background) — these sit on the light card backgrounds above,
-   which need more contrast than the light-on-dark accent color gives. */
 .findings-list__severity-label--critical {
-  color: #dc2626;
+  color: var(--fl-critical-text);
 }
 
 .findings-list__severity-label--warning {
-  color: #b45309;
+  color: var(--fl-warning-text);
 }
 
 .findings-list__severity-label--info {
@@ -251,7 +264,7 @@
 
 .findings-list__category {
   color: var(--fl-text-muted);
-  font-size: 12px;
+  font-size: 9.5px;
 }
 
 /* Story 20.4 — only rendered when this finding belongs to a DIFFERENT
@@ -271,5 +284,6 @@
 }
 
 .findings-list__text {
+  font-size: 11px;
   line-height: 1.4;
 }

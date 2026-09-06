@@ -142,11 +142,18 @@
   --fl-text-muted: var(--color-text-muted);
   --fl-item-bg: var(--color-surface);
   --fl-item-hover-bg: color-mix(in srgb, var(--color-text) 6%, var(--color-surface));
-  --fl-critical-bg: color-mix(in srgb, var(--color-critical) 18%, var(--color-surface));
-  --fl-critical-border: color-mix(in srgb, var(--color-critical) 45%, transparent);
+  /* Bug fix (pixel match, downloaded left-sidebar mockup — its own saved
+     source): rgba(critical, .10)/rgba(critical, .40) and
+     rgba(warning, .09)/rgba(warning, .35) exactly — a translucent tint
+     over this rail's own dark background, not the 18%/45%-into-surface
+     mix these previously held (dead values — findingsList.css hardcoded
+     opaque light-pastel colors instead of referencing these; both now
+     fixed together). */
+  --fl-critical-bg: color-mix(in srgb, var(--color-critical) 10%, transparent);
+  --fl-critical-border: color-mix(in srgb, var(--color-critical) 40%, transparent);
   --fl-critical-text: var(--color-critical);
-  --fl-warning-bg: color-mix(in srgb, var(--color-warning) 18%, var(--color-surface));
-  --fl-warning-border: color-mix(in srgb, var(--color-warning) 45%, transparent);
+  --fl-warning-bg: color-mix(in srgb, var(--color-warning) 9%, transparent);
+  --fl-warning-border: color-mix(in srgb, var(--color-warning) 35%, transparent);
   --fl-warning-text: var(--color-warning-text);
   --fl-info-bg: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
   --fl-info-border: color-mix(in srgb, var(--color-accent) 45%, transparent);
