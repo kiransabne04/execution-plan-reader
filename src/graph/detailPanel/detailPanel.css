@@ -204,31 +204,49 @@
   font-weight: 600;
 }
 
+/* Design review — the `1f` mockup's own saved source markup uses the
+   Nocturne design system's shared-track `.seg`/`.seg-opt` pattern for THIS
+   specific toggle (one shared outer border, options flush against each
+   other separated by a hairline, selection shown as an inset box-shadow
+   that doesn't shift layout) — not two independent bordered boxes with a
+   gap between them, which is what an earlier pass here guessed without a
+   direct reference. Reproduces that exact pattern (see the saved Nocturne
+   design system stylesheet's own `.seg`/`.seg-opt` rules) under this
+   component's existing class names rather than adopting generic `.seg`
+   classes wholesale into this file. */
 .detail-panel__mode-toggle {
   display: flex;
-  gap: 4px;
+  overflow: hidden;
+  border: 1px solid var(--dp-border);
+  border-radius: 6px;
   margin-bottom: 14px;
 }
 
 .detail-panel__mode-button {
   flex: 1;
-  padding: 4px 0;
-  border-radius: 6px;
-  border: 1px solid var(--dp-border);
+  padding: 5px 0;
+  border: none;
   background: transparent;
   color: var(--dp-text);
   font-size: 12px;
   cursor: pointer;
 }
 
-/* Pixel-diff fix against the downloaded "beginner overlay details" PNG:
-   the selected state is an accent OUTLINE (border + text color), not a
-   solid white fill — corrects an earlier guess made without a direct
-   reference for this specific control. */
+.detail-panel__mode-button + .detail-panel__mode-button {
+  border-left: 1px solid var(--dp-border);
+}
+
+.detail-panel__mode-button:not([aria-pressed="true"]):hover {
+  background: color-mix(in srgb, var(--dp-text) 7%, transparent);
+}
+
+/* Selection is an INSET box-shadow (never a border/background) — the same
+   reason the design system's own `.seg-opt:has(input:checked)` rule uses
+   one: it can't add to the shared track's width or nudge the hairline
+   dividers between options the way a real border would. */
 .detail-panel__mode-button[aria-pressed="true"] {
-  background: transparent;
   color: var(--color-accent);
-  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
 /* Design review, spec §1f: Expert's own header-chip row — rank/contribution
