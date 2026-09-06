@@ -202,7 +202,8 @@
 
 .paste-box__privacy {
   margin: 0;
-  font-size: 12px;
+  font-size: 10.5px;
+  line-height: 1.45;
   color: var(--pr-text-muted);
 }
 
@@ -327,15 +328,73 @@
 
 .paste-box__input-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Bug fix (pixel match, downloaded left-sidebar mockup — spec §2 "2a
+   fluid shell", its own saved source): a compact, single-row drop/browse
+   affordance — icon, format list, and an inline "browse" link, all one
+   line — replacing the old icon-only overlay plus a separate "or browse
+   a file…" link below the box. Two placements share this look (variants
+   below); the border/background live here so both get it identically. */
+.paste-box__dropzone {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px dashed color-mix(in srgb, var(--color-accent) 35%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  transition:
+    border-color 0.1s ease,
+    background-color 0.1s ease;
+}
+
+/* While the textarea is empty: an overlay exactly matching its box
+   (`.paste-box__input-wrap` is its shared positioning parent) rather than
+   a separate element stealing its own row — Story 18.5's "the textarea IS
+   the dropzone" stays true underneath. `pointer-events: none` passes
+   clicks/drags through to it; the one real hotspot is the browse label
+   (below), which re-enables its own pointer events. */
+.paste-box__dropzone--overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.paste-box__dropzone--drag-over {
+  border-color: var(--color-accent);
+  border-style: solid;
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 
 .paste-box__dropzone-icon {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  font-size: 17px;
-  color: var(--pr-text-muted);
-  pointer-events: none;
+  flex: none;
+  font-size: 16px;
+  color: var(--color-accent-hover);
+}
+
+.paste-box__dropzone-text {
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.paste-box__dropzone-formats {
+  color: var(--color-text-on-tint);
+}
+
+.paste-box__dropzone-browse {
+  position: relative;
+  flex: none;
+  font-size: 11px;
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .paste-box__textarea {
@@ -345,7 +404,7 @@
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   font-size: 13px;
   padding: 12px;
-  border: 1px dashed white;
+  border: 1px dashed var(--pr-border);
   border-radius: 10px;
   background: var(--pr-bg);
   color: var(--pr-text);
@@ -353,22 +412,32 @@
   transition: border-color 0.1s ease;
 }
 
-/* The empty/dropzone state reads as a short instruction, not pasted code
-   — a regular sans face (matching the mock) rather than the monospace
-   used once there's real plan text in the box, plus room so the icon
-   overlay above doesn't collide with the first line of text. */
+/* The empty state: a compact single row matching the dropzone overlay's
+   own footprint (above) exactly, so the two read as one element — its
+   own border/background go transparent since the overlay already draws
+   them; `::placeholder` (below) hides the native hint text the same way,
+   since the overlay's decorative text carries it visually instead. */
 .paste-box__textarea:placeholder-shown {
-  padding-left: 38px;
+  min-height: 0;
+  padding: 10px;
+  border-color: transparent;
+  background: transparent;
   font-family:
     system-ui,
     -apple-system,
     "Segoe UI",
     sans-serif;
+  resize: none;
 }
 
-/* Story 18.5 — the textarea IS the dropzone; this is the only visual cue
-   that dragging a file over it does something, since there's no separate
-   overlay element to style instead. */
+.paste-box__textarea::placeholder {
+  color: transparent;
+}
+
+/* Story 18.5 — while there's real (unsubmitted) text in the box, the
+   dropzone overlay is hidden (PasteBox.tsx's own `showDropzone`) and this
+   textarea is the only drag target again, so it needs its own visible
+   drag-over cue back. */
 .paste-box__textarea--drag-over {
   border-color: var(--pr-accent);
   border-style: solid;
@@ -393,15 +462,11 @@
   align-items: stretch;
   width: 100%;
   box-sizing: border-box;
-  max-height: 220px;
   overflow: hidden;
-  padding: 12px 14px;
   border: 1px solid var(--pr-border);
   border-radius: 8px;
   background: var(--pr-bg);
-  color: var(--pr-text-muted);
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
-  font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
@@ -409,7 +474,6 @@
 .paste-box__collapsed-summary:hover,
 .paste-box__collapsed-summary:focus-visible {
   border-color: var(--pr-accent);
-  color: var(--pr-text);
 }
 
 .paste-box__collapsed-summary-header {
@@ -417,39 +481,40 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 6px;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--pr-border);
+  font-size: 10.5px;
+  color: var(--pr-text-muted);
+}
+
+.paste-box__collapsed-summary-header span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .paste-box__collapsed-summary-header svg {
   flex: none;
-  font-size: 16px;
+  font-size: 13px;
 }
 
-/* Read-only peek at the pasted content, cut off by the parent's own
-   max-height (not line-clamped) so it reads as "there's more below" —
-   same treatment as the reference mock. */
+/* Read-only peek at the pasted content, same as the mock — faded out at
+   the bottom by a mask-image (not an abrupt cutoff, and not the earlier
+   fixed max-height on the container above) so it reads as "there's more
+   below" rather than looking truncated mid-render. */
 .paste-box__collapsed-summary-preview {
   margin: 0;
-  color: var(--pr-text);
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.5;
-}
-
-.paste-box__file-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  font-size: 12px;
-}
-
-.paste-box__file-button {
-  position: relative;
-  color: var(--pr-accent);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
+  padding: 9px;
+  height: 108.5px;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  white-space: pre;
+  line-height: 1.55;
+  mask-image: linear-gradient(#000 68px, transparent 108px);
+  -webkit-mask-image: linear-gradient(#000 68px, transparent 108px);
 }
 
 /* Visually hidden but still focusable/operable — the label click-through
@@ -473,12 +538,12 @@
 .paste-box__submit {
   width: 100%;
   box-sizing: border-box;
-  padding: 12px 18px;
+  padding: 7px 0;
   border-radius: 8px;
   border: 1px solid var(--pr-accent);
   background: transparent;
   color: var(--pr-accent);
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -907,9 +972,9 @@
 
 .plan-shell__input-section-title {
   margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--pr-text-muted);
 }
@@ -959,14 +1024,17 @@
   cursor: pointer;
 }
 
+/* Bug fix (pixel match, downloaded left-sidebar mockup): the mock's "New
+   plan" is a ghost button — accent-colored text, no border — not the
+   bordered/muted pill this was. */
 .plan-shell__new-plan-button {
   flex: none;
-  padding: 4px 10px;
-  border: 1px solid var(--pr-border);
+  padding: 2px 8px;
+  border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--pr-text-muted);
-  font-size: 12px;
+  color: var(--color-accent-hover);
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
 }

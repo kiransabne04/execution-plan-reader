@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent, type DragEvent, type FormEvent } from "react"
-import { CaretDown, CaretUp, CornersOut, UploadSimple } from "@phosphor-icons/react"
+import { ArrowsOutSimple, CaretDown, CaretUp, UploadSimple } from "@phosphor-icons/react"
 import { PRIVACY_CAVEAT_NOTE, PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
 import { SAMPLE_FIXTURES } from "./sampleFixtures"
 
@@ -140,26 +140,79 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
   const lineCount = text.length === 0 ? 0 : text.split("\n").length
   const showCollapsedSummary = isCollapsed && text.trim().length > 0
 
+  // Pixel-match pass against the downloaded left-sidebar mockup (its own
+  // saved source — the same reference spec §2 "2a fluid shell" the rest of
+  // this shell already follows): the dropzone there is a compact, ALWAYS-
+  // visible single-row bar — icon, format list, and an inline "browse"
+  // link all in one line — not a full-height placeholder box shown only
+  // while empty. It renders whenever there's no in-progress edit to hide
+  // it behind: while empty (overlaid on the compact textarea beneath, so
+  // dropping/typing still reaches that same element per Story 18.5) or
+  // once collapsed (a plain block above the pasted-content summary, so
+  // dropping a replacement file or picking one stays reachable without
+  // first re-expanding). It hides only mid-edit (text typed/pasted but not
+  // yet submitted) — same as the icon-only overlay this replaces — so it
+  // never sits on top of what the user is actively looking at.
+  const showDropzone = text.length === 0 || showCollapsedSummary
+
   return (
     <form className="paste-box" onSubmit={handleSubmit}>
       <div className="paste-box__input-wrap">
-        {/* Icon-only overlay — the actual hint text is the textarea's own
-            native `placeholder` below; duplicating it here as a second
-            text element would just repeat the same sentence twice.
-            `pointer-events: none` so it never intercepts a click/drop
-            meant for the textarea underneath. */}
-        {/* Design tokens spec: "Phosphor, regular weight, fill only for
-            the brand mark" — the mockup's own saved source confirms plain
-            `ph-upload-simple` (regular), not a bold modifier. */}
-        {text.length === 0 && <UploadSimple className="paste-box__dropzone-icon" aria-hidden="true" />}
+        {showDropzone && (
+          <div
+            className={[
+              "paste-box__dropzone",
+              text.length === 0 ? "paste-box__dropzone--overlay" : "paste-box__dropzone--static",
+              // The textarea's own drag handlers (below) still fire through
+              // this click-through overlay (Story 18.5) — but its own
+              // border is transparent while overlaid (see .paste-box__
+              // textarea:placeholder-shown), so the drag-over cue has to
+              // render on the overlay itself instead, or it'd be invisible.
+              text.length === 0 && isDraggingOver && "paste-box__dropzone--drag-over",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {/* Design tokens spec: "Phosphor, regular weight, fill only
+                for the brand mark" — the mockup's own saved source
+                confirms plain `ph-upload-simple` (regular), not a bold
+                modifier. Decorative: the textarea's own `placeholder`
+                (below) carries the accessible text. */}
+            <UploadSimple className="paste-box__dropzone-icon" aria-hidden="true" />
+            <span className="paste-box__dropzone-text" aria-hidden="true">
+              Drop <span className="paste-box__dropzone-formats">.json .xml .sqlplan .txt</span> or
+            </span>
+            {/* A styled label wrapping a visually-hidden file input —
+                clicking anywhere on it opens the native file picker,
+                standard accessible pattern (no ref-driven synthetic click
+                needed). Real pointer events even while the dropzone as a
+                whole is a click-through overlay (below) — see that
+                modifier's own CSS comment. Episode 18, Story 18.12: paste
+                stays the PRIMARY input on mobile, with this as the
+                secondary, always-reachable path — drag-and-drop needs no
+                explicit mobile handling since touch devices simply never
+                fire HTML5 drag events in the first place. */}
+            <label className="paste-box__dropzone-browse" data-testid="file-picker-label">
+              browse
+              <input
+                type="file"
+                accept=".json,.xml,.txt,text/plain,application/json,text/xml,application/xml"
+                onChange={handleFileInputChange}
+                data-testid="file-picker-input"
+                className="paste-box__file-input"
+              />
+            </label>
+          </div>
+        )}
 
-        {/* Story 18.5 — the dropzone IS the existing textarea (no separate
-            overlay element competing for the same space): dragging a file
-            over it and dropping loads that file's text the same way typing
-            would, while it stays a normal, always-available text input.
-            Collapsing it (below) is a CSS-only visibility change, not a
-            conditional unmount, so this stays the same element throughout —
-            same test id, same value, drop/drag handlers never re-attached. */}
+        {/* Story 18.5 — the dropzone IS the existing textarea while empty
+            (no separate overlay element competing for the same space):
+            dragging a file over it and dropping loads that file's text the
+            same way typing would, while it stays a normal, always-available
+            text input. Collapsing it (below) is a CSS-only visibility
+            change, not a conditional unmount, so this stays the same
+            element throughout — same test id, same value, drop/drag
+            handlers never re-attached. */}
         <textarea
           className={[
             "paste-box__textarea",
@@ -175,15 +228,7 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
           onDragOver={handleDragOver}
           onDragLeave={() => setIsDraggingOver(false)}
           placeholder="Drop a .json, .xml, .sqlplan, or .txt file, or paste it here."
-          rows={text.length === 0 ? 5 : 12}
-          // Episode 18, Story 18.12, spec §5 `1k`: "drag-and-drop is not
-          // offered as an interaction on touch" — a single, viewport-neutral
-          // wording (not a mobile-vs-desktop branch) that stays literally
-          // true everywhere: dragging IS still a real, working interaction
-          // here on desktop (the handlers above are unconditional — touch
-          // simply never fires HTML5 drag events at all, so there's no
-          // functional behavior to gate), it's just not the PRIMARY
-          // advertised path on a phone the way "Browse a file…" below is.
+          rows={text.length === 0 ? 1 : 12}
           aria-label="Paste your execution plan"
         />
 
@@ -198,41 +243,18 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
               <span>
                 pasted · {lineCount} {lineCount === 1 ? "line" : "lines"}
               </span>
-              <CornersOut aria-hidden="true" />
+              <ArrowsOutSimple aria-hidden="true" />
             </span>
             {/* A read-only peek at the pasted content, same as the mock —
                 purely decorative (the real, editable text lives in the
-                hidden textarea above); cut off by the container's own
-                max-height rather than truncated to N lines, so it reads as
-                "there's more below" the same way the mock's does. */}
+                hidden textarea above); faded out by a mask-image (not an
+                abrupt cutoff) so it reads as "there's more below" exactly
+                the way the mock's own does. */}
             <pre className="paste-box__collapsed-summary-preview" aria-hidden="true">
               {text}
             </pre>
           </button>
         )}
-      </div>
-
-      <div className="paste-box__file-row">
-        {/* A styled label wrapping a visually-hidden file input — clicking
-            anywhere on the label opens the native file picker, standard
-            accessible pattern (no ref-driven synthetic click needed).
-            Episode 18, Story 18.12: paste stays the PRIMARY input on
-            mobile (this row is never hidden there), with this button as
-            the secondary, always-reachable path — drag-and-drop needs no
-            explicit mobile handling of its own since touch devices simply
-            never fire HTML5 drag events in the first place; there's no
-            broken/dead interaction to gate off, only a desktop-only one
-            that was never reachable on touch to begin with. */}
-        <label className="paste-box__file-button" data-testid="file-picker-label">
-          or browse a file…
-          <input
-            type="file"
-            accept=".json,.xml,.txt,text/plain,application/json,text/xml,application/xml"
-            onChange={handleFileInputChange}
-            data-testid="file-picker-input"
-            className="paste-box__file-input"
-          />
-        </label>
       </div>
 
       <button type="submit" className="paste-box__submit" disabled={text.trim().length === 0}>
