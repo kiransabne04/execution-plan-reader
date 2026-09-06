@@ -372,15 +372,55 @@
   color: var(--dp-finding-info-text);
 }
 
-/* Story 18.7 — Expert mode's rule id, a small mono tag before the finding
-   text rather than its own line (keeps the finding itself the visually
-   dominant content). */
-.detail-panel__warning-rule-id {
-  display: inline-block;
+/* Design review (downloaded "expert overlay details" PNG), spec §1f:
+   Expert's own finding headline — mono `{ruleId} · {severity}`, replacing
+   Beginner's sentence-case "Warning · Bad row estimate". Severity color
+   comes from the SAME `.detail-panel__warning-heading--{severity}`
+   modifier the Beginner headline uses (combined here, not a second
+   independent color mapping). */
+.detail-panel__warning-heading-mono {
+  margin: 0 0 4px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+/* The threshold/computed/additional-conditions table (Warning.provenance)
+   — "Experts distrust findings they cannot audit." Small and mono, a
+   secondary reference below the prose, not competing with it. */
+.detail-panel__warning-provenance {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.detail-panel__warning-provenance td {
+  padding: 2px 8px 2px 0;
   color: var(--dp-text-muted);
-  margin-right: 6px;
+  vertical-align: top;
+}
+
+.detail-panel__warning-provenance td:last-child {
+  padding-right: 0;
+  color: var(--dp-text);
+}
+
+.detail-panel__warning-provenance-computed {
+  font-weight: 600;
+}
+
+.detail-panel__warning-provenance--critical .detail-panel__warning-provenance-computed {
+  color: var(--dp-finding-critical-text);
+}
+
+.detail-panel__warning-provenance--warning .detail-panel__warning-provenance-computed {
+  color: var(--dp-finding-warning-text);
+}
+
+.detail-panel__warning-provenance--info .detail-panel__warning-provenance-computed {
+  color: var(--dp-finding-info-text);
 }
 
 /* Story 9.1 — deliberately distinct from the warning treatment above (teal
