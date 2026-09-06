@@ -30,7 +30,25 @@
   width: 100%;
   margin: 0 auto;
   text-align: center;
-  min-height: 100svh;
+  /* Bug fix: this was `min-height: 100svh` — a FLOOR, not a ceiling. That
+     reads as "at least one viewport tall," which is what `.plan-shell`'s
+     own comment (planReaderPage.css) assumed it needed to make `flex: 1`
+     "claim all of that height" — but a flex item's `flex: 1` only clamps
+     to a definite container size; `min-height` alone never gives #root
+     one. The instant any descendant (a long node's worth of Expert-panel
+     content, a tall findings list) needed more room than one viewport,
+     #root had no ceiling to stop at, so ITS OWN height grew to fit that
+     content instead of it scrolling internally — the exact "full page
+     becomes scrollable" bug spec §2b's "only the rails and panel scroll —
+     never the page" was already written to prevent, and had been broken
+     since the day this rule was authored (no regression: the fixed-height
+     `.plan-shell` cap this file's own history mentions retiring never
+     actually depended on #root having one). `height` is the real ceiling;
+     `.plan-reader-page`'s own `min-height: 0` (added alongside this fix)
+     is what lets it actually respect that ceiling instead of refusing to
+     shrink below its own content's natural size — the matching half of
+     the same classic flexbox gotcha. */
+  height: 100svh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;

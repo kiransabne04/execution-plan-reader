@@ -46,6 +46,45 @@ test.describe("app shell breakpoints (spec §2)", () => {
     expect(box?.height).toBeGreaterThan(200)
   })
 
+  // Bug fix regression: #root previously used `min-height: 100svh` (a
+  // floor, not a ceiling) — the moment a node's Expert-panel content grew
+  // taller than the viewport, nothing in the flex chain stopped #root
+  // itself from growing to fit it, and the WHOLE PAGE scrolled instead of
+  // just the detail panel's own `overflow-y: auto` — exactly what spec
+  // §2b's "the shell is 100dvh... so only the rails and panel scroll —
+  // never the page" was written to prevent. A short viewport here is what
+  // reliably forces the panel's real content taller than available space,
+  // regardless of how much content any one sample plan happens to have.
+  test("a tall detail panel scrolls internally — the page itself never grows past the viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 350 })
+    await page.goto("/")
+    await page.getByTestId("paste-textarea").fill(MULTI_NODE_PLAN)
+    await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
+    await page.getByRole("button", { name: "Expert" }).click()
+    // The root Hash Join: a join condition, both children's stats folded
+    // in via the funnel, more Expert sections than a bare scan — reliably
+    // taller than a 350px-tall viewport regardless of exactly which
+    // findings this particular sample plan happens to trigger.
+    await page.getByTestId("plan-node-card").first().click()
+
+    const panel = page.getByTestId("detail-panel")
+    await expect(panel).toBeVisible()
+
+    // Sanity: this test's premise (the CONTAINING RAIL's content is
+    // genuinely taller than it has room for) actually holds at this
+    // viewport — otherwise the assertion below would pass for the wrong
+    // reason. `.detail-panel` itself has no explicit height in the
+    // "shell" variant (sizes to its own content, by design — see
+    // detailPanel.css's own comment on why); `.plan-shell__rail--right`,
+    // the actual grid track wrapping it, is the real scroll container.
+    const rail = page.locator(".plan-shell__rail--right")
+    const railOverflows = await rail.evaluate((el) => el.scrollHeight > el.clientHeight + 1)
+    expect(railOverflows).toBe(true)
+
+    const pageScrollable = await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight + 1)
+    expect(pageScrollable).toBe(false)
+  })
+
   test("below 1180px, the detail panel is a fixed overlay with a scrim behind it", async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 900 })
     await page.goto("/")

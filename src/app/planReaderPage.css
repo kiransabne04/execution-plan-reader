@@ -30,6 +30,14 @@
      exists to prevent. flex:1 degrades correctly instead: .plan-shell
      still gets everything BUT what that sibling needs. */
   flex: 1;
+  /* Bug fix, paired with #root's `height: 100svh` fix (index.css): a flex
+     item's implicit `min-height: auto` refuses to shrink below its own
+     content's natural size, which is exactly what let this element (and
+     everything under it) grow taller than #root's ceiling instead of
+     respecting it — the matching half of the same gotcha, not a separate
+     bug. Without this, #root's new fixed height alone still wouldn't have
+     stopped the page from scrolling. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   margin: 0 auto;
