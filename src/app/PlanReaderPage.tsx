@@ -141,25 +141,6 @@ export function PlanReaderPage() {
   // Episode 18, Story 18.9 — guided walkthrough.
   const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false)
 
-  // Episode 22, Story 22.1 — maximize the graph pane to fill the whole
-  // browser viewport (a `position: fixed; inset: 0` CSS overlay, matching
-  // WalkthroughOverlay's own established pattern — NOT the browser's real
-  // Fullscreen API, see the episode's own feasibility note). Deliberately
-  // NOT reset by `switchToStatement` — switching statements while
-  // maximized re-renders the same maximized graph pane with a different
-  // tree, it never exits maximized mode (this story's own edge case).
-  // Reset on a genuinely new plan (`handleAnalyze`/`handleNewPlan`, same as
-  // `isWalkthroughOpen` above), since a fresh "result screen" shouldn't
-  // silently inherit the previous plan's maximized chrome.
-  const [isMaximized, setIsMaximized] = useState(false)
-  // Confirmed with the user: Findings stays reachable while maximized —
-  // since the left rail itself is visually covered by the maximized
-  // overlay (same reasoning as Beginner/Expert and Walk-me-through below),
-  // this drives a small drawer rendered INSIDE the maximized pane instead,
-  // reusing the exact same `<FindingsList>` component/props the left rail
-  // already uses — not a second content surface.
-  const [isMaximizedFindingsOpen, setIsMaximizedFindingsOpen] = useState(false)
-
   // Episode 18, Story 18.11 — PNG export. A ref, not lifted state: the
   // export button lives in the app bar, outside PlanGraph, and has no
   // reason to know about PlanGraph's own internal collapsedIds/DOM-vs-
@@ -305,34 +286,6 @@ export function PlanReaderPage() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [analyzed])
 
-  // Episode 22, Story 22.1 — Escape restores from maximized mode. A
-  // document-level listener (matching DetailPanel.tsx's own Escape-to-close
-  // — see that file), not an element-scoped one on the maximized container
-  // itself: `.plan-shell__graph--maximized`'s content includes a plain
-  // `<button>` toolbar with no natural single "dialog" element to attach a
-  // scoped handler to the way WalkthroughOverlay/SearchPalette do.
-  // Explicit, tested stacking order (this story's own AC) for the SAME
-  // keydown event potentially reaching more than one document-level
-  // listener at once:
-  //   - WalkthroughOverlay/SearchPalette open on top "win" outright — they
-  //     mount outside this element's own subtree with their own element-
-  //     scoped Escape handlers that never call stopPropagation, so this
-  //     document listener still fires unless explicitly guarded here.
-  //   - An open detail panel (rendered INSIDE the maximized pane by this
-  //     story, reusing DetailPanel's own document-level Escape-to-close)
-  //     closes FIRST — innermost-modal-first, standard nested-dialog
-  //     convention — a second Escape then restores from maximize.
-  useEffect(() => {
-    if (!isMaximized) return
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return
-      if (isWalkthroughOpen || isSearchPaletteOpen || detailPanel) return
-      setIsMaximized(false)
-    }
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [isMaximized, isWalkthroughOpen, isSearchPaletteOpen, detailPanel])
-
   const debouncedSaveSession = useMemo(
     () =>
       debounce((text: string) => {
@@ -360,8 +313,6 @@ export function PlanReaderPage() {
         setRestoreCandidate(null) // a fresh analyze supersedes any pending restore offer
         setMatchedNodeIds(undefined) // a stale search over the previous plan's tree, see the statement-tab click handler's comment
         setIsWalkthroughOpen(false) // same reasoning — a walkthrough's step list is built from a specific tree too
-        setIsMaximized(false) // Story 22.1 — a fresh "result screen" starts un-maximized, same reasoning as isWalkthroughOpen above
-        setIsMaximizedFindingsOpen(false)
         // Story 18.12: the mobile-default-tab layout effect below (keyed
         // on `analyzed`) re-derives `activeShellTab` for THIS fresh
         // "result screen" — nothing to do here directly; see that effect.
@@ -643,8 +594,6 @@ export function PlanReaderPage() {
     setMatchedNodeIds(undefined)
     setIsWalkthroughOpen(false)
     setIsSearchPaletteOpen(false)
-    setIsMaximized(false) // Story 22.1 — same reasoning as handleAnalyze above
-    setIsMaximizedFindingsOpen(false)
     setCompareMode(false)
     setComparePlan(null)
     setCompareError(null)
@@ -1078,18 +1027,9 @@ export function PlanReaderPage() {
                       only relocated per spec. */}
 
                   {/* Episode 22, Story 22.1 — the whole graph pane (search
-                      trigger, PlanGraph, and its own detail panel while
-                      maximized) is the ONE element that toggles between
-                      normal document-flow layout and a `position: fixed;
-                      inset: 0` full-viewport overlay — the exact same DOM
-                      subtree/React component instance either way, so
-                      PlanGraph's own internal state (selection, pan/zoom,
-                      collapse) is never reset by maximizing/restoring; only
-                      this wrapper's own CSS class changes. */}
-                  <div
-                    className={`plan-shell__graph${isMaximized ? " plan-shell__graph--maximized" : ""}`}
-                    data-testid="plan-shell-graph"
-                  >
+                      trigger and PlanGraph) — the graph's search entry
+                      point and the canvas itself. */}
+                  <div className="plan-shell__graph" data-testid="plan-shell-graph">
                     <div className="plan-shell__graph-toolbar">
                       {/* Design review (reference mock) — a persistent, always-
                           visible entry point into the search palette (the
@@ -1108,22 +1048,6 @@ export function PlanReaderPage() {
                         <span>Find operator, table, or index…</span>
                         <kbd>/</kbd>
                       </button>
-                      {/* Confirmed with the user: maximize means filling the
-                          whole browser viewport (a CSS overlay, not the real
-                          Fullscreen API — see the episode's own feasibility
-                          note). Keyboard-reachable (a real button) and
-                          labeled for screen readers, matching every other
-                          control in this app. */}
-                      <button
-                        type="button"
-                        className="plan-shell__maximize-toggle"
-                        data-testid="graph-maximize-toggle"
-                        aria-pressed={isMaximized}
-                        aria-label={isMaximized ? "Restore graph to normal size" : "Maximize graph to fill the screen"}
-                        onClick={() => setIsMaximized((v) => !v)}
-                      >
-                        {isMaximized ? "Restore" : "Maximize"}
-                      </button>
                     </div>
 
                     {/* Design review, spec §2: "The only canvas overlays
@@ -1132,89 +1056,14 @@ export function PlanReaderPage() {
                         (bottom left)." Spec is explicit this must NOT sit
                         in the footer strip below — putting it there
                         "overflowed the bar at every realistic width." */}
-                    {!isMaximized && (
-                      <div className="plan-shell__canvas-legend" data-testid="plan-shell-canvas-legend">
-                        <span className="plan-shell__colour-legend">
-                          Colour
-                          <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
-                          {metricLabel}
-                        </span>
-                        <span>Width = {metricLabel} · Arrows = execution order</span>
-                      </div>
-                    )}
-
-                    {/* Confirmed with the user: Findings, the Beginner/Expert
-                        toggle, and Walk-me-through all stay reachable while
-                        maximized — the app bar/left rail these normally live
-                        in is visually covered by this fixed overlay, so this
-                        is a second render location for the SAME controls/
-                        state, not new behavior (the app bar's own copies,
-                        just above, are unaffected and still work when not
-                        maximized). A multi-statement batch also gets a new
-                        compact dropdown here — the full statement tab strip
-                        above is too wide for this chrome-minimized view. */}
-                    {isMaximized && (
-                      <div className="plan-shell__maximized-toolbar" data-testid="maximized-toolbar">
-                        {analyzed.statements.length > 1 && (
-                          <select
-                            className="plan-shell__maximized-statement-select"
-                            data-testid="maximized-statement-select"
-                            aria-label="Switch statement"
-                            value={activeStatementIndex}
-                            onChange={(e) => switchToStatement(Number(e.target.value))}
-                          >
-                            {analyzed.statements.map((stmt, index) => (
-                              <option key={stmt.label + index} value={index}>
-                                {stmt.label}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        <div className="plan-shell__mode-toggle" role="group" aria-label="Detail level">
-                          <button
-                            type="button"
-                            className="plan-shell__mode-toggle-button"
-                            aria-pressed={!expertMode}
-                            data-testid="maximized-mode-beginner"
-                            onClick={() => setExpertMode(false)}
-                          >
-                            Beginner
-                          </button>
-                          <button
-                            type="button"
-                            className="plan-shell__mode-toggle-button"
-                            aria-pressed={expertMode}
-                            data-testid="maximized-mode-expert"
-                            onClick={() => setExpertMode(true)}
-                          >
-                            Expert
-                          </button>
-                        </div>
-                        <button
-                          type="button"
-                          className="plan-shell__app-bar-button"
-                          data-testid="maximized-walkthrough-open"
-                          onClick={() => setIsWalkthroughOpen(true)}
-                        >
-                          Walk me through it
-                        </button>
-                        <button
-                          type="button"
-                          className="plan-shell__app-bar-button"
-                          data-testid="maximized-findings-toggle"
-                          aria-pressed={isMaximizedFindingsOpen}
-                          onClick={() => setIsMaximizedFindingsOpen((v) => !v)}
-                        >
-                          Findings
-                        </button>
-                      </div>
-                    )}
-
-                    {isMaximized && isMaximizedFindingsOpen && (
-                      <div className="plan-shell__maximized-findings" data-testid="maximized-findings-panel">
-                        <FindingsList sources={findingsSources} activeStatementIndex={activeStatementIndex} onSelectNode={handleSelectFinding} />
-                      </div>
-                    )}
+                    <div className="plan-shell__canvas-legend" data-testid="plan-shell-canvas-legend">
+                      <span className="plan-shell__colour-legend">
+                        Colour
+                        <span className="plan-shell__colour-legend-swatch" aria-hidden="true" />
+                        {metricLabel}
+                      </span>
+                      <span>Width = {metricLabel} · Arrows = execution order</span>
+                    </div>
 
                     <PlanGraph
                       ref={planGraphRef}
@@ -1226,27 +1075,14 @@ export function PlanReaderPage() {
                       onDetailPanelChange={handleDetailPanelChange}
                       matchedNodeIds={matchedNodeIds}
                       onCollapsedCountChange={setCollapsedCount}
-                      // Stories 22.2 (DOM/SVG mode) + 22.3 (canvas mode) —
-                      // PlanGraph now renders its own node-anchored popup
-                      // itself in BOTH rendering modes when maximized (only
-                      // it, or its CanvasPlanGraph child, can compute a
-                      // node's on-screen position). Story 22.1's own interim
-                      // overlay-variant fallback for canvas mode is gone —
-                      // Story 22.3 gave it a real popup mechanism of its own.
-                      nodeDetailVariant={isMaximized ? "popup" : "panel"}
                     />
                   </div>
 
                   {/* Design review, spec §2 "Canvas footer": "A sticky
                       metrics bar directly under the canvas" — Query
                       Health (left group) and the plan metrics (right
-                      group) share this one bar. Scoped to normal
-                      (non-maximized) mode only, same reasoning as before
-                      (Episode 22's maximized toolbar already has 5
-                      competing elements; this bar's own at-a-glance
-                      value is a normal-mode, first-look concern). */}
-                  {!isMaximized && (
-                    <div className="plan-shell__canvas-footer" data-testid="plan-shell-canvas-footer">
+                      group) share this one bar. */}
+                  <div className="plan-shell__canvas-footer" data-testid="plan-shell-canvas-footer">
                       {queryHealth ? (
                         <QueryHealthCard health={queryHealth} severityExamples={severityExamples} />
                       ) : (
@@ -1306,7 +1142,6 @@ export function PlanReaderPage() {
                         Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.
                       </p>
                     </div>
-                  )}
                 </main>
               )}
 
@@ -1315,13 +1150,9 @@ export function PlanReaderPage() {
                   `detail-panel--in-shell` variant and this scrim compose to
                   do that; see detailPanel.css and planReaderPage.css. Always
                   mounted now (Episode 19) — empty until a node is opened,
-                  same as before. Story 22.1: suppressed while maximized —
-                  the graph pane above renders the SAME `detailPanel` state
-                  itself in that mode (see its own comment just above), so
-                  this rail would otherwise show a second, redundant copy of
-                  the exact same panel underneath the maximized overlay. */}
+                  same as before. */}
               <aside className="plan-shell__rail plan-shell__rail--right" data-testid="plan-shell-right-rail">
-                {detailPanel && !isMaximized && (
+                {detailPanel && (
                   <DetailPanel
                     node={detailPanel.node}
                     context={detailPanel.context}
@@ -1332,7 +1163,7 @@ export function PlanReaderPage() {
                   />
                 )}
               </aside>
-              {detailPanel && !isMaximized && (
+              {detailPanel && (
                 <div className="plan-shell__detail-scrim" data-testid="plan-shell-detail-scrim" onClick={detailPanel.onClose} />
               )}
             </div>
