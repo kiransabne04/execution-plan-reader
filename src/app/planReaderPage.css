@@ -969,13 +969,18 @@
 /* Design review, spec §2 "Canvas footer" — "A sticky metrics bar directly
    under the canvas... flex-wrap: wrap; min-height: 46px — never a fixed
    height and never horizontally scrolling; at narrow widths it wraps to
-   two rows." Query Health sits flush left (the footer's first child,
-   normal flex flow); the plan-metrics group, the divider, and the credit
-   cluster flush right as one group — `margin-left: auto` lives on the
-   metrics group itself (below), not a `justify-content: space-between`
-   on this element, since that would spread all FOUR children (health,
-   metrics, divider, credit) evenly instead of clustering the last three
-   together at the right edge. */
+   two rows."
+
+   Bug fix (real-browser review, after the Query Health trigger's inline
+   🔴/🟠/🟢 counts were dropped): the trigger shrank a lot, but the
+   plan-metrics/divider/credit group still had `margin-left: auto`
+   clustering it flush against the footer's right edge — so the row now
+   showed a large dead gap between the (smaller) health icon and that
+   cluster, reading as misaligned rather than freed-up. Query Health and
+   the metrics/divider/credit group now flow left-to-right at the
+   footer's own normal gap, using the freed width instead of leaving it
+   empty; the credit paragraph's own wider cap (below) is what actually
+   spends that space. */
 .plan-shell__canvas-footer {
   flex: none;
   display: flex;
@@ -991,11 +996,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 18px;
-  /* Clusters this group (and the divider/credit that follow it in normal
-     flex flow) flush against the footer's right edge, while Query Health
-     stays flush left as the footer's first child — see the footer's own
-     comment above. */
-  margin-left: auto;
 }
 
 /* Spec §2: "Each a stacked uppercase label over a mono value." */
@@ -1050,7 +1050,12 @@
 .plan-shell__canvas-credit {
   flex: none;
   margin: 0;
-  max-width: 30ch;
+  /* Was 30ch (wrapped to 3 lines, taller than every sibling in the row).
+     Widened to spend the space the dropped inline severity counts freed
+     up — 2 lines now at the row's typical width instead of 3, still
+     capped so it wraps rather than pushing the metrics on genuinely
+     narrow viewports. */
+  max-width: 38ch;
   font-size: 11px;
   line-height: 1.4;
   color: var(--pr-text-muted);
