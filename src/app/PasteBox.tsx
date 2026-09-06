@@ -148,7 +148,10 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
             text element would just repeat the same sentence twice.
             `pointer-events: none` so it never intercepts a click/drop
             meant for the textarea underneath. */}
-        {text.length === 0 && <UploadSimple className="paste-box__dropzone-icon" weight="bold" aria-hidden="true" />}
+        {/* Design tokens spec: "Phosphor, regular weight, fill only for
+            the brand mark" — the mockup's own saved source confirms plain
+            `ph-upload-simple` (regular), not a bold modifier. */}
+        {text.length === 0 && <UploadSimple className="paste-box__dropzone-icon" aria-hidden="true" />}
 
         {/* Story 18.5 — the dropzone IS the existing textarea (no separate
             overlay element competing for the same space): dragging a file

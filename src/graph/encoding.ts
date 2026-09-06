@@ -7,7 +7,7 @@
 
 import { collectNodes, type PlanNode } from "../parsers/normalize"
 
-export const NODE_WIDTH_RANGE = { min: 150, max: 260 } as const
+export const NODE_WIDTH_RANGE = { min: 150, max: 300 } as const
 export const NODE_HEIGHT_RANGE = { min: 56, max: 96 } as const
 export const EDGE_WIDTH_RANGE = { min: 1.5, max: 8 } as const
 

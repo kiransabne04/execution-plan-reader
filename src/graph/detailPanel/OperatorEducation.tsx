@@ -13,7 +13,10 @@ import { getPlannerReasoning } from "./plannerReasoning"
 function EducationHeading({ children }: { children: string }) {
   return (
     <h3 className="detail-panel__section-heading detail-panel__education-heading">
-      <GraduationCap weight="fill" aria-hidden="true" />
+      {/* Design tokens spec: "Phosphor, regular weight, fill only for the
+          brand mark" — the mockup's own saved source uses plain
+          `ph-graduation-cap` (regular), not a fill modifier. */}
+      <GraduationCap aria-hidden="true" />
       {children}
     </h3>
   )
@@ -45,7 +48,10 @@ function ExpertEducationDisclosure({ displayName, shortDefinition }: { displayNa
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
       >
-        <CaretRight weight="bold" aria-hidden="true" className={expanded ? "detail-panel__education-disclosure-caret--open" : undefined} />
+        {/* Design tokens spec: "Phosphor, regular weight, fill only for
+            the brand mark" — the mockup's own saved source uses plain
+            `ph-caret-right` (regular), not a bold modifier. */}
+        <CaretRight aria-hidden="true" className={expanded ? "detail-panel__education-disclosure-caret--open" : undefined} />
         <span>
           {displayName} — definition{expanded ? "" : " (collapsed)"}
         </span>
@@ -128,12 +134,15 @@ function OperatorEducationInner({ node, expertMode }: OperatorEducationProps) {
         <div className="detail-panel__education">
           <p>{entry.longDefinition}</p>
           <ul className="detail-panel__education-bullets">
+            {/* Design tokens spec: "Phosphor, regular weight, fill only
+                for the brand mark" — the mockup's own saved source uses
+                plain `ph-check`/`ph-warning` (regular), not bold/fill. */}
             <li className="detail-panel__education-bullet detail-panel__education-bullet--fine">
-              <Check weight="bold" aria-hidden="true" />
+              <Check aria-hidden="true" />
               <span>{entry.whenItsFine}</span>
             </li>
             <li className="detail-panel__education-bullet detail-panel__education-bullet--warning">
-              <WarningIcon weight="fill" aria-hidden="true" />
+              <WarningIcon aria-hidden="true" />
               <span>{entry.whenToLookCloser}</span>
             </li>
           </ul>
