@@ -198,8 +198,29 @@ function ownerForDetailIndent(stack: StackEntry[], indent: number): PlanNode | u
 const SORT_METHOD_RE = /^Sort Method:\s*(.+?)\s+(Memory|Disk):\s*(\d+)kB\s*$/
 const HASH_BUCKETS_RE = /^Buckets:\s*(\d+)(?:\s*\(originally\s+\d+\))?\s+Batches:\s*(\d+)(?:\s*\(originally\s+(\d+)\))?\s+Memory Usage:\s*(\d+)kB\s*$/
 const WAL_LINE_RE = /^WAL:\s*(.+)$/
+// Episode 25 — "Worker 0: actual time=418.686..418.686 rows=601204 loops=1"
+// (real EXPLAIN ANALYZE per-worker output). Only rows/total-time are read
+// (the panel's "Worker N" row) — accumulated into the SAME JSON-array
+// attribute shape (`"Workers"`, keyed like the JSON format's own field
+// names) `extendedFields.ts`'s `derivePerWorker` already parses, so that
+// one function serves both parser formats rather than a second copy here.
+const WORKER_LINE_RE = /^Worker (\d+):\s+actual time=([\d.,]+)\.\.([\d.,]+)\s+rows=(\d+)\s+loops=(\d+)\s*$/
 
 function applyDetailLine(owner: PlanNode, text: string): void {
+  const workerMatch = text.match(WORKER_LINE_RE)
+  if (workerMatch) {
+    const [, workerNumber, , totalTime, rows] = workerMatch
+    const existingRaw = owner.attributes["Workers"]
+    const existing: unknown[] = typeof existingRaw === "string" ? (JSON.parse(existingRaw) as unknown[]) : []
+    existing.push({
+      "Worker Number": Number(workerNumber),
+      "Actual Total Time": parseLocaleNumber(totalTime),
+      "Actual Rows": parseLocaleNumber(rows),
+    })
+    owner.attributes["Workers"] = JSON.stringify(existing)
+    return
+  }
+
   const sortMatch = text.match(SORT_METHOD_RE)
   if (sortMatch) {
     const [, method, spaceType, spaceUsedKb] = sortMatch

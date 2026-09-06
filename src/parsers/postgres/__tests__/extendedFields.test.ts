@@ -5,6 +5,44 @@ import { collectNodes } from "../../normalize"
 import { loadFixture } from "./testUtils"
 
 describe("Postgres extended fields (docs/10-node-stats-field-catalog.md)", () => {
+  it("promotes startupCost and planWidth from the node's own real cost/width figures", () => {
+    const root = parsePostgresJsonPlan(loadFixture("simple-seq-scan.json"))
+    expect(root.startupCost).toBe(0)
+    expect(root.planWidth).toBe(36)
+  })
+
+  it("promotes outputColumns from the raw Output array, leaves it undefined when absent", () => {
+    const withOutput = JSON.stringify([
+      {
+        Plan: {
+          "Node Type": "Seq Scan",
+          "Total Cost": 10,
+          "Plan Rows": 5,
+          "Output": ["o.id", "o.customer_id", "o.total"],
+        },
+      },
+    ])
+    expect(parsePostgresJsonPlan(withOutput).outputColumns).toEqual(["o.id", "o.customer_id", "o.total"])
+    expect(parsePostgresJsonPlan(loadFixture("simple-seq-scan.json")).outputColumns).toBeUndefined()
+  })
+
+  it("promotes io.bufferDirtied/bufferWritten from Shared Dirtied/Written Blocks", () => {
+    const raw = JSON.stringify([
+      {
+        Plan: {
+          "Node Type": "Seq Scan",
+          "Total Cost": 10,
+          "Plan Rows": 5,
+          "Shared Dirtied Blocks": 4,
+          "Shared Written Blocks": 2,
+        },
+      },
+    ])
+    const root = parsePostgresJsonPlan(raw)
+    expect(root.io?.bufferDirtied).toBe(4)
+    expect(root.io?.bufferWritten).toBe(2)
+  })
+
   it("promotes predicate.filter and predicate.joinCondition, and normalizes join.logicalType", () => {
     const root = parsePostgresJsonPlan(loadFixture("multi-way-join.json"))
     expect(root.predicate?.joinCondition).toBe("(orders.customer_id = customers.id)")
@@ -114,6 +152,30 @@ describe("Postgres extended fields (docs/10-node-stats-field-catalog.md)", () =>
     const root = parsePostgresJsonPlan(loadFixture("parallel-workers-cumulated.json"))
     expect(root.parallel?.workersLaunched).toBe(3)
     expect(root.parallel?.workersPlanned).toBe(3)
+  })
+
+  it("promotes parallel.perWorker from the raw Workers array (real rows/time, never a synthetic split)", () => {
+    const root = parsePostgresJsonPlan(loadFixture("parallel-workers-cumulated.json"))
+    expect(root.parallel?.perWorker).toEqual([
+      { label: "Worker 0", rows: 6666, timeMs: 38.0 },
+      { label: "Worker 1", rows: 6667, timeMs: 41.0 },
+      { label: "Worker 2", rows: 6667, timeMs: 39.5 },
+    ])
+  })
+
+  it("leaves parallel.perWorker undefined for a non-parallel node (no Workers array to read)", () => {
+    const root = parsePostgresJsonPlan(loadFixture("simple-seq-scan.json"))
+    expect(root.parallel?.perWorker).toBeUndefined()
+  })
+
+  it("TEXT parser: promotes parallel.perWorker from 'Worker N: actual time=...' detail lines", () => {
+    const root = parsePostgresTextPlan(loadFixture("parallel-workers-text.txt"))
+    const scan = collectNodes(root).find((n) => n.operatorType === "seq_scan")!
+    expect(scan.parallel?.perWorker).toEqual([
+      { label: "Worker 0", rows: 6666, timeMs: 38.0 },
+      { label: "Worker 1", rows: 6667, timeMs: 41.0 },
+      { label: "Worker 2", rows: 6667, timeMs: 39.5 },
+    ])
   })
 
   it("derives the same extended fields via the TEXT parser (detail lines attach after node creation)", () => {

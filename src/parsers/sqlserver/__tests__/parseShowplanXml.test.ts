@@ -173,6 +173,22 @@ describe("parseSqlServerShowplanXml", () => {
     expect(scan.actualTimePerExecutionMs).toBeCloseTo(totalMs / 3)
   })
 
+  it("promotes parallel.perWorker from each real RunTimeCountersPerThread entry (never a synthetic split)", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("parallelism-multi-thread.xml"))
+    const scan = result.statements[0].root.children[0]
+    expect(scan.parallel?.perWorker).toEqual([
+      { label: "Thread 1", rows: 6667, timeMs: 38 },
+      { label: "Thread 2", rows: 6667, timeMs: 41 },
+      { label: "Thread 3", rows: 6666, timeMs: 39 },
+    ])
+  })
+
+  it("leaves parallel.perWorker undefined for a single-thread (non-parallel) node", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("hash-join.xml"))
+    const scan = result.statements[0].root.children[0]
+    expect(scan.parallel).toBeUndefined()
+  })
+
   it("sets actualTimePerExecutionMs equal to actualTimeMs when there's no parallelism or looping", () => {
     const result = parseSqlServerShowplanXml(loadFixture("default-namespace-scan.xml"))
     const root = result.statements[0].root

@@ -6,7 +6,7 @@
 // docs/10-node-stats-field-catalog.md, the authoritative source for every
 // mapping below.
 
-import { computeCacheHitRatio, normalizeJoinLogicalType, type PlanNode } from "../normalize"
+import { computeCacheHitRatio, normalizeJoinLogicalType, type ParallelInfo, type PlanNode } from "../normalize"
 
 type Attributes = Record<string, string | number>
 
@@ -25,6 +25,9 @@ export interface ExtendedFields {
   rowsRemovedByJoinFilter?: PlanNode["rowsRemovedByJoinFilter"]
   heapFetches?: PlanNode["heapFetches"]
   actualTimePerExecutionMs?: PlanNode["actualTimePerExecutionMs"]
+  startupCost?: PlanNode["startupCost"]
+  planWidth?: PlanNode["planWidth"]
+  outputColumns?: PlanNode["outputColumns"]
   predicate?: PlanNode["predicate"]
   index?: PlanNode["index"]
   join?: PlanNode["join"]
@@ -66,6 +69,11 @@ export function derivePostgresExtendedFields(
 
   const bufferHits = sumDefined(toNumber(attrs["Shared Hit Blocks"]), toNumber(attrs["Local Hit Blocks"]))
   const bufferReads = sumDefined(toNumber(attrs["Shared Read Blocks"]), toNumber(attrs["Local Read Blocks"]))
+  // Episode 25 — a page this node dirtied in the buffer cache, and one it
+  // itself flushed to make room for another; distinct from the hit/read
+  // figures above (field catalog §5, "Buffers" table).
+  const bufferDirtied = sumDefined(toNumber(attrs["Shared Dirtied Blocks"]), toNumber(attrs["Local Dirtied Blocks"]))
+  const bufferWritten = sumDefined(toNumber(attrs["Shared Written Blocks"]), toNumber(attrs["Local Written Blocks"]))
   const ioReadTimeMs = toNumber(attrs["I/O Read Time"])
   const ioWriteTimeMs = toNumber(attrs["I/O Write Time"])
   // Episode 24, Story 24.6 — temp-file I/O (a sort/hash spill), a distinct
@@ -75,22 +83,41 @@ export function derivePostgresExtendedFields(
   const io =
     bufferHits !== undefined ||
     bufferReads !== undefined ||
+    bufferDirtied !== undefined ||
+    bufferWritten !== undefined ||
     ioReadTimeMs !== undefined ||
     ioWriteTimeMs !== undefined ||
     tempReadBlocks !== undefined ||
     tempWrittenBlocks !== undefined
-      ? { bufferHits, bufferReads, cacheHitRatio: computeCacheHitRatio(bufferHits, bufferReads), ioReadTimeMs, ioWriteTimeMs, tempReadBlocks, tempWrittenBlocks }
+      ? {
+          bufferHits,
+          bufferReads,
+          bufferDirtied,
+          bufferWritten,
+          cacheHitRatio: computeCacheHitRatio(bufferHits, bufferReads),
+          ioReadTimeMs,
+          ioWriteTimeMs,
+          tempReadBlocks,
+          tempWrittenBlocks,
+        }
       : undefined
 
   const spill = deriveSpill(attrs)
 
   const workersLaunched = toNumber(attrs["Workers Launched"])
   const workersPlanned = toNumber(attrs["Workers Planned"])
-  const parallel = workersLaunched !== undefined || workersPlanned !== undefined ? { workersLaunched, workersPlanned } : undefined
+  const perWorker = derivePerWorker(attrs["Workers"])
+  const parallel =
+    workersLaunched !== undefined || workersPlanned !== undefined || perWorker !== undefined
+      ? { workersLaunched, workersPlanned, perWorker }
+      : undefined
 
   const rowsRemovedByFilter = toNumber(attrs["Rows Removed by Filter"])
   const rowsRemovedByJoinFilter = toNumber(attrs["Rows Removed by Join Filter"])
   const heapFetches = toNumber(attrs["Heap Fetches"])
+  const startupCost = toNumber(attrs["Startup Cost"])
+  const planWidth = toNumber(attrs["Plan Width"])
+  const outputColumns = toStringArray(attrs["Output"])
 
   // Episode 24, Story 24.5 — Sort nodes only; `Sort Space Used`/`Sort Space
   // Type` are populated together with `Sort Method` in real Postgres
@@ -149,6 +176,9 @@ export function derivePostgresExtendedFields(
     rowsRemovedByJoinFilter,
     heapFetches,
     actualTimePerExecutionMs,
+    startupCost,
+    planWidth,
+    outputColumns,
     predicate,
     index,
     join,
@@ -160,6 +190,52 @@ export function derivePostgresExtendedFields(
     hash,
     memoize,
     wal,
+  }
+}
+
+/** `attrs["Output"]` is `toAttributeValue`'s JSON-stringified form of the
+ * raw `Output` array (Postgres's own list of projected expressions) —
+ * `undefined` for anything that isn't genuinely a JSON array of strings,
+ * never a best-effort partial parse. */
+function toStringArray(value: string | number | undefined): string[] | undefined {
+  if (typeof value !== "string") return undefined
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) && parsed.every((v) => typeof v === "string") ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Episode 25 — `attrs["Workers"]` is `toAttributeValue`'s JSON-stringified
+ * form of Postgres's own per-worker `Workers` array (real `EXPLAIN`
+ * output, `BUFFERS`/plain either way — only `Actual Rows`/`Actual Total
+ * Time` are read here, the two the panel's "Worker N" row needs). The TEXT
+ * parser (`textParser.ts`'s own `Worker N: actual time=…` line handling)
+ * builds the exact same JSON shape so this one parser serves both formats.
+ * Malformed/absent input yields `undefined`, never a partial or fabricated
+ * worker list. */
+function derivePerWorker(value: string | number | undefined): ParallelInfo["perWorker"] {
+  if (typeof value !== "string") return undefined
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (!Array.isArray(parsed)) return undefined
+    type Worker = NonNullable<ParallelInfo["perWorker"]>[number]
+    const workers = parsed
+      .map((entry, i): Worker | undefined => {
+        if (typeof entry !== "object" || entry === null) return undefined
+        const raw = entry as Record<string, unknown>
+        const rawWorkerNumber = raw["Worker Number"]
+        const workerNumber = typeof rawWorkerNumber === "number" ? rawWorkerNumber : i
+        const rows = toNumber(raw["Actual Rows"] as string | number | undefined)
+        const timeMs = toNumber(raw["Actual Total Time"] as string | number | undefined)
+        if (rows === undefined && timeMs === undefined) return undefined
+        return { label: `Worker ${workerNumber}`, rows, timeMs }
+      })
+      .filter((w): w is Worker => w !== undefined)
+    return workers.length > 0 ? workers : undefined
+  } catch {
+    return undefined
   }
 }
 

@@ -1,0 +1,9 @@
+ Gather  (cost=1000.00..6000.00 rows=20000 width=20) (actual time=3.000..120.000 rows=20000 loops=1)
+   Workers Planned: 3
+   Workers Launched: 3
+   ->  Parallel Seq Scan on events  (cost=0.00..5000.00 rows=6667 width=20) (actual time=0.400..39.000 rows=6667 loops=3)
+         Worker 0: actual time=0.400..38.000 rows=6666 loops=1
+         Worker 1: actual time=0.500..41.000 rows=6667 loops=1
+         Worker 2: actual time=0.450..39.500 rows=6667 loops=1
+ Planning Time: 0.300 ms
+ Execution Time: 121.000 ms

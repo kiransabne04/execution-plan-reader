@@ -313,7 +313,9 @@ function buildNode(relOp: Element, counter: { next: number }, role: PlanNodeRole
     : undefined
 
   const parallel =
-    runtime.threadCount !== undefined && runtime.threadCount > 1 ? { workersLaunched: runtime.threadCount } : undefined
+    runtime.threadCount !== undefined && runtime.threadCount > 1
+      ? { workersLaunched: runtime.threadCount, perWorker: runtime.perThread }
+      : undefined
 
   // SQL Server's per-thread ActualElapsedms is genuinely summed with no
   // built-in averaging (unlike Postgres's already-loop-averaged figure) —
@@ -422,6 +424,13 @@ interface RuntimeSummary {
    * mechanism, counted separately from an ordinary physical read (see
    * `IoInfo.readAheads`'s own doc comment in normalize.ts). */
   readAheads?: number
+  /** Episode 25 — one entry per `<RunTimeCountersPerThread>`, its own real
+   * `Thread`/`ActualRows`/`ActualElapsedms` attributes, never a synthetic
+   * split of the summed totals above. SQL Server's own thread numbering:
+   * thread 0 is the coordinating (serial) thread, 1..N are the parallel
+   * workers — both included as-is, since the coordinator's own row is a
+   * real, meaningful data point too (not something to filter out here). */
+  perThread?: { label: string; rows?: number; timeMs?: number }[]
 }
 
 /** Sums a numeric attribute across all per-thread elements, returning
@@ -458,7 +467,19 @@ function readRunTimeInformation(relOp: Element): RuntimeSummary {
     physicalReads: sumThreadAttr(perThread, "ActualPhysicalReads"),
     readAheads: sumThreadAttr(perThread, "ActualReadAheads"),
     threadCount: perThread.length,
+    perThread: perThread.length > 1 ? derivePerThread(perThread) : undefined,
   }
+}
+
+/** Only built when there's more than one thread (a serial operator's own
+ * single implicit thread 0 has nothing to break out — same gate
+ * `parallel`'s `workersLaunched` already uses below). */
+function derivePerThread(perThread: Element[]): { label: string; rows?: number; timeMs?: number }[] {
+  return perThread.map((thread, i) => {
+    const threadAttr = toFiniteNumber(thread.getAttribute("Thread"))
+    const label = `Thread ${threadAttr ?? i}`
+    return { label, rows: toFiniteNumber(thread.getAttribute("ActualRows")), timeMs: toFiniteNumber(thread.getAttribute("ActualElapsedms")) }
+  })
 }
 
 function parseMissingIndexes(stmtEl: Element): MissingIndexRecommendation[] {

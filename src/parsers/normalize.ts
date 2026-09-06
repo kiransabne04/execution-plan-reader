@@ -106,6 +106,13 @@ export interface IoInfo {
    * findings. */
   tempReadBlocks?: number
   tempWrittenBlocks?: number
+  /** Episode 25 — Postgres's `Shared/Local Dirtied Blocks` (a page this
+   * node modified in the buffer cache, not yet flushed) and `Shared/Local
+   * Written Blocks` (a page this node itself flushed to make room for
+   * another). Postgres-only — SQL Server/Snowflake expose no equivalent
+   * distinct from the read/write figures already above. */
+  bufferDirtied?: number
+  bufferWritten?: number
 }
 
 /** Episode 24, Story 24.5 — Postgres-specific, Sort nodes only. `method` is
@@ -207,6 +214,18 @@ export interface ParallelInfo {
    * string SQL Server can emit, and some describe a deliberate
    * configuration choice, not a problem. */
   nonParallelPlanReason?: string
+  /** Episode 25 — Design review (downloaded "expert overlay details" PNG),
+   * spec §1f: "parallelism with workers planned vs launched AND per-worker
+   * rows and time." Real, per-worker/per-thread data only — Postgres's own
+   * `Workers` array (`Actual Rows`/`Actual Total Time` per worker) or SQL
+   * Server's own per-`RunTimeCountersPerThread` figures, never a synthetic
+   * average-per-worker split of the aggregate. `label` is engine-native
+   * wording ("Worker 0" for Postgres, "Thread 1" for SQL Server — these are
+   * genuinely different concepts, not two names for the same thing; see
+   * this file's own field-catalog cross-references). Snowflake has no
+   * worker/thread concept at any level (field catalog §7) — always empty
+   * there, never fabricated. */
+  perWorker?: { label: string; rows?: number; timeMs?: number }[]
 }
 
 /** Snowflake-specific — no Postgres/SQL Server equivalent. Snowflake doesn't
@@ -246,6 +265,23 @@ export interface PlanNode {
    * for why a high fetch ratio is NOT automatically "run VACUUM." */
   heapFetches?: number
   estimatedCost?: number
+  /** Episode 25 — Design review (downloaded "expert overlay details" PNG),
+   * spec §1f's "Startup / total cost" combined row. Postgres/SQL Server
+   * only — both report a startup-cost figure alongside the total; Snowflake
+   * has no abstract cost-unit concept at all (see `rowsCost` in
+   * `buildStatRows.ts`), so this stays undefined there rather than a
+   * fabricated 0. */
+  startupCost?: number
+  /** Episode 25 — Postgres/SQL Server's own estimated average row width in
+   * bytes for this node's output (Postgres's `Plan Width`, SQL Server's
+   * `AvgRowSize`). An estimate, like `estimatedRows` — never conflated with
+   * a measured figure. */
+  planWidth?: number
+  /** Episode 25 — Postgres's `Output` list (the exact expressions this node
+   * projects) — real column/expression text as the engine wrote it, never
+   * inferred from the query text. SQL Server/Snowflake don't expose an
+   * equivalent per-operator projection list in this app's current parsers. */
+  outputColumns?: string[]
   /** As reported by the engine — see docs/10-node-stats-field-catalog.md §7
    * for exactly what "as reported" means per engine (Postgres: already
    * loop-averaged; SQL Server: summed across threads for a parallel
