@@ -48,6 +48,10 @@ export const planningOverhead: Rule = (node, context) => {
         `query this may not matter much, but for a query run frequently (planning cost is paid on every single execution ` +
         `unless it's a cached/prepared statement), this overhead adds up. Whether that's the case for THIS query isn't ` +
         `determinable from a single pasted plan.`,
+      provenance: {
+        threshold: `planning_ms ≥ ${MIN_PLANNING_MS_THRESHOLD} AND planning/execution ratio ≥ ${DOMINANCE_RATIO_THRESHOLD}`,
+        computed: Number.isFinite(ratio) ? `${ratio.toFixed(2)}x` : "execution time is 0",
+      },
     },
   ]
 }

@@ -42,6 +42,11 @@ export const hashBatching: Rule = (node) => {
         `extra write/read work that a single in-memory pass wouldn't need.${memoryNote} A larger \`work_mem\` for this ` +
         `query, or reducing the volume feeding this Hash operation (a more selective filter earlier in the plan), are ` +
         `the usual fixes.`,
+      provenance: {
+        threshold: `batches > 1${batches >= 8 ? " (critical at ≥ 8)" : ""}`,
+        computed: formatNumber(batches),
+        additionalConditions: [`rows processed ≥ ${formatNumber(MIN_ROWS_THRESHOLD)}`],
+      },
     },
   ]
 }

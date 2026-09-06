@@ -11,12 +11,41 @@ export type Engine = "postgres" | "sqlserver" | "snowflake"
  */
 export type PlanNodeRole = "main" | "init" | "sub"
 
+/** Design review (downloaded "expert overlay details" PNG), spec §1f:
+ * "Rule provenance is the Expert-only part of the finding: rule id, the
+ * threshold it tested, the computed value that tripped it, and any
+ * additional conditions. Experts distrust findings they cannot audit."
+ * Populated at authoring time from each rule's own real constants — same
+ * "no live generation" discipline `shortText`/`longText` already follow
+ * (rule-engine-authoring skill) — never computed generically after the
+ * fact from `threshold`/`computed` alone, since a rule's real trigger
+ * logic (a compound AND/OR, a ratio vs. an absolute floor together) often
+ * isn't just "value > threshold". Optional: a rule with no single crisp
+ * numeric threshold (the parameter-sensitivity/estimate-only honesty
+ * notes, which aren't defect diagnoses at all) omits it rather than
+ * fabricating one. */
+export interface WarningProvenance {
+  /** The condition tested, in the rule's own terms — e.g.
+   * `"discard_ratio > 0.90"`. A real constant/expression from the rule's
+   * own source, not a generic restatement of the prose. */
+  threshold: string
+  /** The actual computed value that tripped (or, for a rule with no
+   * single scalar trigger, the closest real computed figure) — e.g.
+   * `"0.996"`. */
+  computed: string
+  /** Any additional conditions the rule also required to fire (a
+   * materiality floor, a row-count minimum) — omitted when the rule has
+   * exactly one condition. */
+  additionalConditions?: string[]
+}
+
 export interface Warning {
   ruleId: string
   severity: "info" | "warning" | "critical"
   shortText: string // beginner-depth default
   longText: string // expert-depth / detail panel
   learnMoreUrl?: string // link into existing @scalingbackend content, when available
+  provenance?: WarningProvenance
 }
 
 /**

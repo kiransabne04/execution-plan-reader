@@ -50,6 +50,11 @@ export const joinFilterRowsDiscarded: Rule = (node) => {
         `result before filtering, a cardinality estimate error further up the plan, or a genuinely broad intermediate ` +
         `result for this specific query. Worth investigating the join condition and ordering, not something to fix ` +
         `by assumption.`,
+      provenance: {
+        threshold: `discard_ratio ≥ ${JOIN_FILTER_RATIO_WARNING}${severity === "critical" ? ` (critical at ≥ ${JOIN_FILTER_RATIO_CRITICAL})` : ""}`,
+        computed: ratio.toFixed(3),
+        additionalConditions: [`total rows removed ≥ ${formatNumber(MIN_REMOVED_THRESHOLD)}`],
+      },
     },
   ]
 }

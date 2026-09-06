@@ -7,6 +7,7 @@
 // low-repetition workload vs. a cache that's too small for its working
 // set).
 
+import type { Warning } from "../parsers/normalize"
 import { formatNumber } from "./format"
 import type { Rule } from "./types"
 
@@ -28,7 +29,7 @@ export const memoizeEffectiveness: Rule = (node) => {
   const totalLookups = hits + misses
   if (totalLookups < MIN_LOOKUPS_THRESHOLD) return []
 
-  const warnings: Array<{ ruleId: string; severity: "info" | "warning" | "critical"; shortText: string; longText: string }> = []
+  const warnings: Warning[] = []
 
   const hitRate = hits / totalLookups
   if (hitRate < LOW_HIT_RATE_THRESHOLD) {
@@ -43,6 +44,11 @@ export const memoizeEffectiveness: Rule = (node) => {
         `for what it costs to maintain. This can mean the cache key doesn't repeat often enough in this data to be worth ` +
         `caching, or that the cache is being evicted before a value gets reused (see the eviction finding on this same ` +
         `node, if present).`,
+      provenance: {
+        threshold: `hit_rate < ${LOW_HIT_RATE_THRESHOLD}`,
+        computed: hitRate.toFixed(3),
+        additionalConditions: [`total lookups ≥ ${formatNumber(MIN_LOOKUPS_THRESHOLD)}`],
+      },
     })
   }
 
@@ -58,6 +64,10 @@ export const memoizeEffectiveness: Rule = (node) => {
         `— entries are being pushed out before they get reused.${memoryNote} This usually means the cache (sized from ` +
         `\`work_mem\`) is too small for this operation's actual working set of distinct cache keys — a larger \`work_mem\` ` +
         `for this query is the usual fix.`,
+      provenance: {
+        threshold: `evictions / total_lookups ≥ ${EVICTION_RATIO_THRESHOLD}`,
+        computed: (evictions / totalLookups).toFixed(3),
+      },
     })
   }
 

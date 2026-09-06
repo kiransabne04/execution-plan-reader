@@ -30,6 +30,10 @@ export const walVolume: Rule = (node) => {
         `this amount matters depends on context this app can't see from one pasted plan (replication lag tolerance, WAL ` +
         `archiving bandwidth, checkpoint frequency). Worth noting if this operation runs frequently and WAL volume is a ` +
         `known concern for this system.`,
+      provenance: {
+        threshold: `WAL bytes ≥ ${formatBytesCompact(MATERIAL_WAL_BYTES_THRESHOLD)}`,
+        computed: sizeText,
+      },
     },
   ]
 }

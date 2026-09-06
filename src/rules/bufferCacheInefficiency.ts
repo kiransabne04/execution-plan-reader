@@ -95,6 +95,11 @@ function checkHitRatio(node: PlanNode): Warning[] {
       severity: "warning",
       shortText: `Only ${hitPercent}% served from cache — ${readsText} read from disk.`,
       longText,
+      provenance: {
+        threshold: `cache hit ratio < ${CACHE_HIT_RATIO_THRESHOLD}`,
+        computed: adjustedRatio.toFixed(3),
+        additionalConditions: [`non-read-ahead reads ≥ ${formatNumber(MIN_BUFFER_READS_THRESHOLD)}`],
+      },
     },
   ]
 }
@@ -132,6 +137,10 @@ function checkSnowflakeDiskIo(node: PlanNode): Warning[] {
         `${node.rawOperatorLabel}'s own execution-time breakdown shows ${diskShareText} (${breakdown}) went to disk ` +
         `I/O rather than being served warm.${remoteNote} A larger warehouse (more local SSD cache) or a more ` +
         `selective filter/better pruning to reduce the data volume scanned are the usual fixes.`,
+      provenance: {
+        threshold: `local + remote disk I/O share of node time ≥ ${SNOWFLAKE_DISK_IO_PERCENTAGE_THRESHOLD}%`,
+        computed: `${diskShare.toFixed(1)}%`,
+      },
     },
   ]
 }

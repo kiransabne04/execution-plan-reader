@@ -96,6 +96,10 @@ export const pgNestedLoopExplosion: Rule = (node) => {
         `an approximate total repeated inner-side cost of ${totalText} (${formatNumber(innerLoops)} loops × ` +
         `~${innerPerLoopMs.toFixed(3)}ms per loop; approximate because per-loop time is an average across loops that ` +
         `may not all cost the same). ${repeatedWorkNote}`,
+      provenance: {
+        threshold: `outer rows ≥ ${formatNumber(OUTER_ROWS_THRESHOLD)} AND inner loops ≥ ${formatNumber(INNER_LOOPS_THRESHOLD)} AND cumulative inner time ≥ ${formatNumber(CUMULATIVE_INNER_MS_THRESHOLD)} ms`,
+        computed: totalText,
+      },
     },
   ]
 }

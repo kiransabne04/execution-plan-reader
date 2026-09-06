@@ -42,6 +42,14 @@ export const highLoopCount: Rule = (node) => {
         `${formatNumber(Math.round(totalMs))}ms total. This is the classic nested-loop-join blowup pattern: cheap ` +
         `per iteration, expensive in aggregate. A different join algorithm, or an index that makes each iteration ` +
         `cheaper, usually helps.`,
+      provenance: {
+        threshold: `loops > ${formatNumber(LOOP_COUNT_THRESHOLD)}`,
+        computed: formatNumber(loops),
+        additionalConditions: [
+          `per-loop time > ${PER_LOOP_MS_THRESHOLD} ms`,
+          `total contribution ≥ ${TOTAL_CONTRIBUTION_MS_THRESHOLD} ms`,
+        ],
+      },
     },
   ]
 }

@@ -38,6 +38,10 @@ export const materializeRepeated: Rule = (node) => {
         `over re-running that subtree from scratch each time. This is flagged because the combination of a large cached ` +
         `set, a high re-scan count, and a real time contribution is worth a closer look at whether the cached set could ` +
         `be smaller (a more selective condition on the materialized subtree) or the outer loop count reduced.`,
+      provenance: {
+        threshold: `loops ≥ ${MIN_LOOPS_THRESHOLD} AND rows ≥ ${formatNumber(MIN_ROWS_THRESHOLD)} AND total time ≥ ${MIN_TOTAL_TIME_MS_THRESHOLD} ms`,
+        computed: `${formatNumber(loops)} loops, ${formatNumber(rows)} rows, ${formatNumber(Math.round(totalTimeMs))} ms total`,
+      },
     },
   ]
 }

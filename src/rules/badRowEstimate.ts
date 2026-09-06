@@ -149,6 +149,8 @@ export const badRowEstimate: Rule = (node, context) => {
   const factorText = factor !== undefined ? `${formatNumber(factor)}x` : "far"
   const severity = severityForEstimateError(node, estimatedRows, actualRows, factor, context)
 
+  const ratioForDisplay = actualRows === 0 ? Infinity : actualRows / estimatedRows
+
   return [
     {
       ruleId: "bad-row-estimate",
@@ -161,6 +163,11 @@ export const badRowEstimate: Rule = (node, context) => {
         `picked). This single plan can't confirm the cause — worth investigating statistics freshness, column ` +
         `correlation, whether extended statistics would help, the predicates involved, or the specific parameter ` +
         `values used for this run.`,
+      provenance: {
+        threshold: `ratio ≥ ${MISMATCH_RATIO_THRESHOLD} or ≤ ${(1 / MISMATCH_RATIO_THRESHOLD).toFixed(2)}`,
+        computed: Number.isFinite(ratioForDisplay) ? ratioForDisplay.toFixed(3) : "∞ (0 actual rows)",
+        additionalConditions: [`abs(actual − estimated) ≥ ${formatNumber(ABS_ROW_DIFFERENCE_MATERIALITY_FLOOR)} rows for above-info severity`],
+      },
     },
   ]
 }

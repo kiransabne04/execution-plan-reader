@@ -47,6 +47,10 @@ export const sortDiskSpill: Rule = (node) => {
         `in the memory available for this sort. Disk is far slower than memory, so a sort this size is usually a real, ` +
         `fixable cost — a larger \`work_mem\` for this query, or reducing the row/column volume being sorted (a more ` +
         `selective filter earlier in the plan, or sorting fewer columns), are the usual fixes.`,
+      provenance: {
+        threshold: `disk sort space used ≥ ${formatBytesCompact(MATERIAL_SPACE_USED_KB_THRESHOLD * 1024)}${isLarge ? ` (sort-large at ≥ ${formatBytesCompact(LARGE_SPACE_USED_KB_THRESHOLD * 1024)})` : ""}`,
+        computed: sizeText,
+      },
     },
   ]
 }

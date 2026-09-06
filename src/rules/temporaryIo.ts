@@ -9,7 +9,7 @@
 // still fires as its own finding, since the raw I/O VOLUME is itself a
 // useful, concrete number those other findings don't surface directly.
 
-import { formatBytesCompact } from "./format"
+import { formatBytesCompact, formatNumber } from "./format"
 import type { Rule } from "./types"
 
 const POSTGRES_BLOCK_SIZE_BYTES = 8_192
@@ -45,6 +45,10 @@ export const temporaryIo: Rule = (node) => {
         `read, ${writtenBlocks.toLocaleString("en-US")} blocks written, at Postgres's fixed 8 kB block size).${relationNote} ` +
         `Temp file I/O happens when a sort or hash operation doesn't fit in the memory it was given — increasing ` +
         `\`work_mem\` for this query is the usual fix.`,
+      provenance: {
+        threshold: `temp read + written blocks ≥ ${formatNumber(MATERIAL_BLOCK_THRESHOLD)} (critical at ≥ 100 MB)`,
+        computed: `${formatNumber(totalBlocks)} blocks (${sizeText})`,
+      },
     },
   ]
 }

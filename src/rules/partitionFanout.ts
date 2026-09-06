@@ -34,6 +34,11 @@ export const partitionFanout: Rule = (node) => {
         `wasn't captured in a way that reports it (partition pruning evidence isn't always present depending on how the ` +
         `plan was generated). Worth a look if this fan-out is larger than the query's own filter conditions would ` +
         `suggest is necessary.`,
+      provenance: {
+        threshold: `child subplans ≥ ${LARGE_FANOUT_THRESHOLD}`,
+        computed: formatNumber(node.children.length),
+        additionalConditions: ["no \"Subplans Removed\" figure reported"],
+      },
     },
   ]
 }

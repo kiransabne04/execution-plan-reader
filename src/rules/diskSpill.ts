@@ -37,6 +37,10 @@ export const diskSpill: Rule = (node) => {
         `Disk is far slower than memory, so this is usually a significant and fixable cost — increasing available memory ` +
         `(work_mem on Postgres, the memory grant on SQL Server, a bigger warehouse on Snowflake) or reducing the row/column ` +
         `volume feeding this operator are the usual fixes.`,
+      provenance: {
+        threshold: "spill occurred (engine-reported, no app-side threshold)",
+        computed: detail,
+      },
     },
   ]
 }

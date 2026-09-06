@@ -29,6 +29,10 @@ export const missingIndexOpportunity: Rule = (node, context) => {
         `${includedText} could reduce the cost of this query${impactText}. This is the engine's own recommendation, ` +
         `not a guess — verify it against your actual workload before creating it, since a single query's benefit ` +
         `doesn't account for write overhead on other queries that touch the same table.`,
+      provenance: {
+        threshold: "SQL Server optimizer's own MissingIndexGroup recommendation (engine-computed, not an app-side threshold)",
+        computed: rec.impact !== undefined && Number.isFinite(rec.impact) ? `${rec.impact.toFixed(1)}% estimated impact` : "impact not reported by the engine",
+      },
     }
   })
 }

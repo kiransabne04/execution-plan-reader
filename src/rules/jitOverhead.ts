@@ -45,6 +45,10 @@ export const jitOverhead: Rule = (node, context) => {
         `when it's run once. This single run can't tell you which is true for how this query is actually used, so this ` +
         `isn't a recommendation to disable JIT — if this cost recurs on every execution of a query like this one, it's ` +
         `worth checking whether \`jit_above_cost\`/related settings are tuned for this workload.`,
+      provenance: {
+        threshold: `jit_time ≥ ${MIN_JIT_MS_THRESHOLD} ms AND jit/execution ratio ≥ ${JIT_OVERHEAD_RATIO_THRESHOLD}`,
+        computed: `${ratio.toFixed(3)} (${formatNumber(jitTotalMs)} ms)`,
+      },
     },
   ]
 }

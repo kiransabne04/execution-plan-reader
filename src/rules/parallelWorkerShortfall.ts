@@ -136,6 +136,10 @@ function checkPostgresNode(node: PlanNode, context: PlanContext): Warning[] {
         `usually means Postgres's worker pool (max_parallel_workers / max_worker_processes) was exhausted by other ` +
         `concurrent activity on the instance when this query ran; this single plan can't confirm what else was ` +
         `running, only that fewer workers than planned were available.${enrichmentText}`,
+      provenance: {
+        threshold: "workers launched < workers planned",
+        computed: `${launched} of ${planned}`,
+      },
     },
   ]
 }
@@ -178,6 +182,11 @@ function checkSqlServerQueryLevel(node: PlanNode, context: PlanContext): Warning
         `means server-level parallel resources (CPU/scheduler availability) were constrained when this query ran — ` +
         `this single plan can't confirm what else was running, only that fewer threads than compiled for were ` +
         `actually used.`,
+      provenance: {
+        threshold: "max observed threads < compiled degree of parallelism",
+        computed: `${maxObservedThreads} of ${planned}`,
+        additionalConditions: reason ? [`SQL Server's own NonParallelPlanReason: "${reason}"`] : undefined,
+      },
     },
   ]
 }

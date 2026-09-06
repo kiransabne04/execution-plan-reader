@@ -39,6 +39,10 @@ export const explodingJoin: Rule = (node) => {
         `${formatNumber(maxInputRows)} rows — a ${ratioText}x multiplication. This pattern usually means a ` +
         `missing or too-loose join condition (an accidental cross join), causing rows to multiply rather than ` +
         `match one-to-one/one-to-many as intended.`,
+      provenance: {
+        threshold: `output_rows / max_input_rows ≥ ${EXPLOSION_RATIO_THRESHOLD}`,
+        computed: `${ratio.toFixed(2)}x`,
+      },
     },
   ]
 }

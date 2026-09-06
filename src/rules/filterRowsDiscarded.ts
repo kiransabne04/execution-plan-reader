@@ -63,6 +63,14 @@ export const filterRowsDiscarded: Rule = (node) => {
         `doesn't automatically mean an index is missing — it could also be a genuinely low-selectivity condition, or ` +
         `a filter that can't be pushed into an index at all (see this app's own non-sargable-predicate/missing-index ` +
         `findings when the evidence for those specifically exists).`,
+      provenance: {
+        threshold: `discard_ratio ≥ ${SELECTIVITY_RATIO_WARNING}${severity === "critical" ? ` (critical at ≥ ${SELECTIVITY_RATIO_CRITICAL})` : ""}`,
+        computed: ratio.toFixed(3),
+        additionalConditions: [
+          `total rows removed ≥ ${formatNumber(MIN_REMOVED_THRESHOLD)}`,
+          `operator's own time ≥ ${MIN_TIME_MS_FLOOR} ms (when timing data exists)`,
+        ],
+      },
     },
   ]
 }

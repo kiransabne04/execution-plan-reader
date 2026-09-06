@@ -52,6 +52,11 @@ export const indexOnlyHeapFetches: Rule = (node) => {
         `an autovacuum that hasn't run or completed since), or this table sees enough ongoing modification that pages ` +
         `rarely stay all-visible for long. This does NOT necessarily mean VACUUM needs to run right now — investigate ` +
         `visibility-map coverage and vacuum behavior for this table before assuming that's the fix.`,
+      provenance: {
+        threshold: `heap_fetches / actual_rows ≥ ${HEAP_FETCH_RATIO_WARNING}${severity === "critical" ? ` (critical at ≥ ${HEAP_FETCH_RATIO_CRITICAL})` : ""}`,
+        computed: ratio.toFixed(3),
+        additionalConditions: [`actual rows ≥ ${formatNumber(MIN_ACTUAL_ROWS_THRESHOLD)}`],
+      },
     },
   ]
 }

@@ -74,6 +74,10 @@ function buildWarning(node: PlanNode, clauseLabel: "filter" | "join condition", 
       `column at all. Rewriting the condition so the column itself is compared directly — a matching expression/` +
       `computed index, or moving the transformation to the constant side (e.g. a date range instead of wrapping ` +
       `the column in a truncation function) — usually restores index use.`,
+    provenance: {
+      threshold: "predicate text matches a known non-sargable pattern (function-wrapped column, or leading-wildcard LIKE)",
+      computed: match.explanation,
+    },
   }
 }
 
