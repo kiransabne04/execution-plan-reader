@@ -73,32 +73,6 @@
   color: var(--qh-healthy);
 }
 
-.query-health-card__legend {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.query-health-card__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.query-health-card__legend-item--critical {
-  color: var(--qh-critical);
-}
-
-.query-health-card__legend-item--warning {
-  color: var(--qh-warning);
-}
-
-.query-health-card__legend-item--healthy {
-  color: var(--qh-healthy);
-}
-
 /* — Popover — */
 
 .query-health-card__popover {

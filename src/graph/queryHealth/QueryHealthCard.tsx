@@ -124,45 +124,24 @@ export function QueryHealthCard({ health, severityExamples }: QueryHealthCardPro
         onClick={() => setIsExpanded((v) => !v)}
       >
         {overallScored && score !== undefined && tier ? (
-          <>
-            <span
-              className="query-health-card__ring"
-              aria-hidden="true"
-              style={{
-                background: `conic-gradient(var(--qh-${tier}) calc(${Math.max(0, Math.min(100, score))} * 3.6deg), var(--qh-ring-track) 0)`,
-              }}
-            >
-              <span className="query-health-card__ring-hole">
-                <span className={`query-health-card__score query-health-card__score--${tier}`} data-testid="query-health-score">
-                  {score}
-                </span>
+          // Design review (real-browser conversation): the 🔴/🟠/🟢 counts
+          // used to also render inline here — genuinely duplicated with the
+          // popover's own severity rows just below, which already show the
+          // same 3 counts plus a characterization and example nodes. Kept
+          // ONLY in the popover now; the footer trigger is just the ring.
+          <span
+            className="query-health-card__ring"
+            aria-hidden="true"
+            style={{
+              background: `conic-gradient(var(--qh-${tier}) calc(${Math.max(0, Math.min(100, score))} * 3.6deg), var(--qh-ring-track) 0)`,
+            }}
+          >
+            <span className="query-health-card__ring-hole">
+              <span className={`query-health-card__score query-health-card__score--${tier}`} data-testid="query-health-score">
+                {score}
               </span>
             </span>
-
-            <span className="query-health-card__legend" data-testid="query-health-legend">
-              <span
-                className="query-health-card__legend-item query-health-card__legend-item--critical"
-                aria-label={`${health.critical} critical`}
-              >
-                <span aria-hidden="true">🔴</span>
-                <span aria-hidden="true">{health.critical}</span>
-              </span>
-              <span
-                className="query-health-card__legend-item query-health-card__legend-item--warning"
-                aria-label={`${health.warning} warning${health.warning === 1 ? "" : "s"}`}
-              >
-                <span aria-hidden="true">🟠</span>
-                <span aria-hidden="true">{health.warning}</span>
-              </span>
-              <span
-                className="query-health-card__legend-item query-health-card__legend-item--healthy"
-                aria-label={`${health.healthy} healthy`}
-              >
-                <span aria-hidden="true">🟢</span>
-                <span aria-hidden="true">{health.healthy}</span>
-              </span>
-            </span>
-          </>
+          </span>
         ) : (
           <span className="query-health-card__insufficient" data-testid="query-health-insufficient">
             Not enough data to score this plan.

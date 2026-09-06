@@ -21,15 +21,20 @@ function health(overrides: Partial<QueryHealth> = {}): QueryHealth {
 }
 
 describe("QueryHealthCard", () => {
-  it("renders the exact overall score and node-scoped severity counts from a known QueryHealth", () => {
+  it("renders the exact overall score on the footer trigger — the severity counts live only in the popover now, not duplicated inline", () => {
     render(<QueryHealthCard health={health()} />)
     expect(screen.getByTestId("query-health-score")).toHaveTextContent("67")
-    // Design review, spec §2: chips are icon + count only, no repeated word
-    // label — the full phrase still exists as each chip's accessible name.
-    const legend = screen.getByTestId("query-health-legend")
-    expect(within(legend).getByLabelText("2 critical")).toBeInTheDocument()
-    expect(within(legend).getByLabelText("3 warnings")).toBeInTheDocument()
-    expect(within(legend).getByLabelText("7 healthy")).toBeInTheDocument()
+    // Design review (real-browser conversation): the 🔴/🟠/🟢 counts used
+    // to also render inline on the trigger — genuinely duplicated with the
+    // popover's own severity rows, which already show the same counts plus
+    // a characterization and example nodes. Dropped from the trigger.
+    expect(screen.queryByTestId("query-health-legend")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("query-health-breakdown-toggle"))
+    const rows = screen.getAllByTestId("query-health-severity-row")
+    expect(within(rows[0]).getByText(/2 critical/)).toBeInTheDocument()
+    expect(within(rows[1]).getByText(/3 warnings/)).toBeInTheDocument()
+    expect(within(rows[2]).getByText(/7 healthy/)).toBeInTheDocument()
   })
 
   it("shows an explicit 'not enough data' state at the top level — never a placeholder number", () => {
@@ -127,7 +132,9 @@ describe("QueryHealthCard", () => {
 
     rerender(<QueryHealthCard health={health({ overall: { status: "scored", score: 12 }, critical: 5, warning: 0, healthy: 1 })} />)
     expect(screen.getByTestId("query-health-score")).toHaveTextContent("12")
-    expect(within(screen.getByTestId("query-health-legend")).getByLabelText("5 critical")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("query-health-breakdown-toggle"))
+    expect(within(screen.getAllByTestId("query-health-severity-row")[0]).getByText(/5 critical/)).toBeInTheDocument()
   })
 
   it("stays expanded-content-correct after a health-prop change while the popover was already open", () => {
