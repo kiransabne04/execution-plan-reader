@@ -55,7 +55,7 @@ const ENTRIES: OperatorGlossaryEntry[] = [
     displayName: "Bitmap Heap Scan",
     shortDefinition: "Fetches table rows in physical block order using a bitmap built from one or more indexes, instead of following each index match individually.",
     longDefinition:
-      "A bitmap heap scan is the second half of Postgres's bitmap scan strategy: after a Bitmap Index Scan (or a combination of several, via BitmapAnd/BitmapOr) builds a bitmap of which table pages contain matching rows, this step reads those pages in physical order and re-checks the actual row data. Visiting pages in physical order rather than following the index one match at a time reduces random I/O, which matters most when there are many scattered matches.",
+      "A bitmap heap scan is the second half of Postgres's bitmap scan strategy: after a Bitmap Index Scan (or a combination via BitmapAnd/BitmapOr) builds a bitmap of which table pages contain matching rows, this step reads those pages in physical order and re-checks the actual row data. Reading pages in physical order rather than following the index one match at a time cuts random I/O.",
     whenItsFine: "When a query matches a moderate-to-large number of rows scattered across the table, this is often more efficient than either a plain index scan (too much random I/O) or a sequential scan (reads everything).",
     whenToLookCloser: "If the underlying bitmap became 'lossy' (tracking whole pages instead of individual rows, usually because it grew larger than the memory budget), every row on a flagged page gets re-checked — worth noticing if this step's actual time looks disproportionate to its row count.",
   },
@@ -163,7 +163,7 @@ const ENTRIES: OperatorGlossaryEntry[] = [
     displayName: "Custom Scan",
     shortDefinition: "A scan implemented by a database extension rather than Postgres's built-in scan types.",
     longDefinition:
-      "A custom scan is a pluggable extension point: third-party extensions can register their own specialized scan implementations (for example, a columnar storage engine or a specialized indexing scheme) that the planner can choose to use like any built-in scan type. What actually happens under the hood depends entirely on which extension provided it.",
+      "A custom scan is a pluggable extension point: third-party extensions (a columnar storage engine, say, or a specialized indexing scheme) can register their own scan implementations for the planner to choose like any built-in one. What actually happens under the hood depends entirely on which extension provided it.",
     whenItsFine: "If you're intentionally using an extension that provides a custom scan, this is simply that extension doing its job.",
     whenToLookCloser: "Since behavior varies by extension, understanding what's actually happening usually requires checking that specific extension's own documentation rather than general plan-reading intuition.",
   },
@@ -183,7 +183,7 @@ const ENTRIES: OperatorGlossaryEntry[] = [
     displayName: "Nested Loop Join",
     shortDefinition: "For each row from one input, searches the other input for matches — repeating the search once per outer row.",
     longDefinition:
-      "A nested loop join takes each row from its outer (driving) input and, for every one, searches the inner input for matching rows — conceptually like a loop within a loop. It needs no extra memory and works well when the outer side is small and the inner side can be searched cheaply (typically via an index), but its cost scales with outer-row-count times per-search-cost, which can grow quickly if either side is misjudged.",
+      "A nested loop join takes each row from its outer (driving) input and, for every one, searches the inner input for matching rows — conceptually like a loop within a loop. It needs no extra memory and works well when the outer side is small and the inner side has a cheap (typically indexed) search.",
     whenItsFine: "When the outer side has few rows and the inner side has a good index to search with, this is often the fastest join strategy available — cheap per iteration, and there are few iterations.",
     whenToLookCloser: "When the outer side turns out to have far more rows than expected, or the inner side's search isn't backed by an index, this pattern gets expensive fast — cheap per iteration but repeated so many times that the total adds up to a lot.",
   },
@@ -192,7 +192,7 @@ const ENTRIES: OperatorGlossaryEntry[] = [
     displayName: "Hash Join",
     shortDefinition: "Builds an in-memory hash table from one input, then probes it with rows from the other input to find matches.",
     longDefinition:
-      "A hash join builds a hash table in memory from the smaller ('build') input, keyed on the join columns, then streams rows from the other ('probe') input through it, using the hash table to find matches quickly. It doesn't require either input to be sorted, and generally scales well — but if the build side is larger than the memory budget allows, it has to spill batches to disk, which is significantly slower.",
+      "A hash join builds a hash table in memory from the smaller ('build') input, keyed on the join columns, then streams rows from the other ('probe') input through it to find matches quickly. It requires no sort on either side and generally scales well, as long as the build side fits the memory budget.",
     whenItsFine: "For joining two reasonably large inputs with no existing sort order, this is usually the most efficient available strategy — and it stays efficient as long as the build side fits comfortably in memory.",
     whenToLookCloser: "If the hash table's build side was bigger than expected and spilled to disk, or if the memory budget is undersized for the actual data volume, this join can become considerably slower than its in-memory case.",
   },
@@ -228,7 +228,7 @@ const ENTRIES: OperatorGlossaryEntry[] = [
     displayName: "Cartesian Join",
     shortDefinition: "Pairs every row from one input with every row from the other, with no matching condition to narrow the result.",
     longDefinition:
-      "A Cartesian (cross) join produces every possible combination of rows from its two inputs — if the inputs have M and N rows, the output has M×N rows. This is sometimes intentional (a genuine cross join), but far more often it's the accidental result of a missing or incorrectly-written join condition, and its output size grows multiplicatively as input sizes grow.",
+      "A Cartesian (cross) join produces every possible combination of rows from its two inputs — if the inputs have M and N rows, the output has M×N rows. This is occasionally intentional, but far more often it's the accidental result of a missing or incorrectly-written join condition.",
     whenItsFine: "When a cross join is genuinely intended (e.g. generating all combinations of a small, deliberately unfiltered set), this is simply the correct tool for that job.",
     whenToLookCloser: "An unintended Cartesian join is one of the most common causes of a query that returns a wildly inflated row count — check the join condition carefully whenever this shows up unexpectedly.",
   },
@@ -411,7 +411,7 @@ const ENTRIES: OperatorGlossaryEntry[] = [
     displayName: "Gather",
     shortDefinition: "Collects rows produced by multiple parallel worker processes back into a single stream for the rest of the plan.",
     longDefinition:
-      "A gather operator marks the point where results from parallel workers — each running a copy of the same subplan on a portion of the data — get combined back into one sequential stream for whatever comes next. The workers' individual timings are reported separately per worker; the numbers on this operator and its subtree can look substantially different from what a single-worker plan would show, since work is happening concurrently across several processes.",
+      "A gather operator marks the point where results from parallel workers — each running a copy of the same subplan on a portion of the data — get combined back into one sequential stream for whatever comes next.",
     whenItsFine: "Parallel execution splitting real work across multiple workers is usually a genuine performance win for large scans and aggregations.",
     whenToLookCloser: "Any timing figures under a Gather are cumulated across all the workers, not a single execution's wall-clock time — comparing them directly to a non-parallel node's timing can make a perfectly fine parallel plan look misleadingly slow.",
   },
