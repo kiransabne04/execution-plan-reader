@@ -180,7 +180,24 @@
   padding: 7px 10px;
   box-sizing: border-box;
   font-size: 12px;
-  line-height: 1.3;
+  /* Bug fix: a short card (encoding.ts sizes cards 56-96px tall by row/
+     time value) carrying title + subtitle + meta + a badge could need
+     MORE stacked-text height than its own box had room for. Discovered
+     this doesn't fail the way you'd expect: overflow: hidden below is
+     set and confirmed active (DevTools/computed style both agree), yet
+     the overflowing row still visibly rendered past this card's own
+     border, un-clipped — reproduced with overflow:hidden, overflow:clip,
+     AND contain:paint all failing to clip it identically, and with
+     display:flex swapped for plain display:block (ruling out flexbox
+     centering specifically) — a genuine rendering quirk of this specific
+     nested-transform context (this card sits inside React Flow's own
+     zoom/pan `transform: scale()` wrapper) that a CSS clip property alone
+     isn't stopping. Rather than depend on a clip that's proven unreliable
+     here, 1.3 -> 1.05 line-height (plus __badges' own margin-top below)
+     claws back enough height that the full label+subtitle+meta+badge
+     stack fits inside every card size in NODE_HEIGHT_RANGE with room to
+     spare (verified empirically), so there's nothing left to clip. */
+  line-height: 1.05;
   overflow: hidden;
 }
 
@@ -243,6 +260,7 @@
 }
 
 .plan-node-card__comparison-delta {
+  flex: none;
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
@@ -265,8 +283,22 @@
   color: var(--pg-badge-text);
 }
 
+/* Bug fix: a short card (encoding.ts sizes cards 56-96px tall by row/time
+   value) whose content — title + subtitle + meta + badges — added up to
+   MORE than that height had every row silently flex-shrink past its own
+   text height instead of wrapping (nothing here wraps) — a flex child
+   with no explicit flex-basis defaults to shrinkable, so the column
+   compressed each row into a sliver a few px tall, clipping all but the
+   very top of its own glyphs (looked like faint dashes rendering behind
+   the row below, not distinguishable text). `flex: none` here and on
+   __subtitle/__meta/__badges below stops any of them shrinking below
+   their natural height — if content still doesn't fit a short card, the
+   card's own `overflow: hidden` now cleanly crops whichever row is LAST
+   in flow (the badges — the row already redundant with the Findings list
+   and detail panel) instead of corrupting every row's text. */
 .plan-node-card__label {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
@@ -319,6 +351,7 @@
    (--pg-card-subtitle, #b2b6ca) than the meta line below (#9397ab) — was
    10.5px at the SAME muted tone as meta, losing that distinction. */
 .plan-node-card__subtitle {
+  flex: none;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--pg-card-subtitle);
@@ -330,6 +363,7 @@
 /* Bug fix (pixel match): mock's rows/time line is 10.5px — was unset,
    inheriting the card's own 12px base. */
 .plan-node-card__meta {
+  flex: none;
   font-size: 10.5px;
   color: var(--pg-card-text-muted);
   white-space: nowrap;
@@ -338,9 +372,12 @@
 }
 
 .plan-node-card__badges {
+  flex: none;
   display: flex;
   gap: 4px;
-  margin-top: 4px;
+  /* Bug fix: was 4px — part of the overflow fix on .plan-node-card's own
+     line-height above; see that rule's comment. */
+  margin-top: 1px;
 }
 
 .plan-node-card__badge {
