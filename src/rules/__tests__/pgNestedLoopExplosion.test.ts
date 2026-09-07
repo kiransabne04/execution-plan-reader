@@ -38,6 +38,22 @@ describe("pgNestedLoopExplosion", () => {
     expect(pgNestedLoopExplosion(node, makeContext(node))).toEqual([])
   })
 
+  it("does not fire on a huge outer side paired with a cheap, rarely-repeated inner side", () => {
+    // Outer alone clears its floor by a wide margin, but the inner side
+    // barely loops at all — the outer-rows floor can't fire alone without
+    // the inner-loops floor also clearing.
+    const node = makeJoin(400_000, 50, 0.2) // loops (50) far below INNER_LOOPS_THRESHOLD (10,000)
+    expect(pgNestedLoopExplosion(node, makeContext(node))).toEqual([])
+  })
+
+  it("does not fire on an estimate-only plan (no actual rows/loops/timing at all)", () => {
+    const outer = makeNode({ operatorType: "seq_scan", rawOperatorLabel: "Seq Scan", estimatedRows: 400_000 })
+    const inner = makeNode({ operatorType: "index_scan", rawOperatorLabel: "Index Scan" })
+    const node = makeNode({ operatorType: "nested_loop_join", rawOperatorLabel: "Nested Loop", children: [outer, inner] })
+    expect(() => pgNestedLoopExplosion(node, makeContext(node))).not.toThrow()
+    expect(pgNestedLoopExplosion(node, makeContext(node))).toEqual([])
+  })
+
   it("only fires on Postgres nested_loop_join, never other engines/operators", () => {
     const sqlServerNode = makeNode({
       engine: "sqlserver",
@@ -96,5 +112,26 @@ describe("pgNestedLoopExplosion", () => {
     const longText = pgNestedLoopExplosion(node, makeContext(node))[0].longText
     expect(longText).toContain("approximate total repeated inner-side cost")
     expect(longText).toContain("approximate because")
+  })
+
+  it("explains the join algorithm itself isn't inherently bad, just a poor fit at this scale", () => {
+    const node = makeJoin(480_000, 480_000, 0.5)
+    const longText = pgNestedLoopExplosion(node, makeContext(node))[0].longText
+    expect(longText).toContain("isn't inherently bad")
+  })
+
+  it("never recommends a specific index — no index evidence is gathered by this rule", () => {
+    // Inner side deliberately labeled without "Index" in its own operator
+    // name, so a match on "index" in the output can only be this rule
+    // itself recommending one, not just echoing the child's own label.
+    const makeJoinNoIndexLabel = (innerPerLoopMs: number) => {
+      const outer = makeNode({ operatorType: "seq_scan", rawOperatorLabel: "Seq Scan", actualRows: 50_000 })
+      const inner = makeNode({ operatorType: "function_scan", rawOperatorLabel: "Function Scan", loops: 50_000, actualTimeMs: innerPerLoopMs })
+      return makeNode({ operatorType: "nested_loop_join", rawOperatorLabel: "Nested Loop", children: [outer, inner] })
+    }
+    for (const node of [makeJoinNoIndexLabel(0.05), makeJoinNoIndexLabel(2)]) {
+      const longText = pgNestedLoopExplosion(node, makeContext(node))[0].longText
+      expect(longText.toLowerCase()).not.toContain("index")
+    }
   })
 })

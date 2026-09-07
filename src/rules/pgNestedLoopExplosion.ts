@@ -75,15 +75,24 @@ export const pgNestedLoopExplosion: Rule = (node) => {
   // differs — cheap-per-loop points at reducing the OUTER row count (fewer
   // iterations); expensive-per-loop points at making the INNER side itself
   // cheaper (e.g. a better index).
+  // Story's own explicit requirement: explain WHY a nested loop gets
+  // expensive at this scale (its cost is outer-row-count × per-loop inner
+  // cost, so either factor alone growing large multiplies the total), and
+  // that the join algorithm itself isn't the problem — a nested loop over a
+  // small outer side is often the cheapest possible join. No index is
+  // recommended here: this rule only has timing/loop data, not index
+  // evidence — that's `missing-index-opportunity`'s job, when it actually
+  // has something to point at.
   const repeatedWorkNote =
     innerPerLoopMs < CHEAP_PER_LOOP_MS_THRESHOLD
       ? `Each inner execution is individually cheap (~${innerPerLoopMs.toFixed(3)}ms) — the cost here is purely the ` +
         `sheer NUMBER of times it runs, not any one execution being slow. Reducing the outer row count (a more ` +
-        `selective condition earlier in the plan) is usually the more effective fix than optimizing the inner side ` +
-        `itself.`
+        `selective condition earlier in the plan) is usually the more effective fix than making the inner side itself ` +
+        `faster.`
       : `Each inner execution does meaningful work on its own (~${innerPerLoopMs.toFixed(2)}ms) — this is a genuinely ` +
         `expensive child being repeated, not just a cheap operation run too many times. Making the inner side itself ` +
-        `cheaper (e.g. a better index for its lookup) usually helps more here than reducing the outer row count alone.`
+        `cheaper usually helps more here than reducing the outer row count alone — worth looking at what's making ` +
+        `that child slow before deciding on a fix.`
 
   return [
     {
@@ -95,7 +104,9 @@ export const pgNestedLoopExplosion: Rule = (node) => {
         `inner side (${inner.rawOperatorLabel}) ran once per outer row — ${formatNumber(innerLoops)} executions — for ` +
         `an approximate total repeated inner-side cost of ${totalText} (${formatNumber(innerLoops)} loops × ` +
         `~${innerPerLoopMs.toFixed(3)}ms per loop; approximate because per-loop time is an average across loops that ` +
-        `may not all cost the same). ${repeatedWorkNote}`,
+        `may not all cost the same). A nested loop's total cost is roughly outer rows × inner per-loop cost, so it ` +
+        `scales up fast once both sides are large — the join algorithm itself isn't inherently bad, it's just a poor ` +
+        `fit once the outer side is this big and the inner side isn't free. ${repeatedWorkNote}`,
       provenance: {
         threshold: `outer rows ≥ ${formatNumber(OUTER_ROWS_THRESHOLD)} AND inner loops ≥ ${formatNumber(INNER_LOOPS_THRESHOLD)} AND cumulative inner time ≥ ${formatNumber(CUMULATIVE_INNER_MS_THRESHOLD)} ms`,
         computed: totalText,
