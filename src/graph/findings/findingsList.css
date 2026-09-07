@@ -68,10 +68,13 @@
 }
 
 /* Matches the reference mock's two-tone verdict sentence: the lead-in
-   clause (up to the colon) in a bold severity color, the rest of the
-   sentence in the paragraph's own normal (muted) color. */
+   clause (up to the colon) in a severity color, the rest of the
+   sentence in the paragraph's own normal (muted) color. Bug fix (pixel
+   match, downloaded mockup's own saved source): the opener span sets
+   ONLY color, no font-weight override — inherits the paragraph's
+   regular 400, not the bold 600 this rule previously added. */
 .findings-list__summary-opener {
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .findings-list__summary-opener--critical {
