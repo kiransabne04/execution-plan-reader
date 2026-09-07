@@ -58,11 +58,12 @@
 
 .findings-list__summary {
   margin: 0;
-  /* Design review (spec §2 "2a fluid shell"): "Summary type is
-     clamp(12.5px,1.05cqi,14px) with a 68ch measure" — carried over
-     unchanged from this block's old centre-canvas home. */
-  font-size: clamp(12.5px, 1.05cqi, 14px);
-  line-height: 1.5;
+  /* Bug fix (pixel match, downloaded left-sidebar mockup — its own saved
+     source): `font:400 12px/1.55 'Inter'`, a flat 12px — not the old
+     spec §2 clamp(12.5px,1.05cqi,14px), which read too large at this
+     rail's actual container width. */
+  font-size: 12px;
+  line-height: 1.55;
   max-width: 68ch;
 }
 
