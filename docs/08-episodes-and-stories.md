@@ -1485,3 +1485,33 @@ Where Episode 24 moved from node-level symptoms toward single-node Postgres reas
 | 25.7 — Root cause grouping | `cardinalityPropagation.ts`'s `linkPropagatedFindings` (25.1) feeds a new `groupByRootCause(root): RootCauseGroup[]`, `RootCauseGroup = { primary: Finding, consequences: Finding[] }` | A finding with no `causedBy` edge but at least one `contributesTo` edge becomes a group's `primary`; everything it transitively `contributesTo` becomes `consequences`, deduped by family (reuses `dedupeByFamily` again) so an equivalent recommendation never appears twice across primary and consequence text | Purely a data-layer story — no UI surface specified here. Findings-panel/summary rendering of `RootCauseGroup[]` is a natural follow-up but out of this story's scope, same as Episode 24's disclosed `buildStatRows.ts` follow-up: named explicitly rather than silently assumed |
 
 **Testing**: every new/changed rule gets the same positive/negative fixture pair `rule-engine-authoring` requires, plus a dedicated multi-hop fixture (scan → nested loop → aggregate, the story's own worked example) exercising `linkPropagatedFindings` end-to-end — asserting the exact edge list, not just that "some relationship" was found. 25.4's materiality rework needs both worked examples from the story (est 1→50 non-material, est 10→500,000 material) as explicit regression tests, since this replaces existing binary-severity behavior other tests may currently assert against.
+
+## Episode 27 — SQL Server Key Lookup Explosion
+
+### Story 27.1 — Key lookup explosion
+
+As a developer reading a SQL Server plan, I want to know when a Key Lookup is running so many times that it's likely dominating the query's cost, so that I understand why a plan with a "fast" index seek is still slow, without this app silently prescribing a schema change.
+
+**Acceptance criteria**
+- New rule `key-lookup-explosion`, triggers only when `node.engine === "sqlserver"` and `node.operatorType === "key_lookup"` (the normalized type shared by SQL Server's `Key Lookup` and `RID Lookup` raw labels — see `operatorMap.ts`).
+- Two independent firing floors, both required: `loops` (SQL Server's `ActualExecutions`) at or above a high-execution-count threshold, AND at least one of `actualRows` / total logical reads (`io.bufferHits + io.bufferReads`) at or above its own materiality floor — mirrors `pgNestedLoopExplosion.ts`'s "every factor together" shape so a future threshold tweak to one can't accidentally become the only thing preventing a false positive.
+- Timing is enrichment, not a required gate: the rule must still fire (and must not throw) when `actualTimeMs` is missing but loops/rows/reads are present — a "missing runtime" plan.
+- Severity escalates to `critical` on either a very high loop count or a large cumulative time (when timing is available); otherwise `warning`.
+- `longText` explains: the seek found the matching keys, SQL Server repeatedly returned to the clustered index (the loop count named explicitly), that a covering index may be worth investigating, and that a wider index has a write/storage cost trade-off — never presented as a free win.
+- Never emits an actual `CREATE INDEX` statement (a DDL shape with a specific index name/columns/table) — may name the *policy* of not doing so, which is not the same thing.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`/`makeContext`, same pattern as `pgNestedLoopExplosion.test.ts` — no new XML fixture files needed since the trigger only reads fields the parser already normalizes (`loops`, `actualRows`, `actualTimeMs`, `actualTimePerExecutionMs`, `io.bufferHits`/`bufferReads`), already exercised end-to-end by the existing `seek-and-key-lookup.xml` fixture (a healthy, non-firing example) via `parseShowplanXml.test.ts`.
+- Both firing floors tested independently (loop-count floor alone excludes a high-reads/low-loops case; materiality floor alone excludes a high-loops/trivial-rows-and-reads case) — not just the AND as a whole.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Healthy lookup (10 executions, 0.2ms) | The common, correct case — most Key Lookups are cheap and shouldn't be flagged | Loop-count floor (10,000) excludes it outright |
+| Pathological lookup (300k+ executions, meaningful work) | The story's own worked example — this is what the rule exists to catch | Fires `critical` (loop count alone clears the critical floor at this scale) |
+| Missing runtime (`actualTimeMs` undefined, loops/rows present) | A parser gap or a node type this app doesn't extract elapsed time for must not crash or silently under-fire | Rule still fires off loops+rows/reads alone; the cumulative-time sentence is simply omitted from `longText`, never fabricated |
+| Estimate-only plan (no `loops`/`actualRows`/timing at all) | The highest-risk false-positive shape for any loop-based rule — a compiled-only plan has no `ActualExecutions` | Neither floor can clear (both require actual data), so the rule never fires |
+| SQL Server's `ActualElapsedms` is a raw cumulated total, not a per-execution average (unlike Postgres's `Actual Total Time`) | A naive port of `pgNestedLoopExplosion.ts`'s "loops × per-loop-time" arithmetic would double the real total | Uses `actualTimeMs` directly as "approximate total time" (no multiplication) and `actualTimePerExecutionMs` (the parser's own already-normalized figure) only for the "average per lookup" figure |
+| Row count vs. reads as the materiality signal | A Key Lookup returns ~1 row per execution in the common case, but `actualRows` isn't always populated for every fixture/parser path | Reads (`io.bufferHits + io.bufferReads`) is an independent fallback signal, not a second copy of the same check |
+
+Registered in `ALL_RULES`, `"Loop issues"` category (same family as `nested-loop-explosion` — both are engine-specific specializations of the same "repeated-execution cost" pattern), `runtime` Query Health dimension.

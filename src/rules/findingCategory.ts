@@ -55,6 +55,9 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "nested-loop-explosion": "Loop issues",
   "parameter-sensitivity-honesty-note": "General notes",
   "estimate-only-plan": "General notes",
+  // SQL Server — key lookup explosion (same "repeated-execution" family as
+  // nested-loop-explosion, just a different engine/operator).
+  "key-lookup-explosion": "Loop issues",
 }
 
 export function categorizeFinding(warning: Warning): FindingCategory {

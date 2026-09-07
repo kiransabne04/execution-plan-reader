@@ -10,6 +10,7 @@ import { highLoopCount } from "./highLoopCount"
 import { indexOnlyHeapFetches } from "./indexOnlyHeapFetches"
 import { jitOverhead } from "./jitOverhead"
 import { joinFilterRowsDiscarded } from "./joinFilterRowsDiscarded"
+import { keyLookupExplosion } from "./keyLookupExplosion"
 import { materializeRepeated } from "./materializeRepeated"
 import { memoizeEffectiveness } from "./memoizeEffectiveness"
 import { missingIndexOpportunity } from "./missingIndexOpportunity"
@@ -52,6 +53,8 @@ export { partitionFanout } from "./partitionFanout"
 export { walVolume } from "./walVolume"
 // Episode 25 — Postgres cross-node reasoning.
 export { pgNestedLoopExplosion } from "./pgNestedLoopExplosion"
+// SQL Server — key lookup explosion.
+export { keyLookupExplosion } from "./keyLookupExplosion"
 export { linkPropagatedFindings, groupByRootCause, type FindingRelationship, type RootCauseGroup } from "./cardinalityPropagation"
 export { severityForEstimateError } from "./badRowEstimate"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
@@ -96,6 +99,8 @@ export const ALL_RULES: Rule[] = [
   pgNestedLoopExplosion,
   parameterSensitivityNote,
   estimateOnlyNote,
+  // SQL Server — key lookup explosion.
+  keyLookupExplosion,
 ]
 
 const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }

@@ -94,6 +94,9 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     // Episode 25 — Postgres-specific nested-loop pattern, same dimension
     // as the generic high-loop-count it specializes.
     "nested-loop-explosion",
+    // SQL Server — key lookup explosion, another repeated-execution
+    // pattern in the same dimension as the two above.
+    "key-lookup-explosion",
   ],
   cardinality: [
     "bad-row-estimate",
