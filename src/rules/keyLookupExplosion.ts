@@ -1,10 +1,20 @@
-// SQL Server rule: key-lookup-explosion. A Key Lookup (SQL Server's own
-// term; RID Lookup on a heap — both normalize to `key_lookup`, see
+// SQL Server rule: key-lookup-explosion. A Key Lookup (on a table with a
+// clustered index) or a RID Lookup (SQL Server's own term for the same
+// pattern on a HEAP table — both normalize to `key_lookup`, see
 // `operatorMap.ts`) follows a non-covering index seek: the seek found the
 // right rows fast, but the index doesn't carry every column the query
-// needs, so SQL Server goes back to the clustered index (or heap) once per
-// matched row to fetch the rest. Fine for a handful of rows; ruinous once
-// the seek matches a huge number of them — this rule flags that scale.
+// needs, so SQL Server goes back to fetch the rest of each row once per
+// matched row — via the clustered index for a Key Lookup, or directly by
+// physical Row ID for a RID Lookup on a heap. Fine for a handful of rows;
+// ruinous once the seek matches a huge number of them — this rule flags
+// that scale, not the table structure itself. Distinguished at the text
+// layer only (`node.rawOperatorLabel`, SQL Server's own `PhysicalOp`
+// value) — same trigger/severity logic for both, since the underlying
+// repeated-execution cost pattern is identical; only the "where it went
+// back to" explanation differs. A heap isn't flagged as inherently worse
+// than a clustered table anywhere in this rule's text — the finding is
+// about the REPEATED work, not the storage choice (see the "avoid saying
+// heap is always bad" instruction this rule was built against).
 //
 // `key_lookup` is a SQL-Server-exclusive normalized type (no Postgres/
 // Snowflake equivalent — see plan-normalization skill), so this rule
@@ -95,21 +105,45 @@ export const keyLookupExplosion: Rule = (node) => {
         ` — an approximate total, not a single measured duration.`
       : ""
 
+  // RID Lookup is SQL Server's own name for this exact same pattern on a
+  // HEAP table (no clustered index to route through — rows are fetched
+  // directly by their physical Row ID instead). Same trigger, same
+  // severity scaling; only this "where it went back to" explanation and
+  // the index suggestion differ, since "add a covering index" means
+  // something structurally different on a heap (there's no clustered
+  // index to extend — the option is a covering NONclustered index, or a
+  // separate decision to add clustering at all).
+  const isHeapLookup = node.rawOperatorLabel === "RID Lookup"
+  const label = node.rawOperatorLabel // "Key Lookup" or "RID Lookup", used verbatim rather than hardcoded
+
+  const retrievalNote = isHeapLookup
+    ? `so for each of the ${formatNumber(loops)} rows the seek matched, SQL Server had to fetch the rest of that ` +
+      `row's columns directly from the heap, by its physical Row ID (a RID Lookup) — the table has no clustered ` +
+      `index to route through, since a heap stores rows without one`
+    : `so for each of the ${formatNumber(loops)} rows the seek matched, SQL Server had to go back to the clustered ` +
+      `index (a Key Lookup) to fetch the rest`
+
+  const indexSuggestion = isHeapLookup
+    ? `A covering nonclustered index — one that includes every column this query reads, so the seek alone can ` +
+      `satisfy it without a lookup — may be worth investigating; adding a clustered index to the table entirely is ` +
+      `a separate, bigger decision with its own trade-offs. A heap isn't inherently a problem — plenty of ` +
+      `workloads are well served by one — it's specifically this many repeated round trips back to it that add up.`
+    : `A covering index — one that includes the columns this query reads, so the seek alone can satisfy it ` +
+      `without a lookup — may be worth investigating.`
+
   return [
     {
       ruleId: "key-lookup-explosion",
       severity,
-      shortText: `Key Lookup ran ${formatNumber(loops)} times${workText ? ` (${workText})` : ""} — repeated round trips to the clustered index.`,
+      shortText: `${label} ran ${formatNumber(loops)} times${workText ? ` (${workText})` : ""} — repeated round trips to fetch full rows.`,
       longText:
         `An index seek on this branch found the matching keys efficiently, but the index it used doesn't cover ` +
-        `every column this query needs — so for each of the ${formatNumber(loops)} rows the seek matched, SQL ` +
-        `Server had to go back to the clustered index (a Key Lookup) to fetch the rest.${timingNote} At this scale, ` +
-        `the repeated round trips likely cost more than the seek itself. A covering index — one that includes the ` +
-        `columns this query reads, so the seek alone can satisfy it without a lookup — may be worth investigating. ` +
-        `That's a trade-off, not a free win: a wider index costs more to store and adds write overhead to every ` +
-        `INSERT/UPDATE/DELETE that touches those columns, so it's only worth it if this query runs often enough to ` +
-        `justify that cost. This app never generates a CREATE INDEX statement automatically — verifying the actual ` +
-        `columns needed and the write-side impact requires looking at the real schema and workload, not one pasted plan.`,
+        `every column this query needs — ${retrievalNote}.${timingNote} At this scale, the repeated round trips ` +
+        `likely cost more than the seek itself. ${indexSuggestion} That's a trade-off, not a free win: a wider ` +
+        `index costs more to store and adds write overhead to every INSERT/UPDATE/DELETE that touches those ` +
+        `columns, so it's only worth it if this query runs often enough to justify that cost. This app never ` +
+        `generates a CREATE INDEX statement automatically — verifying the actual columns needed and the write-side ` +
+        `impact requires looking at the real schema and workload, not one pasted plan.`,
       provenance: {
         threshold: `loops ≥ ${formatNumber(LOOP_COUNT_THRESHOLD)} AND (rows ≥ ${formatNumber(ROWS_MATERIALITY_THRESHOLD)} OR reads ≥ ${formatNumber(READS_MATERIALITY_THRESHOLD)})`,
         computed: `${formatNumber(loops)} executions${workText ? `, ${workText}` : ""}`,

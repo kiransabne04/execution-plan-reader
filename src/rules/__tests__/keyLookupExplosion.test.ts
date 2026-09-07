@@ -104,4 +104,65 @@ describe("keyLookupExplosion", () => {
       expect(run(node)).toEqual([])
     }
   })
+
+  // RID Lookup — the same key_lookup-normalized pattern, on a heap table
+  // (no clustered index) instead of a clustered one.
+  describe("RID Lookup (heap table)", () => {
+    function makeRidLookup(overrides: Partial<PlanNode> = {}) {
+      return makeLookup({ rawOperatorLabel: "RID Lookup", ...overrides })
+    }
+
+    it("fires using the same trigger/severity logic as Key Lookup", () => {
+      const node = makeRidLookup({ loops: 350_000, actualRows: 350_000, actualTimeMs: 42_000 })
+      const warnings = run(node)
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0].ruleId).toBe("key-lookup-explosion")
+      expect(warnings[0].severity).toBe("critical")
+    })
+
+    it("does not fire on a healthy RID Lookup (10 executions, 0.2ms)", () => {
+      const node = makeRidLookup({ loops: 10, actualRows: 10, actualTimeMs: 0.2 })
+      expect(run(node)).toEqual([])
+    })
+
+    it("scales severity with repeated work exactly like Key Lookup — warning below, critical above", () => {
+      const warningCase = makeRidLookup({ loops: 20_000, actualRows: 20_000, actualTimeMs: 1_000 })
+      expect(run(warningCase)[0].severity).toBe("warning")
+
+      const criticalCase = makeRidLookup({ loops: 20_000, actualRows: 20_000, actualTimeMs: 6_000 })
+      expect(run(criticalCase)[0].severity).toBe("critical")
+    })
+
+    it("explains heap row retrieval by physical Row ID, not the clustered-index wording", () => {
+      const node = makeRidLookup({ loops: 300_000, actualRows: 300_000, actualTimeMs: 30_000 })
+      const longText = run(node)[0].longText
+      expect(longText).toContain("index seek")
+      expect(longText).toContain("directly from the heap")
+      expect(longText).toContain("physical Row ID")
+      expect(longText).toContain("RID Lookup")
+      expect(longText).toContain("no clustered index to route through")
+      expect(longText).not.toContain("go back to the clustered index")
+    })
+
+    it("names the raw operator label in shortText", () => {
+      const node = makeRidLookup({ loops: 300_000, actualRows: 300_000 })
+      expect(run(node)[0].shortText).toContain("RID Lookup ran 300,000 times")
+    })
+
+    it("suggests a covering index as worth investigating without declaring the heap the problem", () => {
+      const node = makeRidLookup({ loops: 300_000, actualRows: 300_000, actualTimeMs: 30_000 })
+      const longText = run(node)[0].longText
+      expect(longText).toContain("covering")
+      // Never states heaps are categorically bad — only that the repeated
+      // work at this scale is worth a second look.
+      expect(longText).toContain("isn't inherently a problem")
+      expect(longText.toLowerCase()).not.toMatch(/heap(s)? (is|are) (always |)bad/)
+    })
+
+    it("never emits an actual CREATE INDEX statement for the heap case either", () => {
+      const node = makeRidLookup({ loops: 300_000, actualRows: 300_000, actualTimeMs: 30_000 })
+      const longText = run(node)[0].longText
+      expect(longText).not.toMatch(/CREATE\s+INDEX\s+\w+\s+ON\s+/i)
+    })
+  })
 })
