@@ -13,6 +13,7 @@
 // .claude/skills/rule-engine-authoring/SKILL.md.
 
 import { formatNumber } from "./format"
+import { computeCumulativeLoopWork } from "./loopWork"
 import type { Rule } from "./types"
 
 export const LOOP_COUNT_THRESHOLD = 1_000
@@ -28,8 +29,8 @@ export const highLoopCount: Rule = (node) => {
   }
   if (loops <= LOOP_COUNT_THRESHOLD || actualTimeMs <= PER_LOOP_MS_THRESHOLD) return []
 
-  const totalMs = loops * actualTimeMs
-  if (!Number.isFinite(totalMs) || totalMs < TOTAL_CONTRIBUTION_MS_THRESHOLD) return []
+  const totalMs = computeCumulativeLoopWork(loops, actualTimeMs)
+  if (totalMs === undefined || totalMs < TOTAL_CONTRIBUTION_MS_THRESHOLD) return []
 
   return [
     {

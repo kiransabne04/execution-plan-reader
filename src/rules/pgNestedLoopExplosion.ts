@@ -20,9 +20,12 @@
 // inner child from a different angle (an approximate total-repeated-work
 // figure, and whether that work is individually cheap-but-frequent or
 // genuinely expensive-and-repeated) — a separate rule would just restate
-// this one under a new name.
+// this one under a new name. The "loops × per-loop time" arithmetic itself
+// is `loopWork.ts`'s `computeCumulativeLoopWork`, shared with
+// `high-loop-count` — one formula, not two independently-computed copies.
 
 import { formatNumber } from "./format"
+import { computeCumulativeLoopWork } from "./loopWork"
 import type { Rule } from "./types"
 
 /** Below this many outer rows, even a high inner loop count isn't the
@@ -64,8 +67,10 @@ export const pgNestedLoopExplosion: Rule = (node) => {
   if (!Number.isFinite(outerRows) || !Number.isFinite(innerLoops) || !Number.isFinite(innerPerLoopMs)) return []
   if (outerRows < OUTER_ROWS_THRESHOLD || innerLoops < INNER_LOOPS_THRESHOLD) return []
 
-  const cumulativeInnerMs = innerLoops * innerPerLoopMs
-  if (!Number.isFinite(cumulativeInnerMs) || cumulativeInnerMs < CUMULATIVE_INNER_MS_THRESHOLD) return []
+  // Shared with `high-loop-count` (loopWork.ts) — same "loops × per-loop
+  // time" formula, one implementation, not two that could quietly drift.
+  const cumulativeInnerMs = computeCumulativeLoopWork(innerLoops, innerPerLoopMs)
+  if (cumulativeInnerMs === undefined || cumulativeInnerMs < CUMULATIVE_INNER_MS_THRESHOLD) return []
 
   const severity = cumulativeInnerMs >= LARGE_CUMULATIVE_INNER_MS_THRESHOLD ? "critical" : "warning"
   const totalText = `${formatNumber(Math.round(cumulativeInnerMs))}ms`
@@ -74,7 +79,9 @@ export const pgNestedLoopExplosion: Rule = (node) => {
   // or genuinely-expensive-and-repeated? Both are "explosion," but the fix
   // differs — cheap-per-loop points at reducing the OUTER row count (fewer
   // iterations); expensive-per-loop points at making the INNER side itself
-  // cheaper (e.g. a better index).
+  // cheaper. No specific fix (e.g. an index) is named without this rule
+  // having actual evidence for it — see the "No index is recommended"
+  // note below.
   // Story's own explicit requirement: explain WHY a nested loop gets
   // expensive at this scale (its cost is outer-row-count × per-loop inner
   // cost, so either factor alone growing large multiplies the total), and
@@ -101,12 +108,13 @@ export const pgNestedLoopExplosion: Rule = (node) => {
       shortText: `Nested Loop: outer side produced ${formatNumber(outerRows)} rows, inner side ran ${formatNumber(innerLoops)} times (≈${totalText} total).`,
       longText:
         `This Nested Loop's outer side (${outer.rawOperatorLabel}) produced ${formatNumber(outerRows)} rows, and its ` +
-        `inner side (${inner.rawOperatorLabel}) ran once per outer row — ${formatNumber(innerLoops)} executions — for ` +
-        `an approximate total repeated inner-side cost of ${totalText} (${formatNumber(innerLoops)} loops × ` +
-        `~${innerPerLoopMs.toFixed(3)}ms per loop; approximate because per-loop time is an average across loops that ` +
-        `may not all cost the same). A nested loop's total cost is roughly outer rows × inner per-loop cost, so it ` +
-        `scales up fast once both sides are large — the join algorithm itself isn't inherently bad, it's just a poor ` +
-        `fit once the outer side is this big and the inner side isn't free. ${repeatedWorkNote}`,
+        `inner side (${inner.rawOperatorLabel}) ran once per outer row. The inner side averaged approximately ` +
+        `${innerPerLoopMs.toFixed(3)}ms per execution and ran ${formatNumber(innerLoops)} times, representing ` +
+        `roughly ${totalText} of repeated work — an estimate, not a figure Postgres measures and reports directly: ` +
+        `per-loop time is already an average across every loop, which may not all have cost the same individually. ` +
+        `A nested loop's total cost is roughly outer rows × inner per-loop cost, so it scales up fast once both ` +
+        `sides are large — the join algorithm itself isn't inherently bad, it's just a poor fit once the outer side ` +
+        `is this big and the inner side isn't free. ${repeatedWorkNote}`,
       provenance: {
         threshold: `outer rows ≥ ${formatNumber(OUTER_ROWS_THRESHOLD)} AND inner loops ≥ ${formatNumber(INNER_LOOPS_THRESHOLD)} AND cumulative inner time ≥ ${formatNumber(CUMULATIVE_INNER_MS_THRESHOLD)} ms`,
         computed: totalText,

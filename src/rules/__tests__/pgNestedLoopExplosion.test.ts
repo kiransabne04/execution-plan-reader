@@ -107,11 +107,19 @@ describe("pgNestedLoopExplosion", () => {
     expect(longText).toContain("Making the inner side itself cheaper")
   })
 
-  it("labels the total repeated-work figure as approximate, never a measured total", () => {
-    const node = makeJoin(50_000, 50_000, 1)
+  it("states the repeated-work figure using the required template, labeled approximate and not a direct measurement", () => {
+    const node = makeJoin(50_000, 50_000, 1) // 50,000 × 1ms = 50,000ms
     const longText = pgNestedLoopExplosion(node, makeContext(node))[0].longText
-    expect(longText).toContain("approximate total repeated inner-side cost")
-    expect(longText).toContain("approximate because")
+    expect(longText).toContain("The inner side averaged approximately 1.000ms per execution and ran 50,000 times")
+    expect(longText).toContain("representing roughly 50,000ms of repeated work")
+    expect(longText).toContain("an estimate, not a figure Postgres measures and reports directly")
+  })
+
+  it("rounds the displayed cumulative-work total to the nearest whole millisecond", () => {
+    const node = makeJoin(10_001, 10_001, 0.1) // 1,000.1ms — should display as 1,000ms, not a fraction
+    const longText = pgNestedLoopExplosion(node, makeContext(node))[0].longText
+    expect(longText).toContain("representing roughly 1,000ms of repeated work")
+    expect(longText).not.toContain("1,000.1")
   })
 
   it("explains the join algorithm itself isn't inherently bad, just a poor fit at this scale", () => {
