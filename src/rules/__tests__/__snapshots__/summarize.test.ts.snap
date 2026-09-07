@@ -6,7 +6,7 @@ exports[`summarizePlan > end-to-end regression snapshot: full multi-issue plan t
   "text": "This plan has a serious issue worth fixing first: full scan of events (500,000 rows) — an index could avoid reading every row, which likely contributes to estimate off by 4,900x: expected 100 rows, got 490,000.",
   "topFindings": [
     {
-      "longText": "The planner estimated 100 rows for this Hash Join but 490,000 actually came out — 4,900x more than expected. Bad estimates like this often cascade into a worse plan shape further up the tree (e.g. the wrong join algorithm gets picked). This single plan can't confirm the cause — worth investigating statistics freshness, column correlation, whether extended statistics would help, the predicates involved, or the specific parameter values used for this run.",
+      "longText": "The planner estimated 100 rows for this Hash Join but 490,000 actually came out — 4,900x more than expected. Bad estimates like this often cascade into a worse plan shape further up the tree (e.g. the wrong join algorithm gets picked). This single plan can't confirm a single root cause — large estimate errors may warrant checking statistics freshness, correlated columns, extended statistics, skewed data, predicates, and parameter values used for this run.",
       "provenance": {
         "additionalConditions": [
           "abs(actual − estimated) ≥ 500 rows for above-info severity",

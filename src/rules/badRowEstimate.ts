@@ -18,9 +18,10 @@
 //
 // Story 25.5 — the old longText named "stale table statistics" as "the
 // most common cause," stated as settled fact this app can't actually
-// verify from one pasted plan. Replaced with an investigate-list
-// (statistics freshness, column correlation, extended statistics,
-// predicates, parameter values) — never "your statistics are stale."
+// verify from one pasted plan. Replaced with an investigate-list phrased
+// as "large estimate errors may warrant checking..." (statistics
+// freshness, correlated columns, extended statistics, skewed data,
+// predicates, parameter values) — never a single claimed root cause.
 
 import type { PlanNode, Warning } from "../parsers/normalize"
 import { JOIN_OPERATOR_TYPES } from "./explodingJoin"
@@ -160,8 +161,8 @@ export const badRowEstimate: Rule = (node, context) => {
         `The planner estimated ${formatNumber(estimatedRows)} rows for this ${node.rawOperatorLabel} but ` +
         `${formatNumber(actualRows)} actually came out — ${factorText} ${direction} than expected. Bad estimates ` +
         `like this often cascade into a worse plan shape further up the tree (e.g. the wrong join algorithm gets ` +
-        `picked). This single plan can't confirm the cause — worth investigating statistics freshness, column ` +
-        `correlation, whether extended statistics would help, the predicates involved, or the specific parameter ` +
+        `picked). This single plan can't confirm a single root cause — large estimate errors may warrant checking ` +
+        `statistics freshness, correlated columns, extended statistics, skewed data, predicates, and parameter ` +
         `values used for this run.`,
       provenance: {
         threshold: `ratio ≥ ${MISMATCH_RATIO_THRESHOLD} or ≤ ${(1 / MISMATCH_RATIO_THRESHOLD).toFixed(2)}`,

@@ -55,14 +55,22 @@ describe("badRowEstimate", () => {
     expect(badRowEstimate(negativeActual, makeContext(negativeActual))).toEqual([])
   })
 
-  // Story 25.5 — never states "stale statistics" as a settled fact.
+  // Story 25.5 — never states "stale statistics" (or any single cause) as
+  // a settled fact; phrases the whole list as things "may warrant
+  // checking," not a diagnosis.
   it("recommends investigating possible causes rather than diagnosing stale statistics", () => {
     const node = makeNode({ estimatedRows: 100, actualRows: 50_000 })
     const warnings = badRowEstimate(node, makeContext(node))
-    expect(warnings[0].longText).not.toMatch(/stale/i)
-    expect(warnings[0].longText).toContain("statistics freshness")
-    expect(warnings[0].longText).toContain("extended statistics")
-    expect(warnings[0].longText).toContain("parameter values")
+    const longText = warnings[0].longText
+    expect(longText).not.toMatch(/stale/i)
+    expect(longText).toContain("can't confirm a single root cause")
+    expect(longText).toContain("large estimate errors may warrant checking")
+    expect(longText).toContain("statistics freshness")
+    expect(longText).toContain("correlated columns")
+    expect(longText).toContain("extended statistics")
+    expect(longText).toContain("skewed data")
+    expect(longText).toContain("predicates")
+    expect(longText).toContain("parameter values")
   })
 })
 
