@@ -83,6 +83,114 @@ describe("linkPropagatedFindings", () => {
     const relationships = linkPropagatedFindings(analyzed)
     expect(relationships.find((r) => r.effectNodeId === "branch-b")).toBeUndefined()
   })
+
+  it("returns no relationships when an effect fires with no qualifying cause anywhere in the tree", () => {
+    // hash_join explodes (output far exceeds either input), but both
+    // children are well-estimated — no bad-row-estimate anywhere to link.
+    const childA = makeNode({ id: "child-a", operatorType: "seq_scan", estimatedRows: 10, actualRows: 10 })
+    const childB = makeNode({ id: "child-b", operatorType: "seq_scan", estimatedRows: 8, actualRows: 8 })
+    const join = makeNode({
+      id: "join",
+      operatorType: "hash_join",
+      estimatedRows: 500,
+      actualRows: 500,
+      children: [childA, childB],
+    })
+    const root = applyRules(join, buildPlanContext(join))
+    expect(linkPropagatedFindings(root)).toEqual([])
+  })
+
+  it("propagates a bad estimate 2 hops through an intermediate node with no finding of its own (3-level chain)", () => {
+    // leaf (bad-row-estimate) -> pass-through node (no findings at all) ->
+    // hash_join (exploding-join). The middle node is deliberately inert:
+    // this asserts propagation reaches past a hop that has nothing of its
+    // own to report, not just the adjacent-node case already covered above.
+    const leaf = makeNode({ id: "leaf", operatorType: "seq_scan", estimatedRows: 10, actualRows: 50_000 })
+    const passthrough = makeNode({
+      id: "passthrough",
+      operatorType: "sort",
+      estimatedRows: 10,
+      actualRows: 10, // matches its own estimate — no bad-row-estimate here
+      children: [leaf],
+    })
+    const otherInput = makeNode({ id: "other-input", operatorType: "seq_scan", actualRows: 5 })
+    const join = makeNode({
+      id: "join",
+      operatorType: "hash_join",
+      actualRows: 1_000, // 100x the passthrough's 10 rows
+      children: [passthrough, otherInput],
+    })
+    const root = applyRules(join, buildPlanContext(join))
+
+    const relationships = linkPropagatedFindings(root)
+    const rel = relationships.find((r) => r.causeNodeId === "leaf" && r.effectNodeId === "join")
+    expect(rel).toBeDefined()
+    expect(rel?.causeFamily).toBe("bad-row-estimate")
+    expect(rel?.effectFamily).toBe("exploding-join")
+    expect(rel?.hops).toBe(2)
+  })
+
+  it("picks the stronger (more severe) ancestor cause over a closer but weaker one", () => {
+    // aggregate (high-loop-count, the effect)
+    //   -> mid (bad-row-estimate, "warning" — closer, hops 1)
+    //     -> leaf (bad-row-estimate, "critical" — farther, hops 2, itself a
+    //        join so it clears 2 of severityForEstimateError's escalation
+    //        signals: very-large-ratio + feeds-a-join)
+    const leaf = makeNode({
+      id: "leaf",
+      operatorType: "nested_loop_join", // feeds-a-join escalation signal
+      estimatedRows: 10,
+      actualRows: 50_000, // ratio 5,000 clears the very-large-ratio signal
+      children: [
+        makeNode({ id: "leaf-child-a", operatorType: "seq_scan", actualRows: 45_000 }),
+        makeNode({ id: "leaf-child-b", operatorType: "seq_scan", actualRows: 1 }),
+      ],
+    })
+    const mid = makeNode({
+      id: "mid",
+      operatorType: "seq_scan", // not a join, no timing set — 0 escalation signals -> stays "warning"
+      estimatedRows: 100,
+      actualRows: 5_000,
+      children: [leaf],
+    })
+    const aggregate = makeNode({
+      id: "aggregate",
+      operatorType: "aggregate",
+      loops: 2_000,
+      actualTimeMs: 2,
+      children: [mid],
+    })
+    const root = applyRules(aggregate, buildPlanContext(aggregate))
+
+    const midFinding = root.children[0]!.warnings.find((w) => w.ruleId === "bad-row-estimate")
+    const leafFinding = root.children[0]!.children[0]!.warnings.find((w) => w.ruleId === "bad-row-estimate")
+    expect(midFinding?.severity).toBe("warning")
+    expect(leafFinding?.severity).toBe("critical")
+
+    const relationships = linkPropagatedFindings(root)
+    const rel = relationships.find((r) => r.effectNodeId === "aggregate")
+    expect(rel?.causeNodeId).toBe("leaf") // the farther but more severe cause wins, not the closer "mid"
+    expect(rel?.hops).toBe(2)
+  })
+
+  it("picks the closer of two ancestor causes when severity is tied", () => {
+    // Same shape as above, but both bad-row-estimates land at "warning" —
+    // now the closer one (mid, hops 1) must win over the farther one
+    // (leaf, hops 2).
+    const leaf = makeNode({ id: "leaf-tie", operatorType: "seq_scan", estimatedRows: 100, actualRows: 5_000 })
+    const mid = makeNode({ id: "mid-tie", operatorType: "seq_scan", estimatedRows: 100, actualRows: 5_000, children: [leaf] })
+    const aggregate = makeNode({ id: "aggregate-tie", operatorType: "aggregate", loops: 2_000, actualTimeMs: 2, children: [mid] })
+    const root = applyRules(aggregate, buildPlanContext(aggregate))
+
+    const midFinding = root.children[0]!.warnings.find((w) => w.ruleId === "bad-row-estimate")
+    const leafFinding = root.children[0]!.children[0]!.warnings.find((w) => w.ruleId === "bad-row-estimate")
+    expect(midFinding?.severity).toBe(leafFinding?.severity) // tie confirmed before asserting the tiebreak
+
+    const relationships = linkPropagatedFindings(root)
+    const rel = relationships.find((r) => r.effectNodeId === "aggregate-tie")
+    expect(rel?.causeNodeId).toBe("mid-tie")
+    expect(rel?.hops).toBe(1)
+  })
 })
 
 describe("groupByRootCause", () => {
