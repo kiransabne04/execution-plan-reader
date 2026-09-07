@@ -88,12 +88,33 @@
 
   /* src/graph/planGraph.css + src/graph/canvas/*.css */
   --pg-card-bg: var(--color-surface);
-  --pg-card-border: var(--color-border);
+  /* Bug fix (pixel match, downloaded main-canvas mockup — its own saved
+     source): every node card's border there is a solid, clearly-visible
+     #3f424d (--color-border-strong) — this was --color-border, a ~12%-
+     alpha translucent line that read as almost no border at all. */
+  --pg-card-border: var(--color-border-strong);
   --pg-card-text: var(--color-text);
   --pg-card-text-muted: var(--color-text-secondary);
+  /* The relation/index name (subtitle) reads at a brighter neutral than
+     the muted rows/time line in the mock (#b2b6ca vs #9397ab) — a real,
+     deliberate distinction, not the same muted tone repeated twice. */
+  --pg-card-subtitle: var(--color-neutral-400);
   --pg-mismatch-border: var(--color-critical);
   --pg-badge-bg: var(--color-text);
   --pg-badge-text: var(--color-bg-canvas);
+  /* Bug fix (pixel match): the mock's own mismatch/spill badges are
+     severity-tinted (translucent colour bg + border + solid-colour text),
+     not the plain white pill above — design review confirmed this
+     supersedes the earlier neutral-badge decision (PlanNodeCard.tsx's own
+     comment) for these two specific, inherently-severity-scoped badges;
+     an unscoped loop-count badge has no severity of its own and keeps the
+     neutral --pg-badge-bg/-text above. */
+  --pg-badge-critical-bg: color-mix(in srgb, var(--color-critical) 18%, transparent);
+  --pg-badge-critical-border: color-mix(in srgb, var(--color-critical) 50%, transparent);
+  --pg-badge-critical-text: var(--color-critical);
+  --pg-badge-warning-bg: color-mix(in srgb, var(--color-warning) 18%, transparent);
+  --pg-badge-warning-border: color-mix(in srgb, var(--color-warning) 45%, transparent);
+  --pg-badge-warning-text: var(--color-warning-text);
   --pg-collapsed-bg: var(--color-bg-canvas);
   --pg-collapsed-border: var(--color-border-strong);
   --pg-comparison-changed: var(--color-warning);

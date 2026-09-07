@@ -167,13 +167,17 @@
   width: 100%;
   height: 100%;
   border-radius: 8px;
-  border: 2px solid var(--pg-card-border);
+  /* Bug fix (pixel match, downloaded main-canvas mockup): was 2px — the
+     mock's own plain-node border is 1px (--pg-card-border itself was also
+     fixed, tokens.css, from a near-invisible translucent line to the
+     mock's solid --color-border-strong). */
+  border: 1px solid var(--pg-card-border);
   background: var(--pg-card-bg);
   color: var(--pg-card-text);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 6px 10px;
+  padding: 7px 10px;
   box-sizing: border-box;
   font-size: 12px;
   line-height: 1.3;
@@ -181,10 +185,12 @@
 }
 
 /* Mismatch is a distinct border treatment, never color alone (colorblind
-   accessibility requirement) — a thicker dashed border plus a text badge. */
+   accessibility requirement) — a thicker dashed border plus a text badge.
+   Bug fix (pixel match): mock's dashed mismatch border is 2px (one step up
+   from its own 1px plain border), not 3px. */
 .plan-node-card--mismatch {
   border-style: dashed;
-  border-width: 3px;
+  border-width: 2px;
   border-color: var(--pg-mismatch-border);
 }
 
@@ -218,16 +224,22 @@
    fighting it for the same property, so a node carrying more than one
    signal at once still shows all of them. Always paired with the severity
    badge below (never colour alone). */
+/* Bug fix (pixel match, downloaded main-canvas mockup — its own saved
+   source): both rings were fully opaque with a tight, high-alpha glow —
+   the mock's own is a much more translucent ring (its own color at
+   .55/.28 alpha, not solid) plus a wider, fainter glow (no spread, lower
+   alpha) — a subtler "faint glow" per this rule's own original spec
+   quote, not the near-solid outline this had drifted to. */
 .plan-node-card--severity-warning {
   box-shadow:
-    0 0 0 2px var(--color-warning),
-    0 0 10px 2px color-mix(in srgb, var(--color-warning) 50%, transparent);
+    0 0 0 2px color-mix(in srgb, var(--color-warning) 55%, transparent),
+    0 0 18px color-mix(in srgb, var(--color-warning) 18%, transparent);
 }
 
 .plan-node-card--severity-critical {
   box-shadow:
-    0 0 0 3px var(--color-critical),
-    0 0 12px 2px color-mix(in srgb, var(--color-critical) 50%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--color-critical) 28%, transparent),
+    0 0 26px color-mix(in srgb, var(--color-critical) 20%, transparent);
 }
 
 .plan-node-card__comparison-delta {
@@ -258,7 +270,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  font-weight: 600;
+  /* Bug fix (pixel match): mock's node title is font-weight 500, not 600. */
+  font-weight: 500;
 }
 
 /* The icon+title group — everything `.plan-node-card__label` itself used
@@ -302,16 +315,22 @@
 /* Story 18.4 — relation/index name, mono per spec §1's type table
    ("mono... for identifiers and plan text"), ellipsised rather than
    wrapped (this card is already tight on vertical space). */
+/* Bug fix (pixel match): mock's subtitle is 11px at a brighter neutral
+   (--pg-card-subtitle, #b2b6ca) than the meta line below (#9397ab) — was
+   10.5px at the SAME muted tone as meta, losing that distinction. */
 .plan-node-card__subtitle {
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--pg-card-text-muted);
+  font-size: 11px;
+  color: var(--pg-card-subtitle);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* Bug fix (pixel match): mock's rows/time line is 10.5px — was unset,
+   inheriting the card's own 12px base. */
 .plan-node-card__meta {
+  font-size: 10.5px;
   color: var(--pg-card-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -327,12 +346,30 @@
 .plan-node-card__badge {
   display: inline-block;
   border-radius: 999px;
+  border: 1px solid transparent;
   background: var(--pg-badge-bg);
   color: var(--pg-badge-text);
-  font-size: 10px;
+  /* Bug fix (pixel match): mock's badge text is 9.5px, not 10px. */
+  font-size: 9.5px;
   font-weight: 600;
   padding: 1px 6px;
   white-space: nowrap;
+}
+
+/* Bug fix (pixel match, downloaded main-canvas mockup): the mismatch/spill
+   badges are severity-tinted there (translucent colour bg + border, solid
+   colour text) — see PlanNodeCard.tsx's own severityBadgeClass comment for
+   why this is keyed off the node's overall severity, not the badge type. */
+.plan-node-card__badge--critical {
+  background: var(--pg-badge-critical-bg);
+  border-color: var(--pg-badge-critical-border);
+  color: var(--pg-badge-critical-text);
+}
+
+.plan-node-card__badge--warning {
+  background: var(--pg-badge-warning-bg);
+  border-color: var(--pg-badge-warning-border);
+  color: var(--pg-badge-warning-text);
 }
 
 /* Hover tooltip (graph-visualization skill: a separate, lightweight
@@ -392,26 +429,38 @@
    top-right, replacing React Flow's own boxed/bordered default control
    panel (bottom-left). Only the layout chrome is overridden here; the
    buttons underneath are still React Flow's real zoom-in/zoom-out/fit-view
-   controls, not a re-implementation. */
+   controls, not a re-implementation.
+   Bug fix (pixel match, downloaded main-canvas mockup): gap was 6px, mock's
+   own is 4px. */
 .plan-graph-controls {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   box-shadow: none;
   background: transparent;
   border: none;
 }
 
+/* Bug fix (pixel match): each button in the mock has its own solid dark
+   background (#161826 — --color-bg-page, the same shade the search box
+   and legend chip below use, not the lighter --pg-card-bg node-card
+   surface) — was fully transparent, so these read as bare floating icons
+   rather than the mock's own distinct dark squares; icon color was the
+   muted tone, mock's is the brighter --pg-card-text. */
 .plan-graph-controls button.react-flow__controls-button {
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 6px;
-  background: transparent;
-  fill: var(--pg-card-text-muted);
+  border-radius: 8px;
+  background: var(--color-bg-page);
+  fill: var(--pg-card-text);
+}
+
+.plan-graph-controls button.react-flow__controls-button svg {
+  width: 13px;
+  height: 13px;
 }
 
 .plan-graph-controls button.react-flow__controls-button:hover {
-  background: color-mix(in srgb, var(--pg-card-text) 10%, transparent);
-  fill: var(--pg-card-text);
+  background: color-mix(in srgb, var(--pg-card-text) 10%, var(--color-bg-page));
 }

@@ -1141,21 +1141,26 @@
    once the legend text is added to it. `.plan-shell__graph` (the canvas
    wrapper) is already `position: relative`, same anchor the search/zoom
    toolbars use. */
+/* Bug fix (pixel match, downloaded main-canvas mockup — its own saved
+   source): was a full pill (radius 999px) at 12px inset and 78% opacity —
+   the mock's own chip is a 6px-radius rounded RECTANGLE, inset 14px, at
+   90% opacity (rgba(22,24,38,.9) — exactly color-mix(--pr-bg 90%,
+   transparent)), with 10px text, not 11px. */
 .plan-shell__canvas-legend {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
+  bottom: 14px;
+  left: 14px;
   z-index: 6;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  max-width: calc(100% - 24px);
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pr-bg) 78%, transparent);
+  max-width: calc(100% - 28px);
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--pr-bg) 90%, transparent);
   border: 1px solid var(--pr-border);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--pr-text-muted);
   pointer-events: none;
 }
@@ -1170,11 +1175,13 @@
   gap: 6px;
 }
 
+/* Bug fix (pixel match): mock's swatch is 64x6px, fully pill-rounded
+   (radius 999px) — was 56x8px at a much slighter 4px radius. */
 .plan-shell__colour-legend-swatch {
   display: inline-block;
-  width: 56px;
-  height: 8px;
-  border-radius: 4px;
+  width: 64px;
+  height: 6px;
+  border-radius: 999px;
   background: linear-gradient(to right, hsl(210, 70%, 55%), hsl(105, 70%, 55%), hsl(0, 70%, 55%));
 }
 
@@ -1196,33 +1203,41 @@
    background (z-index 5 or lower) — the search trigger's own wrapper,
    positioned separately from React Flow's top-right zoom Controls
    (unaffected, still docked top-right in DOM mode via planGraph.css). */
+/* Bug fix (pixel match): mock insets this 14px from the canvas edge, not
+   12px. */
 .plan-shell__graph-toolbar {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: 14px;
+  left: 14px;
   z-index: 6;
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: calc(100% - 24px);
+  max-width: calc(100% - 28px);
 }
 
 /* Design review (reference mock) — the actual search UI is still the
    existing modal palette (searchPalette.css); this is only the trigger.
    Positioning comes from `.plan-shell__graph-toolbar` above, not this
-   element directly. */
+   element directly.
+   Bug fix (pixel match, downloaded main-canvas mockup — its own saved
+   source): was noticeably chunkier than the mock's own compact trigger
+   (8px/10px padding, 13px text, solid opaque background, 8px radius) —
+   matched to the mock's 5px/9px padding, 11.5px text, translucent
+   background (same rgba(22,24,38,.9) the legend chip above uses), 6px
+   radius. */
 .plan-shell__search-trigger {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
-  max-width: min(320px, calc(100% - 24px));
-  padding: 8px 10px;
+  max-width: min(268px, calc(100% - 28px));
+  padding: 5px 9px;
   border: 1px solid var(--pr-border);
-  border-radius: 8px;
-  background: var(--pr-bg);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--pr-bg) 90%, transparent);
   color: var(--pr-text-muted);
-  font-size: 13px;
+  font-size: 11.5px;
   cursor: pointer;
   text-align: left;
 }
@@ -1235,7 +1250,7 @@
 
 .plan-shell__search-trigger svg {
   flex: none;
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .plan-shell__search-trigger span {
@@ -1246,13 +1261,18 @@
   white-space: nowrap;
 }
 
+/* Bug fix (pixel match): mock's "/" hint is a smaller, dimmer, explicitly
+   monospace chip (10px mono, --color-neutral-700) — was inheriting the
+   trigger's own sans body font at 11px, and the same muted tone as the
+   placeholder text next to it (no secondary emphasis between the two). */
 .plan-shell__search-trigger kbd {
   flex: none;
   border: 1px solid var(--pr-border);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 11px;
-  font-family: inherit;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-neutral-700);
 }
 
 .plan-shell__tabs {

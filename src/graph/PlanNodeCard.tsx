@@ -29,6 +29,17 @@ const SEVERITY_RING_CLASS: Partial<Record<PlanNodeData["severity"] & string, str
   warning: "plan-node-card--severity-warning",
 }
 
+// Design review (downloaded main-canvas mockup): the mismatch/spill badges
+// are severity-tinted there, matching whatever this node's OWN worst
+// severity is (the same value the ring above is keyed on) rather than a
+// fixed color per badge type — a node whose mismatch is only info-tier (no
+// ring shown either) gets the plain neutral badge, same as the ring's own
+// "info gets nothing extra" rule.
+const SEVERITY_BADGE_CLASS: Partial<Record<PlanNodeData["severity"] & string, string>> = {
+  critical: "plan-node-card__badge--critical",
+  warning: "plan-node-card__badge--warning",
+}
+
 // Story 18.4, spec §4: edges stop 10px short of the parent's border so an
 // arrival reads as an arrival, not an overlap — applied at the TARGET end
 // (this node, receiving edges from its children on its bottom edge).
@@ -77,6 +88,8 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
   const severityRingClass = severity ? SEVERITY_RING_CLASS[severity] : undefined
   if (severityRingClass) classNames.push(severityRingClass)
   const className = classNames.join(" ")
+  const severityBadgeClass = severity ? SEVERITY_BADGE_CLASS[severity] : undefined
+  const badgeClassName = (extra?: string) => ["plan-node-card__badge", severityBadgeClass, extra].filter(Boolean).join(" ")
   // Hover tooltip (graph-visualization skill: hover tooltip and click detail
   // panel are two separate components) — CSS-only reveal (:hover/:focus-
   // within in planGraph.css), no extra state or render cost per card, and
@@ -204,7 +217,7 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
         )}
         <div className="plan-node-card__badges">
           {hasMismatch && (
-            <span className="plan-node-card__badge" data-testid="mismatch-badge">
+            <span className={badgeClassName()} data-testid="mismatch-badge">
               est. mismatch{mismatchFactor !== undefined ? ` ${mismatchFactor}×` : ""}
             </span>
           )}
@@ -214,14 +227,18 @@ export function PlanNodeCard({ data }: PlanNodeCardProps) {
             </span>
           )}
           {/* Design-mockup review (post-Episode-18): spec §3's badge table
-              names "spill size" as its own badge — never built until this
-              pass. Plain/neutral like the mismatch and loop badges above,
-              not the severity-tinted class: this node's own severity
-              badge already carries that color, and every content badge
-              turning the same solid red would be redundant visual noise,
-              same reasoning those two existing badges already follow. */}
+              names "spill size" as its own badge. Design review (downloaded
+              main-canvas mockup, its own saved source): its spill/mismatch
+              badges ARE severity-tinted after all — supersedes this badge's
+              earlier neutral treatment (the anti-redundancy reasoning that
+              used to live here). Tinted by this node's OWN worst severity
+              (severityBadgeClass, same value the ring above uses) — never a
+              badge type hardcoded to one color, since a rule like sortDisk-
+              Spill's own severity is graded (warning vs critical by spill
+              size), not fixed. Loop count has no severity of its own and
+              stays plain, same as always. */}
           {spillBadgeText && (
-            <span className="plan-node-card__badge" data-testid="spill-badge">
+            <span className={badgeClassName()} data-testid="spill-badge">
               {spillBadgeText}
             </span>
           )}
