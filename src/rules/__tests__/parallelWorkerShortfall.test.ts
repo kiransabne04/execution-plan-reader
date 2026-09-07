@@ -141,6 +141,28 @@ describe("parallelWorkerShortfall — Story 25.6 enrichment (Postgres)", () => {
     const longText = parallelWorkerShortfall(node, context)[0].longText
     expect(longText).not.toMatch(/imbalance|skew/i)
   })
+
+  it("does not fire on a tiny/fast query that got every planned worker — smallness alone is never its own trigger", () => {
+    const node = makeNode({ engine: "postgres", actualTimeMs: 0.3, parallel: { workersPlanned: 4, workersLaunched: 4 } })
+    const root = makeNode({ actualTimeMs: 0.5, children: [node] })
+    const context = makeContext(root, { hasActualData: true, totalActualTimeMs: 0.5 })
+    expect(parallelWorkerShortfall(node, context)).toEqual([])
+  })
+
+  it("still fires the base shortfall and omits the runtime-significance note when this node's own timing is missing (other nodes have actual data)", () => {
+    // hasActualData is true at the plan level and a total exists, but THIS
+    // node — the one with the shortfall — has no actualTimeMs of its own
+    // (e.g. a parser gap or a node type this app doesn't extract timing
+    // for). describeRuntimeSignificance must degrade to "can't say," not
+    // divide by/against a missing number.
+    const node = makeNode({ engine: "postgres", actualTimeMs: undefined, parallel: { workersPlanned: 4, workersLaunched: 0 } })
+    const root = makeNode({ actualTimeMs: 5000, children: [node] })
+    const context = makeContext(root, { hasActualData: true, totalActualTimeMs: 5000 })
+    const warnings = parallelWorkerShortfall(node, context)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].severity).toBe("critical")
+    expect(warnings[0].longText).not.toContain("This parallel portion accounted for")
+  })
 })
 
 describe("parallelWorkerShortfall — SQL Server (query-level, end-to-end through analyzePlanText)", () => {
