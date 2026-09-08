@@ -552,6 +552,33 @@
   background: var(--dp-gap-bg);
 }
 
+/* Episode 29, Story 29.1 — same table shape as .detail-panel__stats-table,
+   plus a header row and a differs-highlight this section's own compiled-
+   vs-runtime comparison needs that the plain stats table doesn't. */
+.detail-panel__parameter-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.detail-panel__parameter-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--dp-text-muted);
+  padding: 0 8px 4px 0;
+  border-bottom: 1px solid var(--dp-border);
+}
+
+.detail-panel__parameter-table td {
+  padding: 3px 8px 3px 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--dp-border);
+}
+
+.detail-panel__parameter-row--differs td {
+  color: var(--dp-finding-warning-text);
+}
+
 .detail-panel__stat-mismatch {
   color: var(--dp-warning-critical);
   font-weight: 600;

@@ -366,6 +366,21 @@ describe("parseSqlServerShowplanXml", () => {
     expect(rec.includedColumns).toEqual(["[Total]"])
   })
 
+  // Episode 29, Story 29.1.
+  it("surfaces ParameterList's compiled vs. runtime values as a distinct, structured section", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("parameter-list.xml"))
+    const [stmt] = result.statements
+    expect(stmt.parameters).toEqual([
+      { name: "@CustomerId", compiledValue: "1", runtimeValue: "42" },
+      { name: "@Status", compiledValue: "'new'", runtimeValue: "'active'" },
+    ])
+  })
+
+  it("returns an empty parameters array when no ParameterList element exists", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("hash-join.xml"))
+    expect(result.statements[0].parameters).toEqual([])
+  })
+
   it("falls back to 'unknown' operatorType for an unmapped PhysicalOp, without throwing", () => {
     const xml = `<?xml version="1.0"?>
 <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">

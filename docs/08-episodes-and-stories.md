@@ -1841,3 +1841,101 @@ As a developer reading a SQL Server plan, I want to see when an operator execute
 | Claiming batch mode is better | No benchmark evidence backs that claim yet | `longText` states explicitly that no warning is raised for this reason |
 
 Registered in `ALL_RULES`, `"General notes"` category (always-info), `runtime` Query Health dimension.
+
+## Episode 29 — SQL Server Parameter & Statement Intelligence
+
+Reviewed with the user before any code was written (per their own explicit request) — three open design questions were resolved before implementation: 29.2 escalates freely to `warning` (no headline-summary carve-out); 29.3 uses a single blended ranking (duration, else cost — critical-count/reads as tie-breakers only, never blended across units); 29.4 defines "critical statement" as `statementSeverity() === "critical"` (no new score threshold) and reuses 29.3's own ranking for its top-3, rather than a second independently-computed list.
+
+### Story 29.1 — Compile vs runtime parameters
+
+As a developer reading a SQL Server plan, I want to see a parameter's value at compile time next to its value at runtime, so that I can spot when a cached plan was optimized for a different input than the one that's running now.
+
+**Acceptance criteria**
+- New parser support: `<ParameterList>`'s `<ColumnReference Column="@P1" ParameterCompiledValue="..." ParameterRuntimeValue="..."/>` entries (a statement-level element, same level as `MissingIndexGroup`) — new `ParameterInfo[]` on `SqlServerStatementPlan`, threaded through `PlanContext.parameters` (new `ParameterSignal[]`, decoupled from the parser's own type per `MissingIndexSignal`'s established convention) so both the UI and Story 29.2's rule can read it from one source.
+- New `ParameterValues` component, Expert-mode only, rendered regardless of which node is selected (same placement `QueryCorrelation` already established for another statement-wide fact) — shows every parameter's compiled/runtime value side by side, differing rows highlighted.
+- No warning/rule fires from this alone — pure data exposure, per this story's own explicit instruction.
+
+**Testing approach**
+- Parser-level tests (new `parameter-list.xml` fixture) — the structured values, and a fixture with no `ParameterList` returning an empty array (not undefined at the parser layer — `undefined` is `analyzePlan.ts`'s own "absence is meaningful" translation, one level up).
+- `analyzePlanText` threading test (`context.parameters` populated/undefined correctly).
+- Component tests (`ParameterValues.test.tsx`) — renders nothing for absent/empty parameters (no empty-state message; this is additive-only info, unlike `QueryCorrelation`'s query text, which every plan is expected to have), differs-highlighting, em-dash for a missing side, never literal "undefined" in the DOM.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| No `ParameterList` at all (the common case — non-parameterized query, or non-SQL-Server engine) | Must not fabricate an empty-state message the way `QueryCorrelation` does for its own always-expected data | Component renders nothing at all |
+| A parameter with only one of compiled/runtime present | Shouldn't crash or show "undefined" | Em dash (`—`) shown for the missing side |
+| Compiled/runtime values equal | Not every parameter needs highlighting | Highlight only applied when they actually differ |
+
+Registered: no new `ruleId` — pure data/UI addition.
+
+### Story 29.2 — Parameter-sensitivity evidence
+
+As a developer reading a SQL Server plan, I want the existing parameter-sensitivity disclosure to say more when real corroborating evidence exists, so that "this might be parameter sniffing" is backed by something concrete rather than the bare fact that the query uses parameters at all.
+
+**Acceptance criteria**
+- **Architectural finding, resolved before writing this**: this could NOT be added as a `Rule` — two of the three required signals need OTHER nodes' already-computed findings, but `applyRules` processes the root node FIRST (`collectNodes`'s own pre-order walk), so a `Rule` running on the root can't see any other node's `warnings` in the same pass. Built as a second pass instead (`parameterSensitivityEvidence.ts`), the same "needs whole-tree finding data" pattern `cardinalityPropagation.ts` already established — run once, after `applyRules` finishes, before `summarizePlan` (which reads severity for its own top-findings selection).
+- Three independent signals, escalating `info` → `warning` at 2 or more (never on one alone): compile/runtime parameter values differ materially (quote/case-normalized comparison — Story 29.1's data); a large cardinality mismatch exists anywhere in the tree (`bad-row-estimate` firing above `info` severity somewhere); the plan shape appears sensitive (a real `cardinalityPropagation.ts` relationship exists — a bad estimate visibly cascaded into a downstream symptom, not just existing in isolation).
+- Mutates ONLY this rule's own already-emitted warning (found by `ruleId`, in place) — never another rule's finding, and never fabricates a relationship between unrelated findings (the narrower, self-contained case `cardinalityPropagation.ts`'s own "never mutate to force relationships" instruction is about a different, broader risk).
+- Re-sorts `root.warnings` by severity after escalating — `applyRules` already sorted it once; escalating one entry's severity in place without re-sorting would strand it among the tier it used to belong to (a real bug caught before shipping, covered by a dedicated test).
+- Still phrases the result as "worth investigating," names the specific signals that corroborated each other (real, observable facts), never "parameter sniffing confirmed."
+
+**Testing approach**
+- Unit tests via `makeNode`/`applyRules` covering: no baseline note at all (no-op), 0 and exactly 1 signal (stays `info`), 2-signal escalation via each pairing, the re-sort-after-mutation proof, and quote/case-normalization not counting as "differs."
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Only 1 of 3 signals holds | The story's own explicit "not confirmed" framing needs real corroboration, not a single coincidence | Stays `info` |
+| `'Active'` vs `'active'`, or `1` vs `'1'` | Naive string inequality would over-count cosmetic differences as "material" | Values normalized (quotes stripped, case-folded) before comparing |
+| Escalating without re-sorting | `WarningsSection`/other direct `node.warnings` consumers render in array order, no independent sort | `root.warnings` explicitly re-sorted after the mutation |
+| Query Health scoring impact | Escalating severity shouldn't suddenly make this note penalize the score | `EXCLUDED_RULE_IDS` already excludes this `ruleId` regardless of severity — unaffected, verified |
+
+Registered: no new `ruleId` — enhances `parameter-sensitivity-honesty-note`'s own existing one.
+
+### Story 29.3 — Multi-statement ranking
+
+As a developer with a large stored-procedure plan, I want its statements ranked by which ones actually matter, so that "which of these 200 statements should I look at" has a real answer instead of scanning every tab in order.
+
+**Acceptance criteria**
+- New `rankStatements()` (`statementRanking.ts`), reusing `statementTabSummary.ts`'s existing `isTrivialStatement` (excludes the batch's control-flow statements from ranking entirely — the same filter already used to collapse them in the tab strip) rather than a second definition.
+- Single blended ranking (per the pre-implementation decision above): real actual duration (descending) ranks above compiled-only estimated cost (descending), which ranks above statements with neither — critical-finding-count then total-reads break ties WITHIN each of those groups, never compared directly across groups (a cost figure and a millisecond figure are not the same unit).
+- New `computeTotalReads()` aggregate (sums `io.bufferHits + io.bufferReads` across a statement's whole tree) — `undefined`, never `0`, when no node anywhere has either field (Snowflake, or a plan with no I/O data captured).
+- New `BatchStatementOverview` UI component (shared with Story 29.4 — one panel, not two), rendered above the statement tab strip only when `statements.length > 1`, listing the top 3 ranked statements with their metric and critical count, each clickable (jumps via the existing `switchToStatement`).
+
+**Testing approach**
+- Unit tests (`statementRanking.test.ts`): duration-beats-cost, cost-fallback-when-no-statement-has-duration, trivial-statement exclusion, both tie-breakers independently, rank/index correctness, and an explicit "never compares duration directly against cost" case.
+- Component + end-to-end tests (`BatchStatementOverview.test.tsx`, `PlanReaderPage.test.tsx`) — renders nothing for a single-statement plan, renders and jumps correctly for a real multi-statement fixture.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A trivial `DECLARE`/control-flow statement | Would clutter "top statements" with nothing to inspect | Excluded via `isTrivialStatement`, not ranked at all |
+| No statement in the batch has real duration | An all-estimate-only compiled batch is still real input | Falls back to estimated cost as the primary metric for everyone |
+| Comparing duration directly against cost | Different units — a naive single blended number would be meaningless | Never compared across groups; only within the same metric kind |
+| Reads data absent everywhere (Snowflake) | Must not fabricate a reads figure | `computeTotalReads` returns `undefined`, tie-break falls through cleanly (treated as 0 only for sort comparison, never displayed as a fabricated 0) |
+
+Registered: no new `ruleId` — pure data/UI addition.
+
+### Story 29.4 — Statement-level health
+
+As a developer with a large stored-procedure batch, I want a batch-wide Query Health rollup, so that I know how bad things are across the WHOLE batch, not just whichever one statement tab happens to be open.
+
+**Acceptance criteria**
+- New `computeBatchHealth()` (`batchHealth.ts`) — `computeQueryHealth` itself is unchanged (still strictly per-statement); this is a thin aggregation layer on top, same "reuse, don't re-derive" relationship `statementRanking.ts` has with `statementTabSummary.ts`.
+- Worst score and median score computed only across non-trivial, genuinely-`scored` statements (never coerces an `insufficient-data` statement into a fabricated number) — trivial statements excluded via the same `isTrivialStatement` filter Story 29.3 uses, so a batch of hundreds of `DECLARE`s doesn't skew the median.
+- "Critical statement" count reuses `statementSeverity() === "critical"` (per the pre-implementation decision) — no new score-threshold magic number.
+- Top-3 "needing attention" reuses Story 29.3's own `rankStatements()` output directly (sliced to 3) — one ranking, not a second independently-computed "worst" list that could disagree with the same panel's own top-statements section.
+- Rendered in the same `BatchStatementOverview` component as Story 29.3 (one panel, not two competing UI surfaces for closely-related information).
+
+**Testing approach**
+- Unit tests (`batchHealth.test.ts`): all-trivial batch (undefined worst/median), a genuine worst-vs-median comparison across two real severities, critical-count reusing `statementSeverity`, trivial-statement exclusion from the aggregation, top-3 reuse from `rankStatements`, and an empty-batch no-throw case.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Every statement trivial (a batch of nothing but control-flow) | Must not report a fabricated worst/median score | Both stay `undefined` |
+| Mixed trivial/non-trivial batch | Trivial statements shouldn't dilute the real signal | Excluded from both the score aggregation and the critical count |
+| Top-3 disagreeing with Story 29.3's own list | Two independently-computed "important statements" lists could contradict each other | Both reuse the exact same `rankStatements()` call |
+
+Registered: no new `ruleId` — pure data/UI addition.

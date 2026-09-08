@@ -7,10 +7,11 @@
 import { PlanParseError, type PlanNode } from "../parsers/normalize"
 import { parsePostgresJsonPlan } from "../parsers/postgres/parseJsonPlan"
 import { parsePostgresTextPlan } from "../parsers/postgres/textParser"
-import { parseSqlServerShowplanXml, type MissingIndexRecommendation } from "../parsers/sqlserver/parseShowplanXml"
+import { parseSqlServerShowplanXml, type MissingIndexRecommendation, type ParameterInfo } from "../parsers/sqlserver/parseShowplanXml"
 import { parseSnowflakeOperatorStats } from "../parsers/snowflake"
 import { applyRules } from "../rules/index"
-import { buildPlanContext, type MissingIndexSignal, type PlanContext } from "../rules/types"
+import { enhanceParameterSensitivityNote } from "../rules/parameterSensitivityEvidence"
+import { buildPlanContext, type MissingIndexSignal, type ParameterSignal, type PlanContext } from "../rules/types"
 import { summarizePlan, type PlanSummary } from "../rules/summarize"
 
 export type DetectedEngine = "postgres" | "sqlserver" | "snowflake"
@@ -42,6 +43,14 @@ function toMissingIndexSignals(recs: MissingIndexRecommendation[]): MissingIndex
   }))
 }
 
+// Episode 29, Story 29.1 — `undefined` (not `[]`) for an empty list, same
+// "absence is meaningful" reasoning `PlanContext.parameters`'s own doc
+// comment states — a statement with no ParameterList at all reads
+// differently from one that was checked and genuinely has zero parameters.
+function toParameterSignals(params: ParameterInfo[]): ParameterSignal[] | undefined {
+  return params.length > 0 ? params.map((p) => ({ name: p.name, compiledValue: p.compiledValue, runtimeValue: p.runtimeValue })) : undefined
+}
+
 // Story 20.1 — SQL Server's showplan XML attributes a statement's leading
 // `--` comment lines (developer commentary, TFS/ticket references) to the
 // FOLLOWING statement's own `StatementText`, not the comment's own
@@ -65,10 +74,16 @@ function truncateLabel(text: string, max = 60): string {
 function analyzeRoot(
   root: PlanNode,
   label: string,
-  extra?: { statementText?: string; missingIndexes?: MissingIndexSignal[]; queryTextRedacted?: boolean },
+  extra?: { statementText?: string; missingIndexes?: MissingIndexSignal[]; queryTextRedacted?: boolean; parameters?: ParameterSignal[] },
 ): AnalyzedStatement {
   const context = buildPlanContext(root, extra)
   applyRules(root, context)
+  // Episode 29, Story 29.2 — second pass, after every node's warnings are
+  // populated (see parameterSensitivityEvidence.ts's own header comment
+  // for why this can't be a Rule); must run before summarizePlan below,
+  // since summarizePlan reads root.warnings' severity for its own
+  // top-findings selection.
+  enhanceParameterSensitivityNote(root, context)
   return { label, root, summary: summarizePlan(root), context }
 }
 
@@ -93,6 +108,7 @@ export function analyzePlanText(raw: string): AnalyzedPlan {
         return analyzeRoot(stmt.root, label, {
           statementText: stmt.statementText,
           missingIndexes: toMissingIndexSignals(stmt.missingIndexes),
+          parameters: toParameterSignals(stmt.parameters),
         })
       }),
     }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Orders WHERE CustomerId = @CustomerId AND Status = @Status" StatementId="1">
+          <StatementSetOptions />
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Clustered Index Seek" LogicalOp="Clustered Index Seek" EstimateRows="10" EstimatedTotalSubtreeCost="0.5">
+              <RunTimeInformation>
+                <RunTimeCountersPerThread Thread="0" ActualRows="185000" ActualExecutions="1" ActualElapsedms="900" />
+              </RunTimeInformation>
+              <IndexScan>
+                <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[PK_Orders]" IndexKind="Clustered" />
+                <SeekPredicates>
+                  <SeekPredicateNew>
+                    <Prefix>
+                      <RangeColumns>
+                        <ColumnReference Column="CustomerId" />
+                      </RangeColumns>
+                      <RangeExpressions>
+                        <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[CustomerId]=[@CustomerId]" />
+                      </RangeExpressions>
+                    </Prefix>
+                  </SeekPredicateNew>
+                </SeekPredicates>
+              </IndexScan>
+            </RelOp>
+          </QueryPlan>
+          <ParameterList>
+            <ColumnReference Column="@CustomerId" ParameterCompiledValue="1" ParameterRuntimeValue="42" />
+            <ColumnReference Column="@Status" ParameterCompiledValue="'new'" ParameterRuntimeValue="'active'" />
+          </ParameterList>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

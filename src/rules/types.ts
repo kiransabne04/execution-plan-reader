@@ -14,6 +14,17 @@ export interface MissingIndexSignal {
   includedColumns: string[]
 }
 
+/** Episode 29, Story 29.1 — SQL Server's compiled-vs-runtime parameter
+ * values, decoupled from `parsers/sqlserver`'s exact `ParameterInfo` type
+ * for the same reason `MissingIndexSignal` above is: rules only ever
+ * depend on the shared `rules/types.ts` contract, never reach into a
+ * specific engine parser. */
+export interface ParameterSignal {
+  name: string
+  compiledValue?: string
+  runtimeValue?: string
+}
+
 /** Whole-tree information a single-node rule might need beyond what's on
  * the node itself (e.g. relative severity scoring, or plan-level signals
  * like "this statement uses parameters" that don't belong to one node). */
@@ -31,6 +42,13 @@ export interface PlanContext {
   compiledDegreeOfParallelism?: number
   statementText?: string
   missingIndexes?: MissingIndexSignal[]
+  /** Episode 29, Story 29.1/29.2 — SQL Server-only, compile-vs-runtime
+   * parameter values (see `ParameterSignal`'s own doc comment). `undefined`
+   * (not an empty array) when the statement has no `ParameterList` at all
+   * (a non-parameterized statement, or a non-SQL-Server engine) — kept
+   * distinguishable from "parsed, genuinely zero parameters," the same
+   * "absence is meaningful" convention `missingIndexes` above already uses. */
+  parameters?: ParameterSignal[]
   /** Snowflake-only: the account has query-text redaction enabled — used by
    * the detail panel's query-correlation section to state the reason
    * plainly rather than silently showing nothing (see graph-visualization
@@ -47,7 +65,7 @@ export interface PlanContext {
 
 export function buildPlanContext(
   root: PlanNode,
-  extra?: Partial<Pick<PlanContext, "statementText" | "missingIndexes" | "queryTextRedacted">>,
+  extra?: Partial<Pick<PlanContext, "statementText" | "missingIndexes" | "queryTextRedacted" | "parameters">>,
 ): PlanContext {
   const nodes = collectNodes(root)
   const hasActualData = nodes.some((n) => n.actualRows !== undefined || n.actualTimeMs !== undefined)
@@ -62,6 +80,7 @@ export function buildPlanContext(
     statementText: extra?.statementText,
     missingIndexes: extra?.missingIndexes,
     queryTextRedacted: extra?.queryTextRedacted,
+    parameters: extra?.parameters,
     allNodes: nodes,
   }
 }

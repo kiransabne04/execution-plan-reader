@@ -31,6 +31,19 @@ describe("analyzePlanText", () => {
     expect(result.statements[0].root.operatorType).toBe("hash_join")
   })
 
+  it("threads a SQL Server statement's compiled-vs-runtime parameters into its own context", () => {
+    const result = analyzePlanText(loadFixture("sqlserver", "parameter-list.xml"))
+    expect(result.statements[0].context.parameters).toEqual([
+      { name: "@CustomerId", compiledValue: "1", runtimeValue: "42" },
+      { name: "@Status", compiledValue: "'new'", runtimeValue: "'active'" },
+    ])
+  })
+
+  it("leaves context.parameters undefined for a statement with no ParameterList at all", () => {
+    const result = analyzePlanText(loadFixture("sqlserver", "hash-join.xml"))
+    expect(result.statements[0].context.parameters).toBeUndefined()
+  })
+
   it("surfaces every statement in a multi-statement SQL Server batch, not just the first", () => {
     const result = analyzePlanText(loadFixture("sqlserver", "multi-statement-batch.xml"))
     expect(result.engine).toBe("sqlserver")

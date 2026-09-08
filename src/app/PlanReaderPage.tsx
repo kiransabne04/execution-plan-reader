@@ -8,6 +8,8 @@ import { RestoreSessionBanner } from "./RestoreSessionBanner"
 import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
 import { formatStatementDuration, statementSeverity, buildStatementTabRows, findDefaultStatementIndex } from "./statementTabSummary"
+import { computeBatchHealth } from "./batchHealth"
+import { BatchStatementOverview } from "./BatchStatementOverview"
 import { decodeShareLink } from "./shareLink"
 // Episode 19: the hero landing page this copy served is retired — the
 // three-column shell is now the app's only page, from first load, per the
@@ -424,6 +426,10 @@ export function PlanReaderPage() {
       ),
     [findingsSources],
   )
+  // Episode 29, Stories 29.3/29.4 — same "batch-wide, recomputed only when
+  // the batch itself changes" reasoning as planWideNotices above, not
+  // re-derived on every statement-tab switch.
+  const batchHealth = useMemo(() => (analyzed ? computeBatchHealth(analyzed.statements) : undefined), [analyzed])
   const handleSelectFinding = useCallback(
     (statementIndex: number, nodeId: string) => {
       if (statementIndex !== activeStatementIndex) switchToStatement(statementIndex)
@@ -760,6 +766,10 @@ export function PlanReaderPage() {
               {f.warning.shortText}
             </Notice>
           ))}
+
+          {analyzed && analyzed.statements.length > 1 && batchHealth && (
+            <BatchStatementOverview health={batchHealth} onSelectStatement={switchToStatement} />
+          )}
 
           {analyzed && analyzed.statements.length > 1 && (
             <div className="plan-reader-page__statement-tabs" role="tablist" aria-label="Statements in this batch">

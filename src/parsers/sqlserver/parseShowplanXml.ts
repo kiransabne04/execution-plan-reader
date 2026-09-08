@@ -33,6 +33,21 @@ export interface MissingIndexRecommendation {
   includedColumns: string[]
 }
 
+/** Episode 29, Story 29.1 — SQL Server's own `<ParameterList>` (a statement-
+ * level sibling of `<QueryPlan>`, same level as `MissingIndexGroup`): each
+ * parameter's value at COMPILE time vs. the value actually passed at
+ * RUNTIME. A real, common source of "the plan looks wrong for this
+ * execution" — the compiled plan was optimized for whatever value compiled
+ * it (often the first call's parameter, cached and reused), not
+ * necessarily this run's own value. Values are shown verbatim, as the user
+ * pasted them — no different from any other predicate/literal text this
+ * app already displays. */
+export interface ParameterInfo {
+  name: string
+  compiledValue?: string
+  runtimeValue?: string
+}
+
 // A single paste can contain multiple statements (Episode 2 edge case) — the
 // engine-agnostic PlanNode contract has no room for that, so SQL Server's
 // parser returns its own small wrapper rather than a bare PlanNode. This is
@@ -42,6 +57,7 @@ export interface SqlServerStatementPlan {
   statementId?: string
   root: PlanNode
   missingIndexes: MissingIndexRecommendation[]
+  parameters: ParameterInfo[]
 }
 
 export interface SqlServerParseResult {
@@ -148,6 +164,7 @@ export function parseSqlServerShowplanXml(rawInput: string): SqlServerParseResul
       statementId: stmtEl.getAttribute("StatementId") ?? undefined,
       root,
       missingIndexes: parseMissingIndexes(stmtEl),
+      parameters: parseParameterList(stmtEl),
     }
   })
 
@@ -600,6 +617,24 @@ function parseMissingIndexes(stmtEl: Element): MissingIndexRecommendation[] {
       includedColumns,
     }
   })
+}
+
+/** Episode 29, Story 29.1 — `<ParameterList>`'s own `<ColumnReference>`
+ * entries, each carrying `ParameterCompiledValue`/`ParameterRuntimeValue`.
+ * Same `findAllByLocalName(stmtEl, ...)` scoping `parseMissingIndexes`
+ * above already uses for another statement-level element. Only entries
+ * with a real parameter name are kept — a `ColumnReference` with neither
+ * value attribute isn't a parameter this feature cares about. */
+function parseParameterList(stmtEl: Element): ParameterInfo[] {
+  const listEl = findFirstByLocalName(stmtEl, "ParameterList")
+  if (!listEl) return []
+  return findAllByLocalName(listEl, "ColumnReference")
+    .map((col) => ({
+      name: col.getAttribute("Column") ?? col.getAttribute("ParameterCompiledValue") ?? "",
+      compiledValue: col.getAttribute("ParameterCompiledValue") ?? undefined,
+      runtimeValue: col.getAttribute("ParameterRuntimeValue") ?? undefined,
+    }))
+    .filter((p) => p.name.length > 0 && (p.compiledValue !== undefined || p.runtimeValue !== undefined))
 }
 
 function toFiniteNumber(value: string | null): number | undefined {

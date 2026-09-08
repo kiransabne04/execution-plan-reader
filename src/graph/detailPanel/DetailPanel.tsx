@@ -6,6 +6,7 @@ import { computeNodeRank, formatOrdinal } from "./computeNodeRank"
 import { ContentStack } from "../content/ContentStack"
 import { ExpertStatsSections } from "./ExpertStatsSections"
 import { OperatorEducation } from "./OperatorEducation"
+import { ParameterValues } from "./ParameterValues"
 import { QueryCorrelation } from "./QueryCorrelation"
 import { RawAttributes } from "./RawAttributes"
 import { StatsTable } from "./StatsTable"
@@ -266,6 +267,7 @@ export function DetailPanel({
           <ExpertStatsSections node={node} />
           <WarningsSection warnings={node.warnings} expertMode={expertMode} engine={node.engine} />
           <QueryCorrelation queryText={context.statementText} queryTextRedacted={context.queryTextRedacted} />
+          <ParameterValues parameters={context.parameters} />
           <RawAttributes attributes={node.attributes} expertMode={expertMode} />
           <ContentStack operatorType={node.operatorType} ruleIds={node.warnings.map((w) => w.ruleId)} />
           <OperatorEducation node={node} expertMode={expertMode} />

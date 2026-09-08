@@ -176,6 +176,27 @@ describe("PlanReaderPage", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
 
+  // Episode 29, Stories 29.3/29.4.
+  it("shows the batch statement overview (top statements + health rollup) for a multi-statement batch, and jumps to a statement on click", () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
+
+    expect(screen.getByTestId("batch-statement-overview")).toBeInTheDocument()
+    const tabs = screen.getAllByRole("tab")
+    expect(tabs[1]).toHaveAttribute("aria-selected", "false")
+
+    const [firstTopStatementButton] = screen.getAllByRole("button", { name: /SELECT/ })
+    fireEvent.click(firstTopStatementButton)
+    // Whichever statement ranked first is now the active tab.
+    expect(screen.getAllByRole("tab").some((tab) => tab.getAttribute("aria-selected") === "true")).toBe(true)
+  })
+
+  it("does not show the batch statement overview for a single-statement plan", () => {
+    render(<PlanReaderPage />)
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    expect(screen.queryByTestId("batch-statement-overview")).not.toBeInTheDocument()
+  })
+
   // Episode 18, Story 18.11 — additive to the existing tab structure.
   it("statement tabs show a duration figure per tab, additive to the label", () => {
     render(<PlanReaderPage />)
