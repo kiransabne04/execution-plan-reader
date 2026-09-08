@@ -1516,3 +1516,188 @@ As a developer reading a SQL Server plan, I want to know when a Key Lookup is ru
 | Row count vs. reads as the materiality signal | A Key Lookup returns ~1 row per execution in the common case, but `actualRows` isn't always populated for every fixture/parser path | Reads (`io.bufferHits + io.bufferReads`) is an independent fallback signal, not a second copy of the same check |
 
 Registered in `ALL_RULES`, `"Loop issues"` category (same family as `nested-loop-explosion` — both are engine-specific specializations of the same "repeated-execution cost" pattern), `runtime` Query Health dimension.
+
+### Story 27.2 — Residual predicate heavy
+
+As a developer reading a SQL Server plan, I want to know when an Index Seek's own seek predicate barely narrows anything and a residual predicate is doing almost all the real filtering, so that I don't mistake "Index Seek" for "selective" when the actual cost is closer to reading the whole seek range.
+
+**Acceptance criteria**
+- Parser/normalized model check performed FIRST, before writing the rule: `SeekPredicates` (→ `node.predicate.indexCondition`), residual `Predicate` (→ `node.predicate.filter`), `ActualRowsRead` (feeds `node.rowsRemovedByFilter = actualRowsRead - actualRows`), and `ActualRows` (→ `node.actualRows`) were all already parsed and normalized for SQL Server before this story — confirmed against `parseShowplanXml.ts` directly, not assumed. **No parser or `PlanNode` model changes were needed.**
+- New rule `residual-predicate-heavy`, triggers only when `node.engine === "sqlserver"` and `node.operatorType === "index_seek"`.
+- Requires actual EVIDENCE of the seek-vs-residual split, not just a discard ratio: both `predicate.indexCondition` (a real seek predicate) and `predicate.filter` (a real residual predicate) must be present. This is what distinguishes it from the pre-existing engine-agnostic `filterRowsDiscarded.ts` (Episode 24, Story 24.2), which fires on the same `rowsRemovedByFilter`/`actualRows` ratio+volume with no check for WHY rows were discarded — the two rules are expected to coexist on the same node, not replace each other.
+- Both a ratio floor (residual-removed rows ÷ rows the seek actually read) AND an absolute-volume floor (rows removed) are required together — one alone is not enough, mirroring the "every factor together" shape used elsewhere in this codebase's explosion-style rules.
+- `longText` states the exact required framing ("SQL Server used an Index Seek, but the seek was not selective enough by itself; most rows were eliminated by a residual predicate"), names both `Actual Rows Read` and `Actual Rows` explicitly, and includes an explicit "this doesn't mean every residual predicate is a problem" disclaimer — a seek with a small residual filter left over is normal and must never be implied to be an issue on its own.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`/`makeContext`, same pattern as `pgNestedLoopExplosion.test.ts`/`keyLookupExplosion.test.ts` — no new XML fixture needed, the trigger only reads fields the parser already normalizes.
+- Both floors (ratio, absolute volume) tested independently, and both evidence requirements (`indexCondition` present, `filter` present) tested independently as their own no-fire cases — four separate ways this rule must NOT fire, not just one combined negative case.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Healthy seek (small residual filter, well-selective seek) | The common, correct case — most seeks have a small or no residual filter and shouldn't be flagged | Ratio floor (0.9) excludes it outright |
+| The story's own example (5,000,000 read, 2,000 returned) | The worked example this rule exists to catch | Fires `critical` (ratio ≈0.9996 clears both the warning and critical floors) |
+| Missing seek predicate (`predicate.indexCondition` undefined) | Without a real seek predicate on record, there's no "the seek wasn't selective enough" story to tell — this rule doesn't guess | Never fires, regardless of ratio/volume |
+| Missing residual predicate (`predicate.filter` undefined) | A fully-covered seek (no residual filter at all) is the best-case outcome, not a finding | Never fires, regardless of ratio/volume |
+| High ratio, tiny absolute volume (e.g. 95% of 100 rows) | Technically-true but practically-meaningless — the same shape `filterRowsDiscarded.ts`'s own volume floor guards against | Absolute-volume floor (10,000 rows removed) excludes it |
+| Estimate-only plan (no `actualRows`/`rowsRemovedByFilter` at all) | The highest-risk false-positive shape for any rows-read-vs-returned rule | Neither floor can clear (both require actual data), so the rule never fires |
+
+Registered in `ALL_RULES`, `"Scan issues"` category (same bucket as `filter-rows-discarded`, which this specializes), `cardinality` Query Health dimension (same as `filter-rows-discarded`).
+
+### Story 27.3 — Implicit conversion
+
+As a developer reading a SQL Server plan, I want to know when SQL Server had to implicitly convert a value's type to evaluate a predicate or join, so that I understand a possible source of degraded index access, skewed row estimates, or CPU overhead — without this app claiming a definite diagnosis it can't actually confirm from the plan text alone.
+
+**Acceptance criteria**
+- Parser/model check performed FIRST: confirmed `predicate.indexCondition` (Seek Predicate) and `predicate.filter` (residual Predicate) already preserve `CONVERT_IMPLICIT(...)` text verbatim for SQL Server, since both are built from the raw `ScalarString` attribute with no transformation. **No changes needed for either.**
+- Join predicate — a genuine, pre-existing parser gap for the join condition's own text as a whole (documented in `parseShowplanXml.ts`'s own comment: extracting "the" join condition varies too much by algorithm to do generically without risking the wrong element). Closed narrowly, not generally: a new `extractJoinKeysText` helper scans ONLY a Hash Match's own `HashKeysBuild`/`HashKeysProbe` elements (the specific place a join key needing a runtime conversion is visible in Showplan XML) for `CONVERT_IMPLICIT`, promoting the match to `attributes["Join Key Implicit Conversion"]` — never to `predicate.joinCondition`, which is shown to users verbatim elsewhere (detail panel, tooltip) and must stay an honest, clean condition string, not a raw key-list concatenation. Nested-loop's `InnerSideJoinColumns`/`OuterReferences` deliberately NOT covered — those list plain column references, not converted expressions; a conversion on a nested loop's own condition surfaces on the inner side's own Seek Predicate/Predicate instead, already covered.
+- Each extraction location (`HashKeysBuild`/`HashKeysProbe`) is bounded via `findNearestDescendant` (stops at a nested RelOp) before being searched — never `findAllByLocalName` directly on the RelOp, which would cross into a child RelOp's own join keys and misattribute them.
+- New rule `implicit-conversion`, `node.engine === "sqlserver"`, checks `predicate.indexCondition`, `predicate.filter`, and `attributes["Join Key Implicit Conversion"]` for `CONVERT_IMPLICIT(...)`.
+- Severity: `info` when found ONLY in a seek predicate (the text itself proves a seek still happened — lower-confidence signal, matching `nonSargablePredicate.ts`'s own precedent for excluding `indexCondition` from its higher-confidence findings); `warning` when found in a residual predicate or a join key (real evidence of per-row/per-key work outside a seek's own narrowing). Never `critical` — a syntactic text match, not a guaranteed diagnosis, same confidence ceiling `nonSargablePredicate.ts` already settled on.
+- `longText` explains all three named impacts (index access degradation, estimate/cardinality-estimate skew, CPU overhead) and explicitly states not every implicit conversion prevents an index seek or is a real problem.
+- Source type is never claimed: `CONVERT_IMPLICIT(target_type, expr, style)`'s own Showplan syntax only ever names the TARGET type and the converted expression — the original (source) type isn't present in the plan text at all. "Where possible" resolves to "never" here, and the rule says so explicitly rather than guessing.
+
+**Testing approach**
+- Parser-level tests (`parseShowplanXml.test.ts`) via a new fixture (`implicit-conversion.xml`, a Hash Match with a converted `HashKeysBuild` key over two children — an Index Seek with a converted seek predicate, and a Table Scan with a converted residual predicate) — including a dedicated boundary test proving the join node's own attribute never picks up its children's conversions.
+- Rule-level unit tests (`implicitConversion.test.ts`) via `makeNode`/`makeContext`, plus dedicated tests for the pure regex helper (`findConvertImplicitConversions`) independent of any `PlanNode`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Conversion inside a seek predicate that still produced a seek | The classic "does this always break seeks" misconception this rule must not reinforce | `info` severity, explicit text that this particular conversion did NOT prevent a seek here |
+| Conversion inside a residual predicate | The stronger, more actionable signal — nothing narrowed the seek at all for this condition | `warning` severity |
+| Conversion inside a Hash Match's own join key | A real, common, well-known pattern (join-key type mismatch) not visible via `predicate.filter`/`indexCondition` at all | New narrowly-scoped `extractJoinKeysText` parser helper, promoted to an attribute, never fabricated as `predicate.joinCondition` |
+| A child RelOp's own conversion under a join's `Hash` wrapper | `findAllByLocalName` crosses into nested RelOps with no boundary; a naive scan would misattribute a child's seek/residual conversion to the parent join node | `extractJoinKeysText` bounds each named element via `findNearestDescendant` (stops at a nested RelOp) before searching within it — covered by a dedicated boundary test |
+| Multiple distinct conversions on one node | A composite seek predicate or a multi-column join key can carry more than one conversion | `findConvertImplicitConversions` returns every match, deduped by (expression, target type) pair in the rendered text |
+| Requesting the "source" (original) type | `CONVERT_IMPLICIT`'s own syntax never states it — only the target type and the converted expression are present | Never claimed; `longText` says so explicitly rather than guessing |
+
+Registered in `ALL_RULES`, `"Index issues"` category (same bucket as `non-sargable-predicate`, a structurally similar finding), `cardinality` Query Health dimension (same as `non-sargable-predicate`).
+
+### Story 27.4 — SQL Server sort spill
+
+As a developer reading a SQL Server plan, I want SQL-Server-specific detail on a Sort operator's tempdb spill (its severity level, what I/O evidence exists, and how much runtime it cost), so that I get more than the generic "you spilled" signal every engine already produces.
+
+**Acceptance criteria**
+- `diskSpill.ts` (engine-agnostic, unconditional `critical` the moment `spill.occurred` is true) is unchanged and keeps firing alongside this new rule — this is an ADDITIONAL, more detailed finding, not a replacement, the same layering `sortDiskSpill.ts` already established for Postgres.
+- New rule `sqlserver-sort-spill`, fires only when `node.engine === "sqlserver"`, `node.operatorType === "sort"`, and `node.spill?.occurred` is true. A spilling Hash Match is deliberately out of scope (still caught by `diskSpill.ts` alone) — a `sqlserver-hash-spill` companion is the natural follow-up, not folded in under this rule's name.
+- Exposes: spill level (`attributes["Spill Level"]`, already parsed), this operator's own read total as an honest attribution to the spill (never claimed as an isolated tempdb figure), the affected operator (`rawOperatorLabel`), and runtime contribution (this node's own `actualTimeMs`, plus its share of `context.totalActualTimeMs` when available).
+- Severity escalates above spill level 1, but the generated text does NOT assert a specific, confirmed mechanism for what a higher spill level means — see the "real gap found" note below.
+- Explicitly states in `longText` that tempdb write counts and page counts are NOT available from Showplan XML for any operator — never fabricated or approximated.
+
+**Real gap/correction found while building this**: `docs/10-node-stats-field-catalog.md` §6 previously stated `SortSpillDetails`/`HashSpillDetails` with page counts exist in SQL Server 2016+ Showplan XML — no fixture, schema reference, or other verified source for this claim was found while researching this story, and the same doc's own "Spill severity/level" cell separately claimed "level 1 vs. level 2 indicates sort vs. hash spill severity conventions," which contradicts a since-corrected assumption in this rule's own first draft ("level 2+ means the spilled partition itself had to spill again," i.e. recursion depth). Neither claim has a confirmed source. Resolution: `docs/10-node-stats-field-catalog.md` corrected to remove both unverified claims; `sqlServerSortSpill.ts` still escalates severity on a higher spill level (a defensible "higher is worse" heuristic) but its generated text does not assert a specific mechanism it can't confirm. Tempdb write/page counts are confirmed genuinely absent from the Showplan XML schema (`RunTimeCountersPerThread` has no write-count attribute at all, for any operator) — stated as a real, permanent gap, not something to revisit once a parser is improved.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`/`makeContext`, same pattern as this episode's other rules.
+- End-to-end test added to the existing `applyRules.test.ts` SQL Server spill fixture case (`sort-spill-to-tempdb.xml`) confirming `sqlserver-sort-spill` fires alongside the already-asserted `disk-spill`, through the real parser — not just a hand-assembled node.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Spill level missing from attributes | A future Showplan XML variant, or a parser edge case, might not carry `SpillLevel` | Still fires at `warning`, with "an unspecified level" in the text rather than a fabricated number |
+| No I/O data on the spilling node | Not every fixture/real plan has `RunTimeCountersPerThread`'s read counters populated | The reads-attribution sentence is omitted entirely, not shown as zero |
+| No `context.totalActualTimeMs` available | A statement-level context without a real root total shouldn't imply false precision | Raw runtime is still shown; the percentage-of-total clause is omitted |
+| A spilling Hash Match (not Sort) | Must not be silently absorbed under this rule's "sort" name | Never fires here; `diskSpill.ts` alone still catches it |
+| Claiming tempdb writes/pages | Genuinely not present in Showplan XML for any operator | Explicitly stated as unavailable in `longText`, never guessed at |
+
+**Renumbering note**: the user's own request for the four stories below used the numbers 27.2–27.5, colliding with 27.2 (Residual predicate heavy) and 27.3 (Implicit conversion) already built earlier in this same episode. Continued sequentially as 27.5–27.8 instead of overwriting those numbers; no content collision, purely a labeling fix.
+
+### Story 27.5 — SQL Server hash spill
+
+As a developer reading a SQL Server plan, I want SQL-Server-specific detail on a Hash Match's own tempdb spill (its hash-table memory pressure, whatever partition/batch detail is actually exposed, and its tempdb interaction), so that I understand a hash spill's own shape, not just "you spilled."
+
+**Acceptance criteria**
+- New rule `sqlserver-hash-spill`, companion to `sqlserver-sort-spill` (Story 27.4) — shares its spill-level severity, I/O-attribution, and runtime-contribution machinery via a new `sqlServerSpillDetail.ts` module rather than duplicating that logic (the two rules were built together specifically to avoid drift between them).
+- Fires only on `engine === "sqlserver"`, `rawOperatorLabel === "Hash Match"` (covers hash join/aggregate/distinct/union alike — the spill mechanism and this rule's own text don't depend on which), `spill.occurred === true`.
+- Explains hash memory pressure (the build side didn't fit in its memory grant) and tempdb interaction (the same honest read-total attribution `sqlserver-sort-spill` uses, with hash-specific wording).
+- Partitions/batches: checked against this repo's own fixtures and `parseShowplanXml.ts` — genuinely NOT exposed anywhere in Showplan XML's schema (unlike Postgres's own `Hash Batches`/`Original Hash Batches`). Stated as an explicit, permanent gap in `longText`, never fabricated.
+- Does NOT blindly recommend raising server memory: `longText` lists memory grant size, row/column volume feeding the build side, and join/aggregate algorithm choice as co-equal possible angles, explicitly stating the plan alone can't say which applies.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`/`makeContext`, covering all four Hash Match logical disambiguations (hash_join/hash_aggregate/hash_distinct/hash_union) firing identically.
+- Refactor-safety check: `sqlServerSortSpill.test.ts`'s existing 13 tests all still pass unchanged after extracting the shared `sqlServerSpillDetail.ts` module — proof the refactor didn't alter that rule's real output.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A spilling Sort (not Hash Match) | Must not be silently absorbed under this rule's "hash" name | Never fires here; `sqlServerSortSpill.ts` handles it |
+| Any of the four Hash Match logical types | The spill pattern and fix-angles are identical regardless of join/aggregate/distinct/union | Checked via `rawOperatorLabel`, not per-`operatorType` enumeration |
+| Claiming a specific fix (more memory) | The story's own explicit instruction against blindly recommending it | `longText` lists three co-equal angles, never singles one out as "the" fix |
+| Partition/batch counts | Genuinely absent from Showplan XML's schema | Stated as an explicit gap, never fabricated |
+
+Registered in `ALL_RULES`, `"Spill issues"` category (same bucket as `sqlserver-sort-spill`), `memory` Query Health dimension.
+
+### Story 27.6 — Excessive memory grant
+
+As a developer reading a SQL Server plan, I want to know when a query was granted far more memory than it ever used, so that I understand the concurrency cost to OTHER queries on the instance, not just this one query's own performance.
+
+**Acceptance criteria**
+- Parser work: new `MemoryGrantInfo` parsing in `parseShowplanXml.ts` — `RequestedMemory`, `GrantedMemory`, `DesiredMemory`, `RequiredMemory`, `MaxUsedMemory` (all KB), promoted onto a new root-node-only `PlanNode.memoryGrant` field, same "read off QueryPlan once" pattern `parallel.compiledDegreeOfParallelism` already uses. Checked at the most likely placement (`QueryPlan`'s own direct child) with a bounded fallback search inside the root operator, since this session could not verify the exact placement against an authoritative schema reference — genuinely absent input leaves the field unset, never guessed.
+- New rule `memory-grant-excessive`, root-node-only, `engine === "sqlserver"`.
+- Both a ratio floor (granted ÷ max used) AND an absolute floor (wasted KB) required together — the story's own explicit instruction, mirroring this codebase's other materiality-graded rules.
+- Story's own worked example (granted 1GB, max used 70MB — a ~14.6x ratio on ~954MB of real waste) fires `critical`.
+- `longText` explains the CONCURRENCY impact specifically — the memory was reserved and unavailable to every other query on the instance for the duration, independent of whether this query itself ran fine.
+
+**Testing approach**
+- Parser-level tests (new `memory-grant-excessive.xml` fixture) confirming the KB figures land correctly on the root node, and that a fixture with no `MemoryGrantInfo` element leaves the field entirely undefined.
+- Rule-level unit tests via `makeNode`/`makeContext`, including the story's own worked example verbatim and both floors tested independently.
+- **Real gap found and fixed while building this**: `queryHealth.ts`'s `isDimensionEligible("memory", ...)` was keyed solely on `node.spill !== undefined` — since `spill` is only ever set when a spill actually occurred (never an `{occurred: false}` sentinel, confirmed in both the Postgres and SQL Server parsers), a query with an excessive/pressured memory grant but no spill anywhere would score the `memory` dimension as "insufficient data" even while carrying a real, scored finding for it — the exact "a plan could carry a finding and still show a misleadingly clean score" failure this file's own header comment already warns against for a different reason. Fixed by also checking `node.memoryGrant !== undefined`. Covered by a dedicated end-to-end test (`applyRules.test.ts`) asserting `computeQueryHealth` scores `memory` (not "insufficient data") on a no-spill, excessive-grant fixture.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Ratio high, absolute waste trivial | Technically-true but practically-meaningless | Absolute floor (50MB) excludes it |
+| Absolute waste large, ratio low | A big grant that was mostly used isn't excessive | Ratio floor (4x) excludes it |
+| `maxUsedKb === 0` | A naive `granted / 0` produces `Infinity` | Displayed as "far more than," never `Infinity`/`NaN` in user-facing text |
+| No `MemoryGrantInfo` in the plan at all | The most common case — most plans don't carry this element at every SQL Server version/build | Never fires; never guessed |
+| Query Health's own "memory" dimension eligibility | Was keyed on spill data only — see the real gap noted above | Fixed to also recognize `memoryGrant` |
+
+Registered in `ALL_RULES`, `"Spill issues"` category, `memory` Query Health dimension.
+
+### Story 27.7 — Insufficient memory grant (memory grant pressure)
+
+As a developer reading a SQL Server plan, I want to know when a memory grant that was already on the modest side correlates with a real tempdb spill, so that I get a plausible "give it more memory" signal only when the evidence actually supports it — not just because usage happened to land close to the grant.
+
+**Acceptance criteria**
+- New rule `memory-grant-pressure`, root-node-only, `engine === "sqlserver"`.
+- Correlates a modest grant (`grantedKb` at or below a chosen ceiling) with real spill evidence — at least one node anywhere in the SAME query's tree with `spill.occurred === true` (`collectNodes` walked from the root, the same pattern `parallelWorkerShortfall.ts`'s SQL Server check already uses for its own root-level tree correlation).
+- Does NOT trigger solely because `maxUsedKb ≈ grantedKb` — this file's own explicit instruction, and genuinely unreliable here: a query that spills tends to report usage close to its grant almost by construction (the excess went to disk, not into more reported memory usage), so that comparison alone can't distinguish a well-sized grant from an undersized one. `longText` explains this explicitly rather than silently avoiding the comparison.
+- A LARGE grant that still spilled deliberately does NOT fire this rule — "more memory" is a much shakier recommendation there (the data volume may simply exceed any reasonable grant, or the real fix is elsewhere); the modest-grant ceiling scopes this rule to cases where the recommendation is low-risk.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`/`makeContext`, including the two required negative shapes named above (large grant + spill; modest grant + used≈granted with NO spill evidence) as their own explicit tests.
+- Parser/end-to-end test via a new `memory-grant-pressure.xml` fixture (a modest grant on a Sort that actually spills) through `applyRules`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Modest grant, no spill anywhere | The common healthy case | Never fires |
+| Modest grant, used≈granted, no spill | The story's own explicitly-forbidden false trigger | Never fires — spill evidence is required, not the used/granted comparison |
+| Large grant, real spill | "More memory" isn't automatically the right advice here | Never fires — grant ceiling excludes it |
+| Multiple spilling operators in one tree | The finding should name what actually spilled, not just assert "something did" | `rawOperatorLabel`s of every spilling node are named in `longText` |
+
+Registered in `ALL_RULES`, `"Spill issues"` category, `memory` Query Health dimension.
+
+### Story 27.8 — Memory grant feedback evidence
+
+As a developer reading a SQL Server plan, I want to see SQL Server's own Memory Grant Feedback marker when the plan actually carries one, so that I get a real signal from a modern SQL Server feature — never a fabricated one on an older plan or build that doesn't expose it.
+
+**Acceptance criteria**
+- New rule `memory-grant-feedback`, root-node-only, `engine === "sqlserver"`, fires ONLY when `memoryGrant.feedbackAdjusted` is actually populated (the parser only ever sets it when the underlying `IsMemoryGrantFeedbackAdjusted` attribute is found in the input, checked at two plausible locations since this session couldn't verify the authoritative one).
+- Always `info` severity — purely informational, explicitly stated in `longText` as not a diagnosis of its own.
+- A handful of known values (`YesStable`, `YesAdjusting`, `NoFirstExecution`, `NoFeedback`) get a plain-language explanation; any other/future value is still shown verbatim rather than dropped or guessed at.
+- Mapped into Query Health's `memory` dimension (not excluded) — consistent with how other always-info rule families (e.g. `non-sargable-predicate`) are still mapped despite never moving the score; `EXCLUDED_RULE_IDS` stays reserved for the two disclosure-about-the-plan's-nature rules specifically.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`/`makeContext` — absence (no `MemoryGrantInfo` at all, `MemoryGrantInfo` present but no feedback marker, non-SQL-Server engine) all as explicit no-fire cases, plus each known value and one deliberately-unrecognized value.
+- End-to-end test against `memory-grant-excessive.xml` (which DOES carry `IsMemoryGrantFeedbackAdjusted="YesStable"`) and `memory-grant-pressure.xml` (which does NOT) — proving the rule reacts correctly to real presence/absence through the actual parser, not just a hand-assembled node.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Feedback attribute genuinely absent (older build, or a query ineligible for feedback) | The overwhelming majority of real input | Never fires; nothing inferred |
+| An unrecognized future value | SQL Server may add new states this app hasn't seen yet | Value still shown verbatim, with an honest "no explanation for this yet" note rather than silently dropped |
+| Exact XML placement of the attribute | This session could not verify against an authoritative schema reference | Checked in both plausible locations defensively; never assumed present |
+
+Registered in `ALL_RULES`, `"General notes"` category, `memory` Query Health dimension (always-info, never moves the score, mapped anyway for consistency).
+
+Registered in `ALL_RULES`, `"Spill issues"` category (same bucket as `disk-spill`/`sort-disk`/`sort-large`), `memory` Query Health dimension (same as those three).

@@ -103,11 +103,38 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     "exploding-join",
     "missing-index-opportunity",
     "non-sargable-predicate",
+    // SQL Server — same dimension as non-sargable-predicate, a
+    // structurally similar text-pattern "may hurt index use" finding.
+    "implicit-conversion",
     "filter-rows-discarded",
+    // SQL Server — same dimension as filter-rows-discarded, which this
+    // specializes with an actual seek-vs-residual-predicate distinction.
+    "residual-predicate-heavy",
     "join-filter-rows-discarded",
     "partition-fanout",
   ],
-  memory: ["disk-spill", "hash-batching", "sort-disk", "sort-large", "temp-io", "memoize-evictions"],
+  memory: [
+    "disk-spill",
+    "hash-batching",
+    "sort-disk",
+    "sort-large",
+    "temp-io",
+    "memoize-evictions",
+    "sqlserver-sort-spill",
+    "sqlserver-hash-spill",
+    "memory-grant-excessive",
+    "memory-grant-pressure",
+    // Always `info`, never moves the score — mapped anyway rather than
+    // left out, per this file's own header comment ("mapped anyway, for
+    // the same reason the two honesty-note rules are explicitly EXCLUDED":
+    // consistency should be a stated decision). NOT added to
+    // EXCLUDED_RULE_IDS above — that set is reserved for the two
+    // disclosures-about-the-plan's-nature rules specifically; this is a
+    // real, specific finding about a SQL Server feature's state, just at
+    // info severity, the same category non-sargable-predicate is already
+    // in (mapped into cardinality despite also always being info).
+    "memory-grant-feedback",
+  ],
   io: ["buffer-cache-inefficiency", "wal-volume"],
   // Story 23.2 adds the parallel-worker-shortfall rule that actually feeds
   // this family; the mapping is declared here already so Story 23.2 only
@@ -134,8 +161,19 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
       return nodes.some((n) => n.estimatedRows !== undefined)
     case "memory":
       // The parser attempted spill detection for this node at all
-      // (`SpillInfo` present), regardless of whether it actually spilled.
-      return nodes.some((n) => n.spill !== undefined)
+      // (`SpillInfo` present), regardless of whether it actually spilled —
+      // in practice `spill` is only ever set when `occurred: true` (no
+      // parser in this codebase sets an `{occurred: false}` sentinel), so
+      // this is really "at least one node actually spilled." A real memory
+      // grant fact (`memoryGrant`, SQL Server root-only) is an independent
+      // second source of real memory-related data for this dimension —
+      // without this OR clause, a query with an excessive/pressured memory
+      // grant but no spill anywhere would score `memory` as
+      // "insufficient data" even while carrying a genuine, scored finding
+      // for it — exactly the "a plan could carry a finding and still show
+      // a misleadingly clean [dimension]" failure this file's own header
+      // comment warns against.
+      return nodes.some((n) => n.spill !== undefined || n.memoryGrant !== undefined)
     case "io":
       return nodes.some(
         (n) => n.io?.bufferHits !== undefined || n.io?.bufferReads !== undefined || n.timeBreakdown?.localDiskIoPercentage !== undefined || n.timeBreakdown?.remoteDiskIoPercentage !== undefined,

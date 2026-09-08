@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
 import { applyRules } from "../index"
+import { computeQueryHealth } from "../queryHealth"
 import { buildPlanContext } from "../types"
 import { collectNodes } from "../../parsers/normalize"
 import { parseSqlServerShowplanXml } from "../../parsers/sqlserver/parseShowplanXml"
@@ -84,6 +85,43 @@ describe("applyRules", () => {
     })
     applyRules(stmt.root, context)
     expect(stmt.root.warnings.some((w) => w.ruleId === "disk-spill")).toBe(true)
+    // sqlserver-sort-spill coexists with the generic disk-spill finding —
+    // this fixture's real SpillLevel="1" attribute, parsed all the way
+    // through, not a hand-assembled node.
+    expect(stmt.root.warnings.some((w) => w.ruleId === "sqlserver-sort-spill")).toBe(true)
+  })
+
+  it("end-to-end: SQL Server excessive-memory-grant fixture fires memory-grant-excessive and memory-grant-feedback", () => {
+    const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "memory-grant-excessive.xml"))
+    const [stmt] = statements
+    const context = buildPlanContext(stmt.root, { statementText: stmt.statementText, missingIndexes: stmt.missingIndexes })
+    applyRules(stmt.root, context)
+    expect(stmt.root.warnings.some((w) => w.ruleId === "memory-grant-excessive")).toBe(true)
+    expect(stmt.root.warnings.some((w) => w.ruleId === "memory-grant-feedback")).toBe(true)
+    // This fixture has no spill anywhere — real proof the memory-grant
+    // finding above isn't quietly excluded by Query Health's own
+    // eligibility gate for the "memory" dimension.
+    const health = computeQueryHealth(stmt.root, context)
+    expect(health.dimensions.memory.status).toBe("scored")
+  })
+
+  it("end-to-end: SQL Server memory-grant-pressure fixture correlates a modest grant with a real spill", () => {
+    const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "memory-grant-pressure.xml"))
+    const [stmt] = statements
+    const context = buildPlanContext(stmt.root, { statementText: stmt.statementText, missingIndexes: stmt.missingIndexes })
+    applyRules(stmt.root, context)
+    expect(stmt.root.warnings.some((w) => w.ruleId === "memory-grant-pressure")).toBe(true)
+    // This fixture's MemoryGrantInfo has no IsMemoryGrantFeedbackAdjusted
+    // attribute at all — must not fabricate a feedback finding.
+    expect(stmt.root.warnings.some((w) => w.ruleId === "memory-grant-feedback")).toBe(false)
+  })
+
+  it("end-to-end: SQL Server hash-join fixture (no spill) never fires sqlserver-hash-spill", () => {
+    const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "hash-join.xml"))
+    const [stmt] = statements
+    const context = buildPlanContext(stmt.root, { statementText: stmt.statementText, missingIndexes: stmt.missingIndexes })
+    applyRules(stmt.root, context)
+    expect(collectNodes(stmt.root).flatMap((n) => n.warnings).some((w) => w.ruleId === "sqlserver-hash-spill")).toBe(false)
   })
 
   it("end-to-end: SQL Server missing-index fixture fires missing-index-opportunity on the root", () => {

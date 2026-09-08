@@ -106,6 +106,43 @@ export function parseSqlServerShowplanXml(rawInput: string): SqlServerParseResul
       root.parallel = { ...root.parallel, compiledDegreeOfParallelism, nonParallelPlanReason }
     }
 
+    // Episode 27/28 — memory grant, another whole-query fact (one grant
+    // covers a query's memory-consuming operators collectively, it's not
+    // per-operator), same root-only pattern as DegreeOfParallelism above.
+    // `MemoryGrantInfo` is typically a direct sibling of the top RelOp
+    // under `QueryPlan` — checked there first; falls back to searching
+    // inside the root operator itself (bounded, never crossing into a
+    // nested RelOp) in case a given SQL Server build nests it differently,
+    // since this session could not verify the exact placement against an
+    // authoritative schema reference. Genuinely absent input (no element
+    // at either location) leaves `root.memoryGrant` unset — never guessed.
+    const memoryGrantEl = findDirectChild(queryPlanEl, "MemoryGrantInfo") ?? findNearestDescendant(rootRelOps[0], "MemoryGrantInfo")
+    if (memoryGrantEl) {
+      const requestedKb = toFiniteNumber(memoryGrantEl.getAttribute("RequestedMemory"))
+      const grantedKb = toFiniteNumber(memoryGrantEl.getAttribute("GrantedMemory"))
+      const desiredKb = toFiniteNumber(memoryGrantEl.getAttribute("DesiredMemory"))
+      const requiredKb = toFiniteNumber(memoryGrantEl.getAttribute("RequiredMemory"))
+      const maxUsedKb = toFiniteNumber(memoryGrantEl.getAttribute("MaxUsedMemory"))
+      // Memory Grant Feedback (SQL Server 2017+) — checked in both
+      // plausible locations (this element itself, and the QueryPlan root)
+      // since this session could not verify with full confidence which one
+      // real Showplan XML uses. Only ever set when actually present in the
+      // input; a plan from an older build or a non-feedback-eligible query
+      // simply never has this attribute anywhere, and nothing is inferred
+      // in that case (see memoryGrantFeedback.ts's own doc comment).
+      const feedbackAdjusted = memoryGrantEl.getAttribute("IsMemoryGrantFeedbackAdjusted") ?? queryPlanEl.getAttribute("IsMemoryGrantFeedbackAdjusted") ?? undefined
+      if (
+        requestedKb !== undefined ||
+        grantedKb !== undefined ||
+        desiredKb !== undefined ||
+        requiredKb !== undefined ||
+        maxUsedKb !== undefined ||
+        feedbackAdjusted !== undefined
+      ) {
+        root.memoryGrant = { requestedKb, grantedKb, desiredKb, requiredKb, maxUsedKb, feedbackAdjusted }
+      }
+    }
+
     return {
       statementText: stmtEl.getAttribute("StatementText") ?? undefined,
       statementId: stmtEl.getAttribute("StatementId") ?? undefined,
@@ -284,6 +321,22 @@ function buildNode(relOp: Element, counter: { next: number }, role: PlanNodeRole
   const predicate =
     predicateText || seekPredicateText ? { filter: predicateText, indexCondition: seekPredicateText } : undefined
 
+  // Narrow exception to the "join condition extraction is an honest gap"
+  // note just above: this does NOT attempt to represent the join
+  // condition itself (which side, what the full expression means) — it
+  // only pattern-matches for CONVERT_IMPLICIT specifically inside a Hash
+  // Match's own build/probe key list, which is exactly where Showplan XML
+  // surfaces a join key needing a runtime type conversion. Promoted to
+  // `attributes` (like other synthesized, rule-specific facts on this
+  // node — see "Spill Occurred"/"Threads" above) rather than
+  // `predicate.joinCondition`, which is shown to users verbatim elsewhere
+  // (detail panel, tooltip) and must stay an honest, clean condition
+  // string — a raw key-list concatenation doesn't qualify as one.
+  const joinKeysText = extractJoinKeysText(relOp)
+  if (joinKeysText?.includes("CONVERT_IMPLICIT")) {
+    attributes["Join Key Implicit Conversion"] = joinKeysText
+  }
+
   const indexType = mapIndexKind(objectEl?.getAttribute("IndexKind") ?? undefined)
   const indexName = objectEl?.getAttribute("Index") ?? undefined
   const index = indexName || indexType ? { name: indexName ?? undefined, type: indexType } : undefined
@@ -401,6 +454,32 @@ function extractSeekPredicateText(seekPredicatesEl: Element | undefined): string
     })
     .filter((text) => text.length > 0)
   return groupTexts.length > 0 ? groupTexts.join(" OR ") : undefined
+}
+
+/** Hash Match's own build/probe key list — the specific place a join key
+ * needing a runtime CONVERT_IMPLICIT is visible in Showplan XML (a hash
+ * join's build and probe sides must hash to the SAME type, so a mismatched
+ * column type shows up here as a wrapped `ScalarOperator` instead of a
+ * plain `ColumnReference`). Each name is located via `findNearestDescendant`
+ * (stops at a nested RelOp) BEFORE searching inside it — never
+ * `findAllByLocalName(relOp, ...)` directly, which would cross into a
+ * child RelOp's own HashKeysBuild/Probe and misattribute it to this node.
+ * Deliberately NOT covering nested-loop's `InnerSideJoinColumns`/
+ * `OuterReferences` — those list plain column references, not converted
+ * expressions; a conversion on a nested loop's own join condition shows up
+ * on the inner side's own SeekPredicates/Predicate instead, already
+ * covered by `extractSeekPredicateText`/`extractScalarString` above. */
+const JOIN_KEY_ELEMENT_NAMES = ["HashKeysBuild", "HashKeysProbe"] as const
+
+function extractJoinKeysText(relOp: Element): string | undefined {
+  const texts = JOIN_KEY_ELEMENT_NAMES.flatMap((name) => {
+    const container = findNearestDescendant(relOp, name)
+    if (!container) return []
+    return findAllByLocalName(container, "ScalarOperator")
+      .filter((so) => so.hasAttribute("ScalarString"))
+      .map((so) => so.getAttribute("ScalarString")!)
+  })
+  return texts.length > 0 ? texts.join(", ") : undefined
 }
 
 function subtractDefined(a: number | undefined, b: number | undefined): number | undefined {

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Orders o JOIN Customers c ON c.CustomerCode = o.CustomerCode WHERE o.OrderCode = @P1" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Hash Match" LogicalOp="Inner Join" EstimateRows="480" EstimatedTotalSubtreeCost="2.1">
+              <Hash>
+                <HashKeysBuild>
+                  <ScalarOperator ScalarString="CONVERT_IMPLICIT(int,[MyDb].[dbo].[Orders].[CustomerCode],0)" />
+                </HashKeysBuild>
+                <HashKeysProbe>
+                  <ColumnReference Column="CustomerCode" />
+                </HashKeysProbe>
+                <RelOp NodeId="1" PhysicalOp="Index Seek" LogicalOp="Index Seek" EstimateRows="5" EstimatedTotalSubtreeCost="0.3">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="5" ActualExecutions="1" ActualElapsedms="1" />
+                  </RunTimeInformation>
+                  <IndexScan Lookup="0">
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" Index="[IX_Orders_OrderCode]" IndexKind="NonClustered" />
+                    <SeekPredicates>
+                      <SeekPredicateNew>
+                        <Prefix>
+                          <RangeColumns>
+                            <ColumnReference Column="OrderCode" />
+                          </RangeColumns>
+                          <RangeExpressions>
+                            <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[OrderCode]=CONVERT_IMPLICIT(varchar(50),[@P1],0)" />
+                          </RangeExpressions>
+                        </Prefix>
+                      </SeekPredicateNew>
+                    </SeekPredicates>
+                  </IndexScan>
+                </RelOp>
+                <RelOp NodeId="2" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="800" EstimatedTotalSubtreeCost="0.6">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="800" ActualExecutions="1" ActualElapsedms="3" />
+                  </RunTimeInformation>
+                  <TableScan>
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Customers]" />
+                    <Predicate>
+                      <ScalarOperator ScalarString="CONVERT_IMPLICIT(varchar(20),[MyDb].[dbo].[Customers].[StatusCode],0)='active'" />
+                    </Predicate>
+                  </TableScan>
+                </RelOp>
+              </Hash>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

@@ -109,6 +109,71 @@ describe("parseSqlServerShowplanXml", () => {
     expect(condition).toContain("OrderDate]=('2024-01-01')")
   })
 
+  // implicit-conversion rule support: CONVERT_IMPLICIT inside a Hash
+  // Match's own HashKeysBuild/HashKeysProbe is promoted to an attribute
+  // (never predicate.joinCondition, which is shown to users verbatim
+  // elsewhere and must stay an honest, clean condition string).
+  it("promotes CONVERT_IMPLICIT found in HashKeysBuild/HashKeysProbe to an attribute on the join node", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("implicit-conversion.xml"))
+    const root = result.statements[0].root
+    expect(root.rawOperatorLabel).toBe("Hash Match")
+    expect(root.attributes["Join Key Implicit Conversion"]).toContain("CONVERT_IMPLICIT(int,")
+  })
+
+  it("never crosses into a child RelOp's own HashKeysBuild/Predicate/SeekPredicates when scanning join keys", () => {
+    // The join node's own "Join Key Implicit Conversion" attribute must
+    // contain ONLY its own HashKeysBuild/Probe text — not also pick up the
+    // conversions inside its children's SeekPredicates/Predicate, which
+    // would prove findNearestDescendant's RelOp boundary was bypassed.
+    const result = parseSqlServerShowplanXml(loadFixture("implicit-conversion.xml"))
+    const root = result.statements[0].root
+    const joinKeyAttr = root.attributes["Join Key Implicit Conversion"]
+    expect(joinKeyAttr).not.toContain("OrderCode")
+    expect(joinKeyAttr).not.toContain("StatusCode")
+  })
+
+  it("extracts CONVERT_IMPLICIT inside a child's own SeekPredicates and Predicate independently of the parent join's key conversion", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("implicit-conversion.xml"))
+    const [seekChild, scanChild] = result.statements[0].root.children
+    expect(seekChild.predicate?.indexCondition).toContain("CONVERT_IMPLICIT(varchar(50)")
+    expect(scanChild.predicate?.filter).toContain("CONVERT_IMPLICIT(varchar(20)")
+  })
+
+  it("leaves the Join Key Implicit Conversion attribute unset when no join key needed a conversion", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("hash-join.xml"))
+    expect(result.statements[0].root.attributes["Join Key Implicit Conversion"]).toBeUndefined()
+  })
+
+  // memory-grant rule support: MemoryGrantInfo is a QueryPlan-level (not
+  // per-node) fact, promoted onto the root node's own memoryGrant field —
+  // same pattern as DegreeOfParallelism/NonParallelPlanReason.
+  it("promotes MemoryGrantInfo's KB figures and memory grant feedback marker onto the root node", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("memory-grant-excessive.xml"))
+    const root = result.statements[0].root
+    expect(root.memoryGrant).toEqual({
+      requestedKb: 1_048_576,
+      grantedKb: 1_048_576,
+      desiredKb: 1_048_576,
+      requiredKb: 1_024,
+      maxUsedKb: 71_680,
+      feedbackAdjusted: "YesStable",
+    })
+  })
+
+  it("leaves root.memoryGrant entirely undefined when no MemoryGrantInfo element exists at all", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("hash-join.xml"))
+    expect(result.statements[0].root.memoryGrant).toBeUndefined()
+  })
+
+  it("never fabricates a memory grant feedback marker when the attribute is genuinely absent", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("memory-grant-pressure.xml"))
+    expect(result.statements[0].root.memoryGrant?.feedbackAdjusted).toBeUndefined()
+    // The other MemoryGrantInfo figures on this same fixture ARE present —
+    // proves the missing feedback marker isn't just the whole element
+    // failing to parse.
+    expect(result.statements[0].root.memoryGrant?.grantedKb).toBe(4_096)
+  })
+
   it("promotes io.bufferHits/bufferReads (derived from logical/physical reads) with an approximate cacheHitRatio", () => {
     const result = parseSqlServerShowplanXml(loadFixture("seek-and-key-lookup.xml"))
     const seek = result.statements[0].root.children[0]

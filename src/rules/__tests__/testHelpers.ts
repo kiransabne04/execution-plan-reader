@@ -43,6 +43,7 @@ export function makeNode(overrides: Partial<PlanNode> = {}): PlanNode {
     jit: overrides.jit,
     planningTimeMs: overrides.planningTimeMs,
     executionTimeMs: overrides.executionTimeMs,
+    memoryGrant: overrides.memoryGrant,
     children: overrides.children ?? [],
     attributes: overrides.attributes ?? {},
     warnings: overrides.warnings ?? [],

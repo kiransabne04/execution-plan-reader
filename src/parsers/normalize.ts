@@ -172,6 +172,23 @@ export interface JitInfo {
   totalMs?: number
 }
 
+/** SQL Server-specific, whole-query fact (root-node-only, same "read off
+ * QueryPlan once" pattern `parallel.compiledDegreeOfParallelism` already
+ * uses) — one memory grant covers a query's memory-consuming operators
+ * (Sort/Hash) collectively; it's not a per-operator concept the way
+ * Postgres's `Sort Space Used` is. All KB, matching Showplan XML's own
+ * unit convention for these attributes. `feedbackAdjusted` (SQL Server
+ * 2017+ Memory Grant Feedback) is only ever set when the underlying
+ * attribute is actually present in the XML — never inferred when absent. */
+export interface MemoryGrantInfo {
+  requestedKb?: number
+  grantedKb?: number
+  desiredKb?: number
+  requiredKb?: number
+  maxUsedKb?: number
+  feedbackAdjusted?: string
+}
+
 export interface SpillInfo {
   occurred: boolean
   bytesLocal?: number
@@ -339,6 +356,9 @@ export interface PlanNode {
    * top-level overhead `actualTimeMs` alone doesn't capture). */
   planningTimeMs?: number
   executionTimeMs?: number
+  /** SQL Server-specific, root-node-only (see `MemoryGrantInfo`'s own doc
+   * comment for why). */
+  memoryGrant?: MemoryGrantInfo
 
   children: PlanNode[]
   // Engine-specific extras, untouched. Non-primitive raw values (arrays/objects,

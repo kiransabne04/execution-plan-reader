@@ -58,6 +58,23 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   // SQL Server — key lookup explosion (same "repeated-execution" family as
   // nested-loop-explosion, just a different engine/operator).
   "key-lookup-explosion": "Loop issues",
+  // SQL Server — residual predicate heavy (same bucket as the engine-
+  // agnostic filter-rows-discarded it specializes).
+  "residual-predicate-heavy": "Scan issues",
+  // SQL Server — implicit conversion (same bucket as non-sargable-predicate,
+  // a structurally similar "may prevent index use" text-pattern finding).
+  "implicit-conversion": "Index issues",
+  // SQL Server — sort spill (same bucket as disk-spill/sort-disk/sort-large,
+  // which this specializes with SQL-Server-specific spill-level detail).
+  "sqlserver-sort-spill": "Spill issues",
+  // SQL Server — hash spill (same bucket as sqlserver-sort-spill, its
+  // Hash Match companion).
+  "sqlserver-hash-spill": "Spill issues",
+  // SQL Server — memory grant (a spill-adjacent memory concern, same
+  // bucket as disk-spill/sort-disk/sort-large/the two sqlserver spill rules).
+  "memory-grant-excessive": "Spill issues",
+  "memory-grant-pressure": "Spill issues",
+  "memory-grant-feedback": "General notes",
 }
 
 export function categorizeFinding(warning: Warning): FindingCategory {

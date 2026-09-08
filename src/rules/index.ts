@@ -7,12 +7,17 @@ import { explodingJoin } from "./explodingJoin"
 import { filterRowsDiscarded } from "./filterRowsDiscarded"
 import { hashBatching } from "./hashBatching"
 import { highLoopCount } from "./highLoopCount"
+import { implicitConversion } from "./implicitConversion"
 import { indexOnlyHeapFetches } from "./indexOnlyHeapFetches"
 import { jitOverhead } from "./jitOverhead"
 import { joinFilterRowsDiscarded } from "./joinFilterRowsDiscarded"
 import { keyLookupExplosion } from "./keyLookupExplosion"
+import { residualPredicateHeavy } from "./residualPredicateHeavy"
 import { materializeRepeated } from "./materializeRepeated"
 import { memoizeEffectiveness } from "./memoizeEffectiveness"
+import { memoryGrantExcessive } from "./memoryGrantExcessive"
+import { memoryGrantFeedback } from "./memoryGrantFeedback"
+import { memoryGrantPressure } from "./memoryGrantPressure"
 import { missingIndexOpportunity } from "./missingIndexOpportunity"
 import { nonSargablePredicate } from "./nonSargablePredicate"
 import { parallelWorkerShortfall } from "./parallelWorkerShortfall"
@@ -22,6 +27,8 @@ import { pgNestedLoopExplosion } from "./pgNestedLoopExplosion"
 import { planningOverhead } from "./planningOverhead"
 import { seqScanOnLargeTable } from "./seqScanOnLargeTable"
 import { sortDiskSpill } from "./sortDiskSpill"
+import { sqlServerHashSpill } from "./sqlServerHashSpill"
+import { sqlServerSortSpill } from "./sqlServerSortSpill"
 import { temporaryIo } from "./temporaryIo"
 import { walVolume } from "./walVolume"
 import type { PlanContext, Rule } from "./types"
@@ -55,6 +62,19 @@ export { walVolume } from "./walVolume"
 export { pgNestedLoopExplosion } from "./pgNestedLoopExplosion"
 // SQL Server — key lookup explosion.
 export { keyLookupExplosion } from "./keyLookupExplosion"
+// SQL Server — residual predicate heavy.
+export { residualPredicateHeavy } from "./residualPredicateHeavy"
+// SQL Server — implicit conversion.
+export { implicitConversion, findConvertImplicitConversions } from "./implicitConversion"
+// SQL Server — sort spill.
+export { sqlServerSortSpill } from "./sqlServerSortSpill"
+// SQL Server — hash spill.
+export { sqlServerHashSpill } from "./sqlServerHashSpill"
+export { ELEVATED_SPILL_LEVEL_THRESHOLD } from "./sqlServerSpillDetail"
+// SQL Server — memory grant.
+export { memoryGrantExcessive } from "./memoryGrantExcessive"
+export { memoryGrantPressure } from "./memoryGrantPressure"
+export { memoryGrantFeedback } from "./memoryGrantFeedback"
 export { linkPropagatedFindings, groupByRootCause, type FindingRelationship, type RootCauseGroup } from "./cardinalityPropagation"
 export { severityForEstimateError } from "./badRowEstimate"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
@@ -101,6 +121,18 @@ export const ALL_RULES: Rule[] = [
   estimateOnlyNote,
   // SQL Server — key lookup explosion.
   keyLookupExplosion,
+  // SQL Server — residual predicate heavy.
+  residualPredicateHeavy,
+  // SQL Server — implicit conversion.
+  implicitConversion,
+  // SQL Server — sort spill.
+  sqlServerSortSpill,
+  // SQL Server — hash spill.
+  sqlServerHashSpill,
+  // SQL Server — memory grant.
+  memoryGrantExcessive,
+  memoryGrantPressure,
+  memoryGrantFeedback,
 ]
 
 const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }
