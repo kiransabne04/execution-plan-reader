@@ -82,6 +82,11 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "exchange-data-movement": "Parallelism issues",
   "adaptive-join": "General notes",
   "execution-mode": "General notes",
+  // Episode 30 — Snowflake pruning/scan-volume reasoning (same bucket as
+  // filter-rows-discarded/missing-index-opportunity — access-efficiency
+  // concerns, not caching).
+  "poor-partition-pruning": "Scan issues",
+  "large-scan-volume": "Scan issues",
 }
 
 export function categorizeFinding(warning: Warning): FindingCategory {

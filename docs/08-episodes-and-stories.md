@@ -1939,3 +1939,76 @@ As a developer with a large stored-procedure batch, I want a batch-wide Query He
 | Top-3 disagreeing with Story 29.3's own list | Two independently-computed "important statements" lists could contradict each other | Both reuse the exact same `rankStatements()` call |
 
 Registered: no new `ruleId` — pure data/UI addition.
+
+## Episode 30 — Snowflake Should Reason Like Snowflake, Not "Postgres With Different Labels"
+
+Parser check performed first, per this episode's own premise: `pruning.partitionsScanned`/`partitionsTotal`, `io.bytesScanned`, and `timeBreakdown.overallPercentage`/`localDiskIoPercentage`/`remoteDiskIoPercentage` were ALL already parsed (`buildTree.ts`'s `derivePruning`/`deriveIo`/`deriveTimeBreakdown`) — **no new parser work needed for any of the three stories below.** What Snowflake genuinely lacks and every rule here respects: `estimatedRows` (no compile-time estimate concept is exposed by `GET_QUERY_OPERATOR_STATS()`) and `actualTimeMs` (no per-node millisecond figure — Snowflake's own "operator time" is `timeBreakdown.overallPercentage`, a percentage of the QUERY's total time, a genuinely different unit). Rules here never reuse Postgres/SQL-Server-shaped thresholds (row counts, milliseconds) against Snowflake's own percentage/byte-count/partition-ratio fields — this episode's whole point.
+
+**Real bug found and fixed while building this**: `queryHealth.ts`'s `isDimensionEligible("cardinality", ...)` was keyed solely on `estimatedRows !== undefined` — since Snowflake NEVER populates that field, a Snowflake plan carrying a real, scored `poor-partition-pruning`/`large-scan-volume` finding would have scored the `cardinality` dimension as "insufficient data" regardless — the exact same class of bug the `memory` dimension had for SQL Server memory-grant findings (Episode 29, Story 29.1). Fixed by also recognizing `pruning`/`io.bytesScanned` as valid cardinality-dimension evidence for Snowflake. Covered by an end-to-end test using a real fixture, not a synthetic node.
+
+### Story 30.1 — Partition pruning efficiency
+
+As a developer reading a Snowflake plan, I want to know when a scan barely benefited from partition pruning, so that I see a genuinely Snowflake-specific inefficiency signal — not a row-count heuristic borrowed from another engine.
+
+**Acceptance criteria**
+- New rule `poor-partition-pruning`, `engine === "snowflake"` only, using `pruning.partitionsScanned`/`partitionsTotal` (already parsed — no new parser work).
+- Scanned ratio (`partitionsScanned / partitionsTotal`) at or above a threshold fires; escalates to `critical` at a higher ratio.
+- Does NOT warn on a tiny table or tiny scan — a floor on `partitionsTotal` (a table with too few total partitions makes a ratio judgment meaningless, e.g. 3-of-5 is 60% by the math but nothing real to prune at that scale), shared with Story 30.2 via `snowflakePruningDetail.ts` rather than a second independently-computed floor.
+- Story's own worked examples regression-tested verbatim: 9,800/10,000 (critical), 50/10,000 (healthy, never fires).
+
+**Testing approach**
+- Unit tests via `makeNode` covering both worked examples, the tiny-table floor, missing-data no-fire, non-Snowflake engine no-fire, severity escalation, and pathological numeric input.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Tiny table (low `partitionsTotal`) | A ratio computed from a handful of partitions doesn't mean anything | `MIN_PARTITIONS_TOTAL_THRESHOLD` floor excludes it |
+| Missing pruning data entirely | An engine/fixture that didn't capture this | Never fires; nothing guessed |
+| Non-Snowflake engine | Postgres/SQL Server have no equivalent concept | Never fires |
+
+Registered in `ALL_RULES`, `"Scan issues"` category, `cardinality` Query Health dimension.
+
+### Story 30.2 — Scan-volume efficiency
+
+As a developer reading a Snowflake plan, I want to know when a scan's byte volume is genuinely worth a second look, so that I'm never told "this scan is bad" purely because it's large — large is often just real, necessary work.
+
+**Acceptance criteria**
+- New rule `large-scan-volume`, `engine === "snowflake"` only, using `io.bytesScanned` (Snowflake-specific, no Postgres/SQL Server equivalent), `actualRows`, and `timeBreakdown.overallPercentage` (Snowflake's own per-operator "time" unit — a percentage of total query time, NOT milliseconds).
+- Does NOT assume a large scan is bad merely because it's large (this story's own explicit instruction) — requires a bytes-volume floor AND at least one of: material runtime share on this same node, OR poor pruning evidence on this same node (reusing `snowflakePruningDetail.ts`'s `isPruningPoor` directly against this node's own raw fields — not another rule's `.warnings` output, so no cross-node ordering concern the way Episode 29's `parameterSensitivityEvidence.ts` had to work around).
+- `longText` explicitly states scan size alone is never the trigger, naming which specific evidence (runtime share, pruning, or both) is why this particular scan was flagged.
+
+**Testing approach**
+- Unit tests via `makeNode`: large-alone-no-fire (the story's own core instruction, tested directly), each OR-branch fired independently, the bytes floor, non-Snowflake no-fire, severity escalation, and the "never claims size alone is the problem" text check.
+- End-to-end test via the real `high-partition-count-scan.json` fixture (100% partition scan, 9.8TB) through `applyRules` — proves both 30.1 and 30.2 fire together on genuine parser output, and that the cardinality-dimension eligibility fix actually works.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Large bytes, no other evidence | The story's own explicit "do not assume large is bad" instruction | Never fires |
+| Large bytes + material runtime, healthy pruning | Runtime alone is sufficient evidence | Fires |
+| Large bytes + poor pruning, low runtime share | Pruning alone is sufficient evidence | Fires |
+| Bytes below the floor | Not enough data volume to matter regardless of other evidence | Never fires |
+
+Registered in `ALL_RULES`, `"Scan issues"` category, `cardinality` Query Health dimension.
+
+### Story 30.3 — Scan + pruning root cause grouping
+
+As a developer reading a Snowflake plan, I want poor pruning, a large scan, and heavy disk I/O on the same operator connected into one story, so that three findings that are really one underlying cause don't read as three unrelated problems.
+
+**Acceptance criteria**
+- New `groupSnowflakeScanRootCause()` (`snowflakeScanRootCause.ts`), reusing `cardinalityPropagation.ts`'s own `RootCauseGroup` shape (`{primary, consequences}`) for consistency — but a genuinely DIFFERENT mechanism, not a copy: `cardinalityPropagation.ts` links a cause at one node to an effect at an ANCESTOR further up the tree; here all three symptoms are properties of the exact SAME scan operator (`pruning`, `io.bytesScanned`, and `timeBreakdown` all live on the same `PlanNode`), so this is a same-node co-occurrence check, not an ancestor-walk — no propagation-direction logic needed because there's no propagation.
+- Groups form ONLY when all three already-independently-fired findings are present on the exact same node: `poor-partition-pruning` (primary), `large-scan-volume` and `buffer-cache-inefficiency` (consequences) — deliberately conservative; 1 or 2 of the three never forms a group.
+- Same "second pass, after `applyRules`" discipline as `cardinalityPropagation.ts` — reads already-populated `node.warnings`, never a `Rule` itself.
+- Purely a data-layer addition, same precedent as `groupByRootCause` (Episode 25, Story 25.7) — no UI surface specified by this story; a Findings-panel rendering is a natural follow-up, out of scope here.
+
+**Testing approach**
+- Unit tests via `makeNode`/`applyRules`: all-3-present grouping, 2-of-3 no-group (missing disk-I/O evidence), pruning-alone no-group, no-findings-at-all no-group, and independent per-node grouping (a clean second node doesn't interfere).
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Exactly 2 of 3 symptoms present | Grouping would claim evidence that isn't actually all there | Never groups — all 3 required |
+| Symptoms on different nodes | This is a same-node co-occurrence, not a propagation | Only findings on the EXACT SAME node are grouped together |
+| Confusing this with `cardinalityPropagation.ts`'s own grouping | Different mechanism, same output shape | Documented explicitly in this file's own header comment |
+
+Registered: no new `ruleId` — pure data-layer addition, reusing `RootCauseGroup`.

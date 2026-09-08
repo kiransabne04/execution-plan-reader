@@ -189,6 +189,23 @@ describe("applyRules", () => {
     expect(root.warnings.some((w) => w.ruleId === "disk-spill")).toBe(true)
   })
 
+  // Episode 30 — this real fixture scans 100% of 84,213 partitions (a full
+  // scan, no pruning at all) and 9.8TB — both poor-partition-pruning and
+  // large-scan-volume should fire through the real Snowflake parser, not
+  // just a hand-assembled node.
+  it("end-to-end: Snowflake high-partition-count fixture fires poor-partition-pruning and large-scan-volume", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("snowflake", "high-partition-count-scan.json"))
+    applyRules(root, buildPlanContext(root))
+    expect(root.warnings.some((w) => w.ruleId === "poor-partition-pruning")).toBe(true)
+    expect(root.warnings.some((w) => w.ruleId === "large-scan-volume")).toBe(true)
+
+    const health = computeQueryHealth(root, buildPlanContext(root))
+    // Real proof the cardinality-dimension eligibility fix actually works —
+    // Snowflake never populates estimatedRows, so without that fix this
+    // would misreport "insufficient data" despite carrying real findings.
+    expect(health.dimensions.cardinality.status).toBe("scored")
+  })
+
   it("end-to-end: SQL Server parallelism fixture does not misfire high-loop-count on cumulated thread time", () => {
     const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "parallelism-multi-thread.xml"))
     const root = statements[0].root

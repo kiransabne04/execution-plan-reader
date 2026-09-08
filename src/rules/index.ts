@@ -14,6 +14,7 @@ import { indexOnlyHeapFetches } from "./indexOnlyHeapFetches"
 import { jitOverhead } from "./jitOverhead"
 import { joinFilterRowsDiscarded } from "./joinFilterRowsDiscarded"
 import { keyLookupExplosion } from "./keyLookupExplosion"
+import { largeScanVolume } from "./largeScanVolume"
 import { residualPredicateHeavy } from "./residualPredicateHeavy"
 import { materializeRepeated } from "./materializeRepeated"
 import { memoizeEffectiveness } from "./memoizeEffectiveness"
@@ -27,6 +28,7 @@ import { parameterSensitivityNote } from "./parameterSensitivityNote"
 import { partitionFanout } from "./partitionFanout"
 import { pgNestedLoopExplosion } from "./pgNestedLoopExplosion"
 import { planningOverhead } from "./planningOverhead"
+import { poorPartitionPruning } from "./poorPartitionPruning"
 import { seqScanOnLargeTable } from "./seqScanOnLargeTable"
 import { sortDiskSpill } from "./sortDiskSpill"
 import { sqlServerExchange } from "./sqlServerExchange"
@@ -88,6 +90,10 @@ export { sqlServerParallelSkew } from "./sqlServerParallelSkew"
 export { sqlServerExchange } from "./sqlServerExchange"
 export { adaptiveJoin, CANNOT_CONFIRM_BRANCH_TEXT } from "./adaptiveJoin"
 export { executionMode } from "./executionMode"
+// Episode 30 — Snowflake pruning/scan-volume reasoning.
+export { poorPartitionPruning } from "./poorPartitionPruning"
+export { largeScanVolume } from "./largeScanVolume"
+export { groupSnowflakeScanRootCause } from "./snowflakeScanRootCause"
 export { linkPropagatedFindings, groupByRootCause, type FindingRelationship, type RootCauseGroup } from "./cardinalityPropagation"
 export { severityForEstimateError } from "./badRowEstimate"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
@@ -153,6 +159,9 @@ export const ALL_RULES: Rule[] = [
   sqlServerExchange,
   adaptiveJoin,
   executionMode,
+  // Episode 30 — Snowflake pruning/scan-volume reasoning.
+  poorPartitionPruning,
+  largeScanVolume,
 ]
 
 const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }

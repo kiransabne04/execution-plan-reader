@@ -121,6 +121,10 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     "residual-predicate-heavy",
     "join-filter-rows-discarded",
     "partition-fanout",
+    // Episode 30 — Snowflake, same dimension as filter-rows-discarded/
+    // missing-index-opportunity (access-efficiency, not caching).
+    "poor-partition-pruning",
+    "large-scan-volume",
   ],
   memory: [
     "disk-spill",
@@ -167,7 +171,18 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
       // estimate-only plan has no loops field at all.
       return context.hasActualData
     case "cardinality":
-      return nodes.some((n) => n.estimatedRows !== undefined)
+      // Episode 30 — Snowflake never populates `estimatedRows` at all
+      // (see buildTree.ts — no "estimated rows" concept is exposed by
+      // `GET_QUERY_OPERATOR_STATS()` the way Postgres/SQL Server report
+      // one), so `estimatedRows !== undefined` alone would ALWAYS read
+      // "insufficient data" for a pure-Snowflake plan — even one carrying
+      // a real, scored poor-partition-pruning/large-scan-volume finding.
+      // Same "a plan could carry a finding and still show a misleadingly
+      // clean [dimension]" failure the memory-dimension fix (Episode 29)
+      // already caught once — Snowflake's own pruning/bytesScanned data is
+      // an independent, equally-real source of cardinality-dimension
+      // evidence for this engine.
+      return nodes.some((n) => n.estimatedRows !== undefined || n.pruning !== undefined || n.io?.bytesScanned !== undefined)
     case "memory":
       // The parser attempted spill detection for this node at all
       // (`SpillInfo` present), regardless of whether it actually spilled —
