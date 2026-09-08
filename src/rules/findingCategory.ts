@@ -75,6 +75,13 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "memory-grant-excessive": "Spill issues",
   "memory-grant-pressure": "Spill issues",
   "memory-grant-feedback": "General notes",
+  // Episode 28 — SQL Server spool, parallelism, and modern operators.
+  "table-spool-expensive": "Loop issues",
+  "index-spool-repeated": "Loop issues",
+  "parallel-thread-skew": "Parallelism issues",
+  "exchange-data-movement": "Parallelism issues",
+  "adaptive-join": "General notes",
+  "execution-mode": "General notes",
 }
 
 export function categorizeFinding(warning: Warning): FindingCategory {

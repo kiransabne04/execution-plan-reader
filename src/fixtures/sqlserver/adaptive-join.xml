@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Orders o JOIN Customers c ON c.Id = o.CustomerId" StatementId="1" StatementCompId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Adaptive Join" LogicalOp="Adaptive Join" EstimateRows="50000" EstimatedTotalSubtreeCost="45.0">
+              <RunTimeInformation>
+                <RunTimeCountersPerThread Thread="0" ActualRows="48000" ActualExecutions="1" ActualElapsedms="900" />
+              </RunTimeInformation>
+              <AdaptiveJoin>
+                <RelOp NodeId="1" PhysicalOp="Hash Match" LogicalOp="Inner Join" EstimateRows="50000" EstimatedTotalSubtreeCost="40.0">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="48000" ActualExecutions="1" ActualElapsedms="850" />
+                  </RunTimeInformation>
+                  <Hash>
+                    <RelOp NodeId="2" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="50000" EstimatedTotalSubtreeCost="10.0">
+                      <RunTimeInformation>
+                        <RunTimeCountersPerThread Thread="0" ActualRows="50000" ActualExecutions="1" ActualElapsedms="300" />
+                      </RunTimeInformation>
+                      <TableScan>
+                        <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+                      </TableScan>
+                    </RelOp>
+                  </Hash>
+                </RelOp>
+                <RelOp NodeId="3" PhysicalOp="Nested Loops" LogicalOp="Inner Join" EstimateRows="50000" EstimatedTotalSubtreeCost="38.0">
+                  <NestedLoops>
+                    <RelOp NodeId="4" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="50000" EstimatedTotalSubtreeCost="10.0">
+                      <TableScan>
+                        <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+                      </TableScan>
+                    </RelOp>
+                    <RelOp NodeId="5" PhysicalOp="Clustered Index Seek" LogicalOp="Clustered Index Seek" EstimateRows="1" EstimatedTotalSubtreeCost="0.01">
+                      <IndexScan>
+                        <Object Database="[MyDb]" Schema="[dbo]" Table="[Customers]" Index="[PK_Customers]" IndexKind="Clustered" />
+                      </IndexScan>
+                    </RelOp>
+                  </NestedLoops>
+                </RelOp>
+              </AdaptiveJoin>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

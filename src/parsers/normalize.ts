@@ -317,6 +317,14 @@ export interface PlanNode {
    * no equivalent "time to first row" figure in this app's current parsers. */
   actualStartupTimeMs?: number
   loops?: number
+  /** SQL Server-specific (`ActualRebinds`/`ActualRewinds` on
+   * `RunTimeCountersPerThread`) — meaningful mainly for a Spool or the
+   * inner side of a correlated nested loop. A rebind means the cached
+   * inner result had to be fully rebuilt because a correlated parameter
+   * changed; a rewind means it could be reused as-is. No Postgres/
+   * Snowflake equivalent is exposed in this app's current parsers. */
+  rebinds?: number
+  rewinds?: number
   role: PlanNodeRole
 
   // Promoted, normalized sub-fields covering exactly the categories the

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="UPDATE Orders SET Total = (SELECT SUM(Amount) FROM OrderLines WHERE OrderLines.OrderId = Orders.Id)" StatementId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Nested Loops" LogicalOp="Left Outer Join" EstimateRows="20000" EstimatedTotalSubtreeCost="90.0">
+              <NestedLoops>
+                <RelOp NodeId="1" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="20000" EstimatedTotalSubtreeCost="8.0">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="20000" ActualExecutions="1" ActualElapsedms="120" />
+                  </RunTimeInformation>
+                  <TableScan>
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+                  </TableScan>
+                </RelOp>
+                <RelOp NodeId="2" PhysicalOp="Table Spool" LogicalOp="Eager Spool" EstimateRows="1" EstimatedTotalSubtreeCost="0.004">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="20000" ActualExecutions="20000" ActualElapsedms="9000" ActualRebinds="19999" ActualRewinds="0" />
+                  </RunTimeInformation>
+                  <Spool>
+                    <RelOp NodeId="3" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="50" EstimatedTotalSubtreeCost="0.02">
+                      <RunTimeInformation>
+                        <RunTimeCountersPerThread Thread="0" ActualRows="1000000" ActualExecutions="20000" ActualElapsedms="8800" />
+                      </RunTimeInformation>
+                      <IndexScan>
+                        <Object Database="[MyDb]" Schema="[dbo]" Table="[OrderLines]" Index="[PK_OrderLines]" IndexKind="Clustered" />
+                        <Predicate>
+                          <ScalarOperator ScalarString="[MyDb].[dbo].[OrderLines].[OrderId]=[MyDb].[dbo].[Orders].[Id]" />
+                        </Predicate>
+                      </IndexScan>
+                    </RelOp>
+                  </Spool>
+                </RelOp>
+              </NestedLoops>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

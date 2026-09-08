@@ -1700,4 +1700,144 @@ As a developer reading a SQL Server plan, I want to see SQL Server's own Memory 
 
 Registered in `ALL_RULES`, `"General notes"` category, `memory` Query Health dimension (always-info, never moves the score, mapped anyway for consistency).
 
-Registered in `ALL_RULES`, `"Spill issues"` category (same bucket as `disk-spill`/`sort-disk`/`sort-large`), `memory` Query Health dimension (same as those three).
+## Episode 28 — SQL Server Spool, Parallelism & Modern Operators
+
+Parser work performed once, shared by several stories below: `ActualRebinds`/`ActualRewinds` (new `RunTimeCountersPerThread` counters, promoted to new `PlanNode.rebinds`/`rewinds` fields, same summing pattern every other per-thread counter uses) for 28.1/28.2; `"Adaptive Join"` added to `operatorMap.ts` (new `adaptive_join` operatorType, requiring a new glossary entry to keep the suite-wide coverage sweep green) for 28.5; `ActualExecutionMode` needed NO new parser code at all for 28.6 — it's a plain `RelOp` attribute already captured by the existing generic attribute pass-through.
+
+### Story 28.1 — Expensive Table Spool
+
+As a developer reading a SQL Server plan, I want to know when a Table Spool's caching isn't actually paying off (rebuilt almost every time) or is caching a large volume repeatedly, so that I understand why SQL Server introduced this extra step — without being told to just remove it, which is often not a safe or available option.
+
+**Acceptance criteria**
+- New rule `table-spool-expensive`, `engine === "sqlserver"`, `rawOperatorLabel === "Table Spool"` (distinguished from Index Spool, which shares the same normalized `operatorType: "spool"` — see `operatorMap.ts`'s own deliberate taxonomy collapse).
+- Triggers only on repeated rewinds/rebinds (`rebinds + rewinds` at or above a threshold) AND meaningful row/runtime volume — two independent floors, neither alone sufficient.
+- `longText` explains WHY SQL Server materialized the result: caching a correlated reference's result across many outer-row evaluations, OR (an "Eager Spool," named via `LogicalOp`) protecting a data-modification statement from reading and writing the same rows in the same pass (Halloween Protection) — a correctness reason, not just a performance one.
+- Never says "remove the spool" — the fix framing always points at the underlying correlated pattern (rewrite as a join, reduce the correlated reference's own work), never the spool operator itself.
+- Severity scales with the rebind-vs-rewind split (shared `sqlServerSpoolDetail.ts`, also used by 28.2): rebind-dominated (cache mostly ineffective) escalates to `critical`; rewind-dominated (cache working as intended, but the volume is still worth noting) stays `warning`.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`, both floors tested independently, rebind-dominated vs rewind-dominated severity, the explicit "never says remove the spool" text check.
+- End-to-end test via a new `table-spool-expensive.xml` fixture (a correlated-subquery UPDATE plan with a real, heavily-rebound Eager Spool) through `applyRules`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Low repeat count | An ordinary, cheap spool | Never fires |
+| High repeat count, trivial volume | Repeated but too small to matter | Never fires — volume floor independent of the repeat-count floor |
+| An Index Spool | Must not be silently absorbed under this rule's "table" name | Never fires here; `index-spool-repeated` (28.2) handles it |
+| Halloween-Protection spool | The correctness reason a naive "just remove it" suggestion would be actively wrong for | Named explicitly in `longText`; fix framing never targets the spool itself |
+| Rebind-dominated vs. rewind-dominated | Two different real stories about the same rebind/rewind pair | Severity and explanatory framing both differ (shared logic in `sqlServerSpoolDetail.ts`) |
+
+Registered in `ALL_RULES`, `"Loop issues"` category (same family as `materialize-repeated`), `runtime` Query Health dimension.
+
+### Story 28.2 — Index Spool
+
+As a developer reading a SQL Server plan, I want to understand when SQL Server built a temporary index over a cached intermediate result, so that I know this is a more sophisticated (and more upfront-costly) caching strategy than a plain Table Spool, kept as its own distinct finding.
+
+**Acceptance criteria**
+- New rule `index-spool-repeated`, genuinely separate ruleId from `table-spool-expensive` (this story's own explicit instruction) — `rawOperatorLabel === "Index Spool"`, sharing the same rebind/rewind materiality machinery via `sqlServerSpoolDetail.ts`.
+- `longText` explains the temporary indexed structure specifically (not just "a cache") and the repeated-seek access pattern it exists to serve — the upfront cost of building the temporary index only pays off once it's seeked into many times.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`, including an explicit check that this rule's `ruleId` differs from `table-spool-expensive`'s.
+- End-to-end test via a new `index-spool-repeated.xml` fixture (a correlated `EXISTS` plan with a real, heavily-rewound Index Spool) through `applyRules`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A Table Spool | Must not be silently absorbed under this rule's "index" name | Never fires here; `table-spool-expensive` (28.1) handles it |
+| Rewind-dominated (the common, working-as-intended case for an Index Spool) | The temporary index is doing its job — still worth surfacing the volume | `warning` severity, framed as "working as intended" |
+
+Registered in `ALL_RULES`, `"Loop issues"` category, `runtime` Query Health dimension.
+
+### Story 28.3 — Parallel thread skew
+
+As a developer reading a SQL Server parallel plan, I want to know when a parallel operator's rows were distributed unevenly across its worker threads, so that I understand the query's real wall-clock time is governed by the slowest thread, not the degree of parallelism alone.
+
+**Acceptance criteria**
+- Feasibility check performed first (this story's own explicit condition): per-thread runtime counters ARE already parsed for SQL Server (`parallel.perWorker`, from real `RunTimeCountersPerThread` entries, Episode 25) — no new parser work needed.
+- New rule `parallel-thread-skew`, computes max rows per (non-coordinator) worker thread ÷ median rows per worker thread; flags severe imbalance (ratio at or above a threshold) with a real absolute-volume floor alongside it.
+- Thread 0 (the coordinating/serial thread, not a genuine parallel worker sharing the row-level work) is explicitly excluded from the calculation — including it would misread a perfectly balanced parallel scan as severely skewed.
+- Does NOT infer skew from the degree of parallelism — this story's own explicit instruction; the rule reads only real per-thread row counts, never DOP alone.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`, including a dedicated test proving Thread 0's inclusion would falsely read as skew if it weren't excluded, and a dedicated test that `workersLaunched` alone (no `perWorker` data) never fires anything.
+- End-to-end test via a new `parallel-thread-skew.xml` fixture (a real skewed 4-thread parallel scan) through `applyRules`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Thread 0 included in the calculation | Would falsely read a balanced scan as skewed | Explicitly excluded |
+| Fewer than the minimum worker-thread count | Not enough data points for a meaningful median | Never fires |
+| Severe ratio, trivial total row volume | Technically-true but practically-meaningless | Absolute-volume floor excludes it |
+| DOP alone, no real per-thread data | The story's own explicitly-forbidden inference | Never fires without real `perWorker` data |
+
+Registered in `ALL_RULES`, `"Parallelism issues"` category, `parallelism` Query Health dimension.
+
+### Story 28.4 — Exchange data movement
+
+As a developer reading a SQL Server parallel plan, I want to know when a Repartition/Distribute/Gather Streams operator moved a meaningful volume of rows at a meaningful cost, so that I see cross-thread data movement as its own real line item, not invisible plumbing.
+
+**Acceptance criteria**
+- New rule `exchange-data-movement`, `engine === "sqlserver"`, `operatorType` in `{"exchange", "gather"}` (SQL Server's `"Parallelism"` PhysicalOp, disambiguated by `LogicalOp` into Repartition Streams/Distribute Streams/Gather Streams — see `operatorMap.ts`'s own `mapParallelism`).
+- Only fires when both row volume AND runtime contribution are material (this story's own explicit instruction) — two independent floors.
+- `longText` names which of the three movement patterns is happening and what it structurally does, using `attributes["LogicalOp"]`'s exact text.
+- Raw cumulated `actualTimeMs` (SQL Server's own semantics — see `sqlServerSpillDetail.ts`'s header comment for the fuller version) is labeled as cumulated-across-threads whenever that flag is present, never presented as one thread's wall-clock duration.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`, both floors tested independently, all three `LogicalOp` variants described distinctly.
+- End-to-end test via a new `exchange-data-movement.xml` fixture (a real 4-thread parallel aggregate with a Repartition Streams exchange) through `applyRules`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Material rows, trivial time | Fast movement isn't worth flagging even at volume | Runtime floor excludes it |
+| Material time, trivial rows | A slow-but-tiny movement isn't the pattern this rule targets | Row floor excludes it |
+| Thread-cumulated timing | Could otherwise read as a misleadingly large single-thread duration | Explicitly labeled when the flag is present |
+
+Registered in `ALL_RULES`, `"Parallelism issues"` category, `parallelism` Query Health dimension.
+
+### Story 28.5 — Adaptive Join
+
+As a developer reading a SQL Server 2017+ plan, I want to see which of an Adaptive Join's two candidate strategies actually ran, so that I understand the plan without this app guessing at evidence Showplan doesn't actually provide.
+
+**Acceptance criteria**
+- New `operatorType: "adaptive_join"` (`operatorMap.ts`), new rule `adaptive-join`, always `info` severity — purely explanatory, never a defect.
+- "Which branch executed" is determined ONLY from real execution evidence already on each child (`actualRows`/`loops`/`actualTimeMs` present on exactly one of the two children) — never from a specific named Showplan attribute this session could not verify against an authoritative schema reference.
+- When both children show execution data, or neither does (an estimate-only plan), the rule states the story's own required fallback sentence VERBATIM: "Showplan does not provide enough evidence here to confirm which branch dominated."
+
+**Testing approach**
+- Rule-level unit tests via `makeNode`, covering all three cases (exactly one child ran, both ran, neither ran) plus a fewer-than-2-children edge case.
+- End-to-end test via a new `adaptive-join.xml` fixture (a real Adaptive Join with one executed Hash Match child and one compiled-only Nested Loops child) through `applyRules`, confirming the correct branch is named through the real parser (which also proves `findChildRelOps` correctly finds both candidate children regardless of the exact wrapper element name used, since this session could not verify that name either).
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Exactly one child has execution data | The confident, common case | Names that child's `rawOperatorLabel` as the one that ran |
+| Both children have execution data | Ambiguous — this app has no way to know which one "really" dominated | Required fallback sentence, verbatim |
+| Neither child has execution data (estimate-only) | No evidence at all | Required fallback sentence, verbatim |
+| Fewer than 2 children present | A malformed/unusual capture | Required fallback sentence, verbatim; never throws |
+
+Registered in `ALL_RULES`, `"General notes"` category (always-info), `runtime` Query Health dimension (mapped anyway per this codebase's own consistency convention for always-info rules).
+
+### Story 28.6 — Batch mode vs. row mode
+
+As a developer reading a SQL Server plan, I want to see when an operator executed in Batch mode, so that I have that fact available — without this app inventing a performance verdict it doesn't yet have benchmark evidence to support.
+
+**Acceptance criteria**
+- New rule `execution-mode`, surfaces `attributes["ActualExecutionMode"]` — needs NO new parser code (already captured by the existing generic `RelOp` attribute pass-through).
+- Only surfaces the BATCH mode case, not row mode — row mode is the ordinary default for most operators in most plans; flagging every row-mode node would be pure noise.
+- Always `info` severity. This story's own explicit instruction: no warning severity until real benchmark evidence justifies one — `longText` states this directly rather than implying batch mode is categorically better.
+
+**Testing approach**
+- Rule-level unit tests via `makeNode` — fires on `"Batch"`, never on `"Row"` or an absent attribute, never above `info`.
+- End-to-end test via the `exchange-data-movement.xml` fixture (which also carries `ActualExecutionMode="Batch"` on its own RelOp) through `applyRules`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Row mode (the common case) | Flagging every row-mode node would be noise, not information | Never fires |
+| Attribute absent entirely | Older builds / operators with no batch-mode concept | Never fires; nothing inferred |
+| Claiming batch mode is better | No benchmark evidence backs that claim yet | `longText` states explicitly that no warning is raised for this reason |
+
+Registered in `ALL_RULES`, `"General notes"` category (always-info), `runtime` Query Health dimension.

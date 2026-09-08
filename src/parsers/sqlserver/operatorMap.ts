@@ -34,6 +34,13 @@ const DIRECT_PHYSICAL_OP_MAP: Record<string, string> = {
   "Table Delete": "modify_table",
   "Clustered Index Delete": "modify_table",
   "Table Merge": "modify_table",
+  // Episode 28 — SQL Server 2017+ adaptive query processing. No cross-
+  // engine equivalent; which branch (Nested Loops vs Hash Match) actually
+  // ran is determined at the RULE layer from real per-child execution
+  // data (whichever child has actual data present), not guessed from a
+  // specific attribute this session could not verify against a schema
+  // reference — see adaptiveJoin.ts's own doc comment.
+  "Adaptive Join": "adaptive_join",
 }
 
 // "Hash Match" is used by SQL Server for hash joins, hash aggregates, hash

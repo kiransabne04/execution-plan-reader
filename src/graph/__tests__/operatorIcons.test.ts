@@ -59,6 +59,10 @@ function collectAllFixtureRoots(): PlanNode[] {
 // gap to evaluate — not something to silently swallow into "unknown".
 const ACCEPTED_UNMAPPED_OPERATOR_TYPES = [
   "append",
+  // Episode 28 — the first fixture to exercise an Adaptive Join
+  // (adaptive-join.xml). Deliberately unmapped to a specific icon — no
+  // natural fit among spec §3's seven categories.
+  "adaptive_join",
   "bitmap",
   "bitmap_and",
   "compute_scalar",
@@ -73,6 +77,9 @@ const ACCEPTED_UNMAPPED_OPERATOR_TYPES = [
   "memoize",
   "modify_table",
   "result",
+  // Episode 28 — the first fixtures to exercise Table Spool/Index Spool
+  // (table-spool-expensive.xml, index-spool-repeated.xml).
+  "spool",
   "unknown",
   "with_clause",
 ].sort()

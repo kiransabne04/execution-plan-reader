@@ -97,6 +97,15 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     // SQL Server — key lookup explosion, another repeated-execution
     // pattern in the same dimension as the two above.
     "key-lookup-explosion",
+    // Episode 28 — SQL Server spool rules, same "repeated-execution
+    // caching didn't pay off" family as materialize-repeated.
+    "table-spool-expensive",
+    "index-spool-repeated",
+    // Always info, never moves the score — mapped anyway for the same
+    // consistency reason memory-grant-feedback is (see that rule's own
+    // comment on this pattern).
+    "adaptive-join",
+    "execution-mode",
   ],
   cardinality: [
     "bad-row-estimate",
@@ -140,7 +149,7 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
   // this family; the mapping is declared here already so Story 23.2 only
   // has to add the rule + extend `isDimensionEligible` below, not touch
   // this table.
-  parallelism: ["parallel-worker-shortfall"],
+  parallelism: ["parallel-worker-shortfall", "parallel-thread-skew", "exchange-data-movement"],
 }
 
 /** Whether a dimension has ANY data to score at all — checked against the

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM Customers c WHERE EXISTS (SELECT 1 FROM Orders o WHERE o.CustomerId = c.Id AND o.Status = 'open')" StatementId="1">
+          <QueryPlan>
+            <RelOp NodeId="0" PhysicalOp="Nested Loops" LogicalOp="Left Semi Join" EstimateRows="15000" EstimatedTotalSubtreeCost="60.0">
+              <NestedLoops>
+                <RelOp NodeId="1" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="15000" EstimatedTotalSubtreeCost="6.0">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="15000" ActualExecutions="1" ActualElapsedms="90" />
+                  </RunTimeInformation>
+                  <TableScan>
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[Customers]" />
+                  </TableScan>
+                </RelOp>
+                <RelOp NodeId="2" PhysicalOp="Index Spool" LogicalOp="Eager Spool" EstimateRows="1" EstimatedTotalSubtreeCost="0.003">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="15000" ActualExecutions="15000" ActualElapsedms="7000" ActualRebinds="200" ActualRewinds="14799" />
+                  </RunTimeInformation>
+                  <Spool>
+                    <RelOp NodeId="3" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="200000" EstimatedTotalSubtreeCost="20.0">
+                      <RunTimeInformation>
+                        <RunTimeCountersPerThread Thread="0" ActualRows="200000" ActualExecutions="200" ActualElapsedms="6800" />
+                      </RunTimeInformation>
+                      <TableScan>
+                        <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+                        <Predicate>
+                          <ScalarOperator ScalarString="[MyDb].[dbo].[Orders].[Status]='open'" />
+                        </Predicate>
+                      </TableScan>
+                    </RelOp>
+                  </Spool>
+                </RelOp>
+              </NestedLoops>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

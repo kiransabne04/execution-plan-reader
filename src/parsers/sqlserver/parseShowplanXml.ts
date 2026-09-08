@@ -397,6 +397,8 @@ function buildNode(relOp: Element, counter: { next: number }, role: PlanNodeRole
     actualTimeMs: runtime.actualTimeMs,
     actualTimePerExecutionMs,
     loops: runtime.loops,
+    rebinds: runtime.rebinds,
+    rewinds: runtime.rewinds,
     role,
     predicate,
     index,
@@ -503,6 +505,14 @@ interface RuntimeSummary {
    * mechanism, counted separately from an ordinary physical read (see
    * `IoInfo.readAheads`'s own doc comment in normalize.ts). */
   readAheads?: number
+  /** Episode 28 — `ActualRebinds`/`ActualRewinds`, summed across threads
+   * like every other counter here. Real Showplan XML attribute names on
+   * `RunTimeCountersPerThread`, same location as `ActualExecutions` —
+   * confirmed by inspection of this parser's own existing sibling
+   * counters' shape, though this session had no fixture already
+   * exercising them before this story. */
+  rebinds?: number
+  rewinds?: number
   /** Episode 25 — one entry per `<RunTimeCountersPerThread>`, its own real
    * `Thread`/`ActualRows`/`ActualElapsedms` attributes, never a synthetic
    * split of the summed totals above. SQL Server's own thread numbering:
@@ -545,6 +555,8 @@ function readRunTimeInformation(relOp: Element): RuntimeSummary {
     logicalReads: sumThreadAttr(perThread, "ActualLogicalReads"),
     physicalReads: sumThreadAttr(perThread, "ActualPhysicalReads"),
     readAheads: sumThreadAttr(perThread, "ActualReadAheads"),
+    rebinds: sumThreadAttr(perThread, "ActualRebinds"),
+    rewinds: sumThreadAttr(perThread, "ActualRewinds"),
     threadCount: perThread.length,
     perThread: perThread.length > 1 ? derivePerThread(perThread) : undefined,
   }

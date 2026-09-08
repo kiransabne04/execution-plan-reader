@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT * FROM BigTable WHERE Region = @P1" StatementId="1" StatementCompId="1">
+          <QueryPlan DegreeOfParallelism="4">
+            <RelOp NodeId="0" PhysicalOp="Parallelism" LogicalOp="Gather Streams" EstimateRows="100000" EstimatedTotalSubtreeCost="15.0">
+              <Parallelism>
+                <RelOp NodeId="1" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="100000" EstimatedTotalSubtreeCost="14.0">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="0" ActualExecutions="1" ActualElapsedms="0" />
+                    <RunTimeCountersPerThread Thread="1" ActualRows="91000" ActualExecutions="1" ActualElapsedms="900" />
+                    <RunTimeCountersPerThread Thread="2" ActualRows="3000" ActualExecutions="1" ActualElapsedms="30" />
+                    <RunTimeCountersPerThread Thread="3" ActualRows="3000" ActualExecutions="1" ActualElapsedms="30" />
+                    <RunTimeCountersPerThread Thread="4" ActualRows="3000" ActualExecutions="1" ActualElapsedms="30" />
+                  </RunTimeInformation>
+                  <TableScan>
+                    <Object Database="[MyDb]" Schema="[dbo]" Table="[BigTable]" />
+                  </TableScan>
+                </RelOp>
+              </Parallelism>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

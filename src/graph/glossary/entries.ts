@@ -224,6 +224,15 @@ const ENTRIES: OperatorGlossaryEntry[] = [
     whenToLookCloser: "As with any join, output row counts far exceeding either input's size are worth a look — that pattern usually points to a missing or too-loose join condition.",
   },
   {
+    operatorType: "adaptive_join",
+    displayName: "Adaptive Join",
+    shortDefinition: "SQL Server defers choosing between a Nested Loop and a Hash Match join until it sees how many rows the build input actually produces at runtime.",
+    longDefinition:
+      "An Adaptive Join is SQL Server's own runtime decision point (2017+): rather than committing to one join algorithm at compile time, it waits until the build input has run, then picks a Nested Loop (cheap for a genuinely small input) or a Hash Match (better for a larger one) based on a row-count threshold. Only one of the two candidate strategies actually executes.",
+    whenItsFine: "This adapts well when the build input's actual row count is genuinely uncertain at compile time (a parameter-sensitive or highly variable query) — it avoids being locked into whichever algorithm the optimizer guessed at compile time.",
+    whenToLookCloser: "If the same query consistently lands on the same side of the threshold every time it runs, the adaptive mechanism isn't adding much — a plain, non-adaptive join might compile more predictably for that specific workload.",
+  },
+  {
     operatorType: "cartesian_join",
     displayName: "Cartesian Join",
     shortDefinition: "Pairs every row from one input with every row from the other, with no matching condition to narrow the result.",

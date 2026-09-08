@@ -1,8 +1,10 @@
 import { collectNodes, type PlanNode, type Warning } from "../parsers/normalize"
+import { adaptiveJoin } from "./adaptiveJoin"
 import { badRowEstimate } from "./badRowEstimate"
 import { bufferCacheInefficiency } from "./bufferCacheInefficiency"
 import { diskSpill } from "./diskSpill"
 import { estimateOnlyNote } from "./estimateOnlyNote"
+import { executionMode } from "./executionMode"
 import { explodingJoin } from "./explodingJoin"
 import { filterRowsDiscarded } from "./filterRowsDiscarded"
 import { hashBatching } from "./hashBatching"
@@ -27,8 +29,12 @@ import { pgNestedLoopExplosion } from "./pgNestedLoopExplosion"
 import { planningOverhead } from "./planningOverhead"
 import { seqScanOnLargeTable } from "./seqScanOnLargeTable"
 import { sortDiskSpill } from "./sortDiskSpill"
+import { sqlServerExchange } from "./sqlServerExchange"
 import { sqlServerHashSpill } from "./sqlServerHashSpill"
+import { sqlServerIndexSpool } from "./sqlServerIndexSpool"
+import { sqlServerParallelSkew } from "./sqlServerParallelSkew"
 import { sqlServerSortSpill } from "./sqlServerSortSpill"
+import { sqlServerTableSpoolExpensive } from "./sqlServerTableSpoolExpensive"
 import { temporaryIo } from "./temporaryIo"
 import { walVolume } from "./walVolume"
 import type { PlanContext, Rule } from "./types"
@@ -75,6 +81,13 @@ export { ELEVATED_SPILL_LEVEL_THRESHOLD } from "./sqlServerSpillDetail"
 export { memoryGrantExcessive } from "./memoryGrantExcessive"
 export { memoryGrantPressure } from "./memoryGrantPressure"
 export { memoryGrantFeedback } from "./memoryGrantFeedback"
+// Episode 28 — SQL Server spool, parallelism, and modern operators.
+export { sqlServerTableSpoolExpensive } from "./sqlServerTableSpoolExpensive"
+export { sqlServerIndexSpool } from "./sqlServerIndexSpool"
+export { sqlServerParallelSkew } from "./sqlServerParallelSkew"
+export { sqlServerExchange } from "./sqlServerExchange"
+export { adaptiveJoin, CANNOT_CONFIRM_BRANCH_TEXT } from "./adaptiveJoin"
+export { executionMode } from "./executionMode"
 export { linkPropagatedFindings, groupByRootCause, type FindingRelationship, type RootCauseGroup } from "./cardinalityPropagation"
 export { severityForEstimateError } from "./badRowEstimate"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
@@ -133,6 +146,13 @@ export const ALL_RULES: Rule[] = [
   memoryGrantExcessive,
   memoryGrantPressure,
   memoryGrantFeedback,
+  // Episode 28 — SQL Server spool, parallelism, and modern operators.
+  sqlServerTableSpoolExpensive,
+  sqlServerIndexSpool,
+  sqlServerParallelSkew,
+  sqlServerExchange,
+  adaptiveJoin,
+  executionMode,
 ]
 
 const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }

@@ -201,6 +201,39 @@ describe("parseSqlServerShowplanXml", () => {
     expect(keyLookup.rowsRemovedByFilter).toBe(3) // 8 read - 5 returned
   })
 
+  // Episode 28 — table-spool-expensive/index-spool-repeated rule support.
+  it("promotes ActualRebinds/ActualRewinds onto the node", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("table-spool-expensive.xml"))
+    const spool = result.statements[0].root.children[1]
+    expect(spool.rawOperatorLabel).toBe("Table Spool")
+    expect(spool.rebinds).toBe(19_999)
+    expect(spool.rewinds).toBe(0)
+  })
+
+  it("leaves rebinds/rewinds undefined when the fixture carries neither attribute", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("hash-join.xml"))
+    expect(result.statements[0].root.rebinds).toBeUndefined()
+    expect(result.statements[0].root.rewinds).toBeUndefined()
+  })
+
+  // Episode 28 — adaptive-join rule support.
+  it("normalizes 'Adaptive Join' to operatorType adaptive_join and preserves both candidate children", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("adaptive-join.xml"))
+    const root = result.statements[0].root
+    expect(root.operatorType).toBe("adaptive_join")
+    expect(root.children).toHaveLength(2)
+    expect(root.children[0].rawOperatorLabel).toBe("Hash Match")
+    expect(root.children[1].rawOperatorLabel).toBe("Nested Loops")
+  })
+
+  // Episode 28 — execution-mode rule support: ActualExecutionMode needs no
+  // new parser code at all, it's already captured by the generic RelOp
+  // attribute pass-through.
+  it("captures ActualExecutionMode via the generic attribute pass-through, with no dedicated parsing", () => {
+    const result = parseSqlServerShowplanXml(loadFixture("exchange-data-movement.xml"))
+    expect(result.statements[0].root.attributes["ActualExecutionMode"]).toBe("Batch")
+  })
+
   it("disambiguates Hash Match into hash_join via LogicalOp", () => {
     const result = parseSqlServerShowplanXml(loadFixture("hash-join.xml"))
     const root = result.statements[0].root

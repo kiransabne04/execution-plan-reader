@@ -26,6 +26,8 @@ export function makeNode(overrides: Partial<PlanNode> = {}): PlanNode {
     actualTimePerExecutionMs: overrides.actualTimePerExecutionMs,
     actualStartupTimeMs: overrides.actualStartupTimeMs,
     loops: overrides.loops,
+    rebinds: overrides.rebinds,
+    rewinds: overrides.rewinds,
     role: overrides.role ?? ("main" as PlanNodeRole),
     predicate: overrides.predicate,
     index: overrides.index,

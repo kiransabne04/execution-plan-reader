@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT CustomerId, SUM(Amount) FROM Orders GROUP BY CustomerId" StatementId="1" StatementCompId="1">
+          <QueryPlan DegreeOfParallelism="4">
+            <RelOp NodeId="0" PhysicalOp="Parallelism" LogicalOp="Repartition Streams" EstimateRows="500000" EstimatedTotalSubtreeCost="25.0" ActualExecutionMode="Batch">
+              <RunTimeInformation>
+                <RunTimeCountersPerThread Thread="1" ActualRows="125000" ActualExecutions="1" ActualElapsedms="500" />
+                <RunTimeCountersPerThread Thread="2" ActualRows="125000" ActualExecutions="1" ActualElapsedms="480" />
+                <RunTimeCountersPerThread Thread="3" ActualRows="125000" ActualExecutions="1" ActualElapsedms="510" />
+                <RunTimeCountersPerThread Thread="4" ActualRows="125000" ActualExecutions="1" ActualElapsedms="490" />
+              </RunTimeInformation>
+              <Parallelism>
+                <RelOp NodeId="1" PhysicalOp="Hash Match" LogicalOp="Aggregate" EstimateRows="500000" EstimatedTotalSubtreeCost="20.0">
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="1" ActualRows="125000" ActualExecutions="1" ActualElapsedms="400" />
+                    <RunTimeCountersPerThread Thread="2" ActualRows="125000" ActualExecutions="1" ActualElapsedms="410" />
+                    <RunTimeCountersPerThread Thread="3" ActualRows="125000" ActualExecutions="1" ActualElapsedms="405" />
+                    <RunTimeCountersPerThread Thread="4" ActualRows="125000" ActualExecutions="1" ActualElapsedms="415" />
+                  </RunTimeInformation>
+                  <Hash>
+                    <RelOp NodeId="2" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="500000" EstimatedTotalSubtreeCost="10.0">
+                      <RunTimeInformation>
+                        <RunTimeCountersPerThread Thread="1" ActualRows="125000" ActualExecutions="1" ActualElapsedms="200" />
+                        <RunTimeCountersPerThread Thread="2" ActualRows="125000" ActualExecutions="1" ActualElapsedms="210" />
+                        <RunTimeCountersPerThread Thread="3" ActualRows="125000" ActualExecutions="1" ActualElapsedms="205" />
+                        <RunTimeCountersPerThread Thread="4" ActualRows="125000" ActualExecutions="1" ActualElapsedms="215" />
+                      </RunTimeInformation>
+                      <TableScan>
+                        <Object Database="[MyDb]" Schema="[dbo]" Table="[Orders]" />
+                      </TableScan>
+                    </RelOp>
+                  </Hash>
+                </RelOp>
+              </Parallelism>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

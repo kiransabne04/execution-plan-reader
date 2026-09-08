@@ -124,6 +124,54 @@ describe("applyRules", () => {
     expect(collectNodes(stmt.root).flatMap((n) => n.warnings).some((w) => w.ruleId === "sqlserver-hash-spill")).toBe(false)
   })
 
+  it("end-to-end: SQL Server table-spool-expensive fixture fires on the real Spool node, critical (rebind-dominated)", () => {
+    const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "table-spool-expensive.xml"))
+    const [stmt] = statements
+    const context = buildPlanContext(stmt.root, { statementText: stmt.statementText, missingIndexes: stmt.missingIndexes })
+    applyRules(stmt.root, context)
+    const finding = collectNodes(stmt.root).flatMap((n) => n.warnings).find((w) => w.ruleId === "table-spool-expensive")
+    expect(finding).toBeDefined()
+    expect(finding?.severity).toBe("critical")
+  })
+
+  it("end-to-end: SQL Server index-spool-repeated fixture fires on the real Index Spool node, warning (rewind-dominated)", () => {
+    const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "index-spool-repeated.xml"))
+    const [stmt] = statements
+    const context = buildPlanContext(stmt.root, { statementText: stmt.statementText, missingIndexes: stmt.missingIndexes })
+    applyRules(stmt.root, context)
+    const finding = collectNodes(stmt.root).flatMap((n) => n.warnings).find((w) => w.ruleId === "index-spool-repeated")
+    expect(finding).toBeDefined()
+    expect(finding?.severity).toBe("warning")
+  })
+
+  it("end-to-end: SQL Server parallel-thread-skew fixture fires through the real parser and ancestry", () => {
+    const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "parallel-thread-skew.xml"))
+    const [stmt] = statements
+    const context = buildPlanContext(stmt.root, { statementText: stmt.statementText, missingIndexes: stmt.missingIndexes })
+    applyRules(stmt.root, context)
+    expect(collectNodes(stmt.root).flatMap((n) => n.warnings).some((w) => w.ruleId === "parallel-thread-skew")).toBe(true)
+  })
+
+  it("end-to-end: SQL Server exchange-data-movement fixture fires exchange-data-movement and execution-mode together", () => {
+    const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "exchange-data-movement.xml"))
+    const [stmt] = statements
+    const context = buildPlanContext(stmt.root, { statementText: stmt.statementText, missingIndexes: stmt.missingIndexes })
+    applyRules(stmt.root, context)
+    const warnings = collectNodes(stmt.root).flatMap((n) => n.warnings)
+    expect(warnings.some((w) => w.ruleId === "exchange-data-movement")).toBe(true)
+    expect(warnings.some((w) => w.ruleId === "execution-mode")).toBe(true)
+  })
+
+  it("end-to-end: SQL Server adaptive-join fixture fires adaptive-join and correctly names the executed branch", () => {
+    const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "adaptive-join.xml"))
+    const [stmt] = statements
+    const context = buildPlanContext(stmt.root, { statementText: stmt.statementText, missingIndexes: stmt.missingIndexes })
+    applyRules(stmt.root, context)
+    const finding = stmt.root.warnings.find((w) => w.ruleId === "adaptive-join")
+    expect(finding).toBeDefined()
+    expect(finding?.longText).toContain("Hash Match branch is the one that ran")
+  })
+
   it("end-to-end: SQL Server missing-index fixture fires missing-index-opportunity on the root", () => {
     const { statements } = parseSqlServerShowplanXml(loadFixture("sqlserver", "missing-index-recommendation.xml"))
     const [stmt] = statements
