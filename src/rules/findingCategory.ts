@@ -87,6 +87,12 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   // concerns, not caching).
   "poor-partition-pruning": "Scan issues",
   "large-scan-volume": "Scan issues",
+  // Episode 31 — Snowflake spill/time-breakdown reasoning.
+  "remote-spill": "Spill issues",
+  "local-spill": "Spill issues",
+  "network-time-dominant": "I/O issues",
+  "synchronization-overhead": "Parallelism issues",
+  "dominant-time-component": "General notes",
 }
 
 export function categorizeFinding(warning: Warning): FindingCategory {

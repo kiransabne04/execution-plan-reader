@@ -3,6 +3,7 @@ import { adaptiveJoin } from "./adaptiveJoin"
 import { badRowEstimate } from "./badRowEstimate"
 import { bufferCacheInefficiency } from "./bufferCacheInefficiency"
 import { diskSpill } from "./diskSpill"
+import { dominantTimeComponent } from "./dominantTimeComponent"
 import { estimateOnlyNote } from "./estimateOnlyNote"
 import { executionMode } from "./executionMode"
 import { explodingJoin } from "./explodingJoin"
@@ -15,6 +16,7 @@ import { jitOverhead } from "./jitOverhead"
 import { joinFilterRowsDiscarded } from "./joinFilterRowsDiscarded"
 import { keyLookupExplosion } from "./keyLookupExplosion"
 import { largeScanVolume } from "./largeScanVolume"
+import { localSpill } from "./localSpill"
 import { residualPredicateHeavy } from "./residualPredicateHeavy"
 import { materializeRepeated } from "./materializeRepeated"
 import { memoizeEffectiveness } from "./memoizeEffectiveness"
@@ -22,6 +24,7 @@ import { memoryGrantExcessive } from "./memoryGrantExcessive"
 import { memoryGrantFeedback } from "./memoryGrantFeedback"
 import { memoryGrantPressure } from "./memoryGrantPressure"
 import { missingIndexOpportunity } from "./missingIndexOpportunity"
+import { networkTimeDominant } from "./networkTimeDominant"
 import { nonSargablePredicate } from "./nonSargablePredicate"
 import { parallelWorkerShortfall } from "./parallelWorkerShortfall"
 import { parameterSensitivityNote } from "./parameterSensitivityNote"
@@ -29,6 +32,7 @@ import { partitionFanout } from "./partitionFanout"
 import { pgNestedLoopExplosion } from "./pgNestedLoopExplosion"
 import { planningOverhead } from "./planningOverhead"
 import { poorPartitionPruning } from "./poorPartitionPruning"
+import { remoteSpill } from "./remoteSpill"
 import { seqScanOnLargeTable } from "./seqScanOnLargeTable"
 import { sortDiskSpill } from "./sortDiskSpill"
 import { sqlServerExchange } from "./sqlServerExchange"
@@ -37,6 +41,7 @@ import { sqlServerIndexSpool } from "./sqlServerIndexSpool"
 import { sqlServerParallelSkew } from "./sqlServerParallelSkew"
 import { sqlServerSortSpill } from "./sqlServerSortSpill"
 import { sqlServerTableSpoolExpensive } from "./sqlServerTableSpoolExpensive"
+import { synchronizationOverhead } from "./synchronizationOverhead"
 import { temporaryIo } from "./temporaryIo"
 import { walVolume } from "./walVolume"
 import type { PlanContext, Rule } from "./types"
@@ -94,6 +99,12 @@ export { executionMode } from "./executionMode"
 export { poorPartitionPruning } from "./poorPartitionPruning"
 export { largeScanVolume } from "./largeScanVolume"
 export { groupSnowflakeScanRootCause } from "./snowflakeScanRootCause"
+// Episode 31 — Snowflake spill/time-breakdown reasoning.
+export { remoteSpill } from "./remoteSpill"
+export { localSpill } from "./localSpill"
+export { networkTimeDominant } from "./networkTimeDominant"
+export { synchronizationOverhead } from "./synchronizationOverhead"
+export { dominantTimeComponent } from "./dominantTimeComponent"
 export { linkPropagatedFindings, groupByRootCause, type FindingRelationship, type RootCauseGroup } from "./cardinalityPropagation"
 export { severityForEstimateError } from "./badRowEstimate"
 export { summarizePlan, type PlanSummary, type SummarySeverity, NO_ISSUES_TEXT } from "./summarize"
@@ -162,6 +173,12 @@ export const ALL_RULES: Rule[] = [
   // Episode 30 — Snowflake pruning/scan-volume reasoning.
   poorPartitionPruning,
   largeScanVolume,
+  // Episode 31 — Snowflake spill/time-breakdown reasoning.
+  remoteSpill,
+  localSpill,
+  networkTimeDominant,
+  synchronizationOverhead,
+  dominantTimeComponent,
 ]
 
 const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }

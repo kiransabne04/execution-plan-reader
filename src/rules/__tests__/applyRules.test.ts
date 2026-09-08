@@ -189,6 +189,26 @@ describe("applyRules", () => {
     expect(root.warnings.some((w) => w.ruleId === "disk-spill")).toBe(true)
   })
 
+  // Episode 31 — this real fixture spills to BOTH local (100MB) and remote
+  // (50MB) storage, and its time breakdown's dominant category is local
+  // disk I/O (40%) — remote-spill, local-spill, and dominant-time-component
+  // should all fire through the real Snowflake parser.
+  it("end-to-end: Snowflake spill fixture also fires remote-spill, local-spill, and dominant-time-component", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("snowflake", "spill-to-remote-disk.json"))
+    applyRules(root, buildPlanContext(root))
+    expect(root.warnings.some((w) => w.ruleId === "remote-spill")).toBe(true)
+    expect(root.warnings.some((w) => w.ruleId === "local-spill")).toBe(true)
+    const dominant = root.warnings.find((w) => w.ruleId === "dominant-time-component")
+    expect(dominant?.shortText).toContain("local I/O")
+
+    const health = computeQueryHealth(root, buildPlanContext(root))
+    // Real proof the parallelism/io-dimension eligibility fixes work —
+    // this fixture has real synchronizationPercentage/network data too,
+    // even though neither clears its own rule's stricter firing
+    // threshold; "io" must still score given the local/remote disk %.
+    expect(health.dimensions.io.status).toBe("scored")
+  })
+
   // Episode 30 — this real fixture scans 100% of 84,213 partitions (a full
   // scan, no pruning at all) and 9.8TB — both poor-partition-pruning and
   // large-scan-volume should fire through the real Snowflake parser, not

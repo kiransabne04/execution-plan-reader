@@ -106,6 +106,8 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     // comment on this pattern).
     "adaptive-join",
     "execution-mode",
+    // Episode 31 — Snowflake, same always-info/mapped-anyway pattern.
+    "dominant-time-component",
   ],
   cardinality: [
     "bad-row-estimate",
@@ -147,13 +149,28 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     // info severity, the same category non-sargable-predicate is already
     // in (mapped into cardinality despite also always being info).
     "memory-grant-feedback",
+    // Episode 31 — Snowflake, same dimension as disk-spill/the SQL Server
+    // spill rules above.
+    "remote-spill",
+    "local-spill",
   ],
-  io: ["buffer-cache-inefficiency", "wal-volume"],
+  io: [
+    "buffer-cache-inefficiency",
+    "wal-volume",
+    // Episode 31 — Snowflake network-time-dominant.
+    "network-time-dominant",
+  ],
   // Story 23.2 adds the parallel-worker-shortfall rule that actually feeds
   // this family; the mapping is declared here already so Story 23.2 only
   // has to add the rule + extend `isDimensionEligible` below, not touch
   // this table.
-  parallelism: ["parallel-worker-shortfall", "parallel-thread-skew", "exchange-data-movement"],
+  parallelism: [
+    "parallel-worker-shortfall",
+    "parallel-thread-skew",
+    "exchange-data-movement",
+    // Episode 31 — Snowflake synchronization-overhead.
+    "synchronization-overhead",
+  ],
 }
 
 /** Whether a dimension has ANY data to score at all — checked against the
@@ -199,8 +216,19 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
       // comment warns against.
       return nodes.some((n) => n.spill !== undefined || n.memoryGrant !== undefined)
     case "io":
+      // Episode 31 — `networkCommunicationPercentage` is an independent
+      // io-dimension signal for Snowflake (`network-time-dominant`'s own
+      // evidence): a node can have real network time with no local/remote
+      // disk figure set at all, and without this the `io` dimension would
+      // read "insufficient data" despite carrying that real finding — same
+      // eligibility-gap class this file has now caught 3 times.
       return nodes.some(
-        (n) => n.io?.bufferHits !== undefined || n.io?.bufferReads !== undefined || n.timeBreakdown?.localDiskIoPercentage !== undefined || n.timeBreakdown?.remoteDiskIoPercentage !== undefined,
+        (n) =>
+          n.io?.bufferHits !== undefined ||
+          n.io?.bufferReads !== undefined ||
+          n.timeBreakdown?.localDiskIoPercentage !== undefined ||
+          n.timeBreakdown?.remoteDiskIoPercentage !== undefined ||
+          n.timeBreakdown?.networkCommunicationPercentage !== undefined,
       )
     case "parallelism":
       // Postgres: per-node, both fields genuinely populated
@@ -208,12 +236,20 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
       // thread-count data must exist (hasActualData) alongside a real
       // compiled DOP figure (Story 23.2's own new context field), the
       // exact same gate `parallelWorkerShortfall.ts`'s own SQL Server
-      // check uses, not a second, differently-worded copy of it. Snowflake
-      // has no signal to add here at all (Episode 23's own dimension
-      // table — a permanent, checked ceiling, not a gap).
+      // check uses, not a second, differently-worded copy of it.
+      // Correction (Episode 31): this dimension's own comment used to
+      // claim Snowflake has no signal here at all "a permanent, checked
+      // ceiling, not a gap" — true when written (Episode 23), no longer
+      // true now that `synchronization-overhead` exists:
+      // `timeBreakdown.synchronizationPercentage` is a real Snowflake
+      // parallelism-coordination signal. Without recognizing it, this
+      // dimension would read "insufficient data" for every Snowflake plan
+      // regardless of a real, scored finding — same eligibility-gap class
+      // caught twice already this session (`cardinality`, `io` above).
       return (
         nodes.some((n) => n.parallel?.workersPlanned !== undefined && n.parallel?.workersLaunched !== undefined) ||
-        (context.hasActualData && context.compiledDegreeOfParallelism !== undefined && context.compiledDegreeOfParallelism > 1)
+        (context.hasActualData && context.compiledDegreeOfParallelism !== undefined && context.compiledDegreeOfParallelism > 1) ||
+        nodes.some((n) => n.timeBreakdown?.synchronizationPercentage !== undefined)
       )
   }
 }

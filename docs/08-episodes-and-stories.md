@@ -2012,3 +2012,116 @@ As a developer reading a Snowflake plan, I want poor pruning, a large scan, and 
 | Confusing this with `cardinalityPropagation.ts`'s own grouping | Different mechanism, same output shape | Documented explicitly in this file's own header comment |
 
 Registered: no new `ruleId` — pure data-layer addition, reusing `RootCauseGroup`.
+
+## Episode 31 — Snowflake Spill & Time Breakdown
+
+Parser check performed first, same premise as Episode 30: `spill.bytesLocal`/`bytesRemote` and every `timeBreakdown` field were ALL already parsed (`buildTree.ts`'s `deriveSpill`/`deriveTimeBreakdown`) — **no new parser work needed for any of the 5 stories below.**
+
+**Real eligibility gaps found and fixed while building this** (the same class of bug caught in Episodes 29 and 30, now caught proactively before shipping rather than after): `queryHealth.ts`'s `io` dimension eligibility didn't recognize `timeBreakdown.networkCommunicationPercentage` (a node could have real network time with no local/remote disk figure set at all); the `parallelism` dimension's own comment explicitly claimed "Snowflake has no signal here at all... a permanent, checked ceiling, not a gap" — true when written (Episode 23), no longer true now that `synchronization-overhead` exists. Both fixed, each covered by a dedicated end-to-end test against a real fixture proving the dimension now scores rather than reading "insufficient data."
+
+### Story 31.1 — Remote spill
+
+As a developer reading a Snowflake plan, I want to know when an operator spilled all the way to remote storage, so that I understand this is a meaningfully more expensive event than an equivalent local or in-memory spill — without being told to just resize the warehouse as if that's automatically the fix.
+
+**Acceptance criteria**
+- New rule `remote-spill`, `engine === "snowflake"` only, using `spill.bytesRemote`.
+- Given a HIGHER severity than an equivalent small local spill (this story's own explicit instruction) — implemented via shared `snowflakeSpillDetail.ts`, whose remote thresholds (10MB warning / 100MB critical) sit a full order of magnitude below local's (100MB / 1GB), so the same byte count reliably lands at least one severity tier higher here than under `localSpill.ts`, by construction.
+- `longText` explains remote spill is significantly more expensive than staying in memory/local storage.
+- Does NOT directly recommend a warehouse resize without context — named as one possible angle among several (row/column volume, join/aggregate strategy), never as THE prescribed fix, the same "co-equal angles" framing `sqlServerHashSpill.ts` already established for its own "don't blindly recommend memory" instruction.
+- Coexists with the engine-agnostic `disk-spill` (unconditional critical) rather than replacing it.
+
+**Testing approach**
+- Unit tests via `makeNode`: warning/critical floors, the comparative-severity requirement tested directly (a byte count that's critical under `remote-spill` but only warning under `local-spill`), non-Snowflake no-fire, the "not automatically the right fix" text check.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Small remote spill vs. equivalent local spill | The story's own core comparative requirement | Remote's thresholds are a full order of magnitude lower, by construction |
+| Recommending a warehouse resize as certain | The story's own explicit instruction against it | Named as one angle among several, never prescribed |
+| A local-only spill (`bytesRemote` absent) | Must not fire on data that never left local storage | Never fires |
+
+Registered in `ALL_RULES`, `"Spill issues"` category, `memory` Query Health dimension.
+
+### Story 31.2 — Local spill
+
+As a developer reading a Snowflake plan, I want to know when an operator spilled to the warehouse's own local storage, scaled by how much, so that a small local spill and a huge one don't read as the same severity.
+
+**Acceptance criteria**
+- New rule `local-spill`, `engine === "snowflake"` only, using `spill.bytesLocal`, scaled by bytes (100MB warning / 1GB critical) via the same shared `snowflakeSpillDetail.ts` module `remoteSpill.ts` uses.
+- Coexists with the engine-agnostic `disk-spill`.
+
+**Testing approach**
+- Unit tests via `makeNode`: both severity floors, the byte-scaling itself demonstrated directly, non-Snowflake no-fire, a remote-only spill (`bytesLocal` absent) no-fire.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Below the warning floor | A tiny local spill isn't worth its own finding | Never fires (the generic `disk-spill` still covers it unconditionally) |
+| A remote-only spill (`bytesLocal` absent) | Must not fire on data that never touched local storage | Never fires |
+
+Registered in `ALL_RULES`, `"Spill issues"` category, `memory` Query Health dimension.
+
+### Story 31.3 — Network-dominant operator
+
+As a developer reading a Snowflake plan, I want to know when an operator's time was genuinely dominated by network communication, so that "high percentage of a trivial operator" and "real network cost" don't read the same.
+
+**Acceptance criteria**
+- New rule `network-time-dominant`, `engine === "snowflake"` only, using already-parsed `timeBreakdown.networkCommunicationPercentage`.
+- Requires BOTH a high percentage (of this node's own time) AND a meaningful absolute runtime — since Snowflake has no millisecond figure to require instead (`actualTimeMs` stays undefined by design), "absolute" is expressed as this node's own `overallPercentage` (share of the WHOLE query) being material — the dual-gate lives in new shared `snowflakeTimeBreakdownDetail.ts`, reused by Story 31.4.
+- Possible causes are LISTED, not diagnosed (this story's own explicit instruction): `longText` names several plausible reasons (row redistribution/shuffle, returning a large result set, cross-region/cloud transfer) without asserting which one applies to this specific plan.
+
+**Testing approach**
+- Unit tests via `makeNode`: high-relative/trivial-absolute no-fire (the dual-gate's core case), material-absolute/low-relative no-fire, both-material fire, severity escalation, the "list, not diagnosis" text check, non-Snowflake no-fire.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| High network % on a near-zero-overall-share node | A tiny operator's own percentage of almost nothing isn't material | Dual-gate excludes it via the `overallPercentage` floor |
+| Naming ONE specific cause as certain | The story's own explicit instruction against diagnosing | `longText` lists several possibilities, asserts none |
+
+Registered in `ALL_RULES`, `"I/O issues"` category, `io` Query Health dimension.
+
+### Story 31.4 — Synchronization overhead
+
+As a developer reading a Snowflake plan, I want to know when an operator spent a real, material amount of time waiting on other parallel work rather than computing, so that uneven parallel-partition distribution has a visible signal.
+
+**Acceptance criteria**
+- New rule `synchronization-overhead`, `engine === "snowflake"` only, using already-parsed `timeBreakdown.synchronizationPercentage`.
+- Only triggers when synchronization is BOTH relatively material (high share of this node's own time) AND absolutely material (`overallPercentage` share of the query) — the exact same dual-gate 31.3 uses, shared via `snowflakeTimeBreakdownDetail.ts`.
+- `longText` explains synchronization as time waiting on other parallel workers/partitions, not productive compute, and names uneven partition-work distribution as the usual cause without claiming certainty (this plan alone can't confirm per-partition skew without more detail).
+
+**Testing approach**
+- Unit tests via `makeNode`, mirroring 31.3's own test shape: dual-gate both directions, severity escalation, the "waiting, not computing" explanation, non-Snowflake no-fire.
+
+**Real gap found and fixed while building this**: `queryHealth.ts`'s `parallelism` dimension eligibility had NO Snowflake signal at all (its own comment called this "a permanent, checked ceiling, not a gap," true at the time) — fixed to also recognize `timeBreakdown.synchronizationPercentage`, since this story adds the first real Snowflake parallelism-coordination signal.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| High sync % on a near-zero-overall-share node | Same dual-gate reasoning as 31.3 | Excluded via the `overallPercentage` floor |
+| Claiming certainty about WHICH partition is skewed | This plan has no per-partition detail | Named as the usual cause, not confirmed |
+
+Registered in `ALL_RULES`, `"Parallelism issues"` category, `parallelism` Query Health dimension.
+
+### Story 31.5 — Dominant time component insight
+
+As a developer reading a Snowflake plan, I want a plain-language summary of where an operator's time actually went, so that "This operator spent most of its time in remote I/O" is a fact I can see at a glance, not something I have to compute myself from five separate percentages.
+
+**Acceptance criteria**
+- New rule `dominant-time-component`, `engine === "snowflake"` only, always `info` — a description, never a defect.
+- Computes which of the five categories (processing, local disk, remote disk, network, synchronization) has the highest percentage on this node, via new shared `dominantTimeCategory()` (`snowflakeTimeBreakdownDetail.ts`, also used by 31.3/31.4's own dominant-category context).
+- Deliberately NEVER fires when PROCESSING dominates — the expected, healthy default for most compute-bound operators; announcing it on every node would be noise, not information (the same "only surface the notable case" principle `executionMode.ts`, Story 28.6, already applies to Row vs. Batch mode).
+- Gated by the same `overallPercentage` materiality floor as 31.3/31.4, so a trivial node's dominant category isn't worth naming either.
+
+**Testing approach**
+- Unit tests via `makeNode`: processing-dominant no-fire, each of the four non-processing categories firing with its own correct phrase (matching the story's own "remote I/O" example wording), the materiality floor, non-Snowflake no-fire, the "not necessarily a problem" disclaimer.
+- End-to-end test via the real `spill-to-remote-disk.json` fixture (local disk I/O genuinely dominant at 40%) through `applyRules`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Processing dominates | The expected, healthy case — flagging it everywhere would be pure noise | Never fires |
+| A trivial node with a non-processing dominant category | Still not worth naming if the node's own time is negligible | `overallPercentage` floor excludes it |
+| Overlap with 31.3/31.4's own findings | This info-tier insight can and should coexist with a warning-tier finding on the same node | No suppression — both can fire together, at different severities, for different purposes |
+
+Registered in `ALL_RULES`, `"General notes"` category (always-info), `runtime` Query Health dimension.
