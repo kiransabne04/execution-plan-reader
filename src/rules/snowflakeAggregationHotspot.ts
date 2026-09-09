@@ -17,8 +17,13 @@
 // combination of extreme input volume AND heavy time share, where a
 // pre-aggregation (filter earlier, aggregate in stages) is more likely
 // worth investigating.
+//
+// Input rows resolved via `inputRowsDetail.ts`'s shared `resolveInputRows()`
+// — prefers Snowflake's own real `input_rows` when present, falling back
+// to the max-of-children derivation this rule originally used.
 
 import { formatNumber } from "./format"
+import { resolveInputRows } from "./inputRowsDetail"
 import { isOverallMaterial, MATERIAL_OVERALL_PERCENTAGE_THRESHOLD } from "./snowflakeTimeBreakdownDetail"
 import type { Rule } from "./types"
 
@@ -37,10 +42,8 @@ export const snowflakeAggregationHotspot: Rule = (node) => {
   if (node.engine !== "snowflake" || node.operatorType !== "aggregate") return []
   if (!isOverallMaterial(node.timeBreakdown)) return []
 
-  const inputRows = node.children.map((c) => c.actualRows).filter((r): r is number => r !== undefined && Number.isFinite(r) && r > 0)
-  if (inputRows.length === 0) return []
-  const maxInputRows = Math.max(...inputRows)
-  if (maxInputRows < LARGE_INPUT_ROWS_THRESHOLD) return []
+  const maxInputRows = resolveInputRows(node)
+  if (maxInputRows === undefined || maxInputRows < LARGE_INPUT_ROWS_THRESHOLD) return []
 
   const outputRows = node.actualRows
   const overallPercentage = node.timeBreakdown!.overallPercentage!

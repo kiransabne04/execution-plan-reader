@@ -70,4 +70,34 @@ describe("explodingJoin", () => {
       expect(longText).not.toContain("Snowflake")
     })
   })
+
+  // Addendum — prefer Snowflake's real input_rows over the max-of-children derivation.
+  describe("Snowflake — prefers native input_rows over the derived max-of-children", () => {
+    it("uses inputRows for the ratio math instead of the larger max-of-children value", () => {
+      const left = makeNode({ engine: "snowflake", actualRows: 100 })
+      const right = makeNode({ engine: "snowflake", actualRows: 50 })
+      // Native inputRows (10) is smaller than max(children) (100) — if the
+      // rule wrongly preferred the derived value, the ratio/text would
+      // reflect 100, not 10.
+      const join = makeNode({ engine: "snowflake", operatorType: "join", actualRows: 5000, inputRows: 10, children: [left, right] })
+      const warnings = explodingJoin(join, makeContext(join))
+      expect(warnings[0].longText).toContain("10 rows")
+      expect(warnings[0].longText).not.toContain("100 rows")
+    })
+
+    it("phrases the native case as a single total, not 'at most'", () => {
+      const child = makeNode({ engine: "snowflake", actualRows: 100 })
+      const join = makeNode({ engine: "snowflake", operatorType: "join", actualRows: 5000, inputRows: 10, children: [child] })
+      const longText = explodingJoin(join, makeContext(join))[0].longText
+      expect(longText).not.toContain("at most")
+    })
+
+    it("still falls back to max-of-children when inputRows is absent", () => {
+      const left = makeNode({ engine: "snowflake", actualRows: 100 })
+      const right = makeNode({ engine: "snowflake", actualRows: 50 })
+      const join = makeNode({ engine: "snowflake", operatorType: "join", actualRows: 5000, children: [left, right] })
+      const longText = explodingJoin(join, makeContext(join))[0].longText
+      expect(longText).toContain("at most 100 rows")
+    })
+  })
 })

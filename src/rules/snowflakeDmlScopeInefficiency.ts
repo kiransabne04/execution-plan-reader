@@ -19,6 +19,7 @@
 
 import type { PlanNode } from "../parsers/normalize"
 import { formatNumber } from "./format"
+import { resolveInputRows } from "./inputRowsDetail"
 import type { Rule } from "./types"
 
 const SCOPED_OPERATOR_TYPES = new Set(["update", "delete", "merge"])
@@ -44,10 +45,8 @@ export const snowflakeDmlScopeInefficiency: Rule = (node) => {
   const rowsChanged = totalRowsChanged(node)
   if (rowsChanged === undefined) return []
 
-  const inputRows = node.children.map((c) => c.actualRows).filter((r): r is number => r !== undefined && Number.isFinite(r) && r > 0)
-  if (inputRows.length === 0) return []
-  const maxInputRows = Math.max(...inputRows)
-  if (maxInputRows < MIN_INPUT_ROWS_THRESHOLD) return []
+  const maxInputRows = resolveInputRows(node)
+  if (maxInputRows === undefined || maxInputRows < MIN_INPUT_ROWS_THRESHOLD) return []
   if (rowsChanged > maxInputRows) return [] // not an honest comparison — the derivation doesn't fit this shape
 
   const unchangedRatio = (maxInputRows - rowsChanged) / maxInputRows

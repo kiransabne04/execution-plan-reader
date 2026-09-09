@@ -100,4 +100,30 @@ describe("filterRowsDiscarded", () => {
       expect(filterRowsDiscarded(node, makeContext(node))).toEqual([])
     })
   })
+
+  // Addendum — prefer Snowflake's real input_rows over the single-child derivation.
+  describe("Snowflake — prefers native input_rows over derivation", () => {
+    it("fires using native input_rows, with no disclosure sentence (it's Snowflake's own real statistic)", () => {
+      const node = makeNode({ engine: "snowflake", operatorType: "filter", actualRows: 100, inputRows: 9_000_100 })
+      const warnings = filterRowsDiscarded(node, makeContext(node))
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0].longText).not.toContain("doesn't report a")
+      expect(warnings[0].longText).not.toContain("computed from the")
+    })
+
+    it("uses native input_rows even with more than one child — the single-child restriction is fallback-only", () => {
+      const childA = makeNode({ engine: "snowflake", actualRows: 30 })
+      const childB = makeNode({ engine: "snowflake", actualRows: 20 })
+      const node = makeNode({ engine: "snowflake", operatorType: "filter", actualRows: 100, inputRows: 9_000_100, children: [childA, childB] })
+      const warnings = filterRowsDiscarded(node, makeContext(node))
+      expect(warnings).toHaveLength(1)
+    })
+
+    it("still discloses computation and applies the single-child restriction when input_rows is absent", () => {
+      const childA = makeNode({ engine: "snowflake", actualRows: 30 })
+      const childB = makeNode({ engine: "snowflake", actualRows: 20 })
+      const node = makeNode({ engine: "snowflake", operatorType: "filter", actualRows: 10, children: [childA, childB] })
+      expect(filterRowsDiscarded(node, makeContext(node))).toEqual([])
+    })
+  })
 })

@@ -315,5 +315,20 @@ describe("parseSnowflakeOperatorStats", () => {
       expect(root.io?.externalBytesScanned).toBeUndefined()
       expect(root.io?.bytesWrittenToResult).toBeUndefined()
     })
+
+    // Addendum — captures Snowflake's real top-level input_rows statistic
+    // (deliberately deferred at the time of Episode 33 itself — see
+    // PlanNode.inputRows's own doc comment for why it's captured here
+    // instead), preferred over the "derive from children" fallback by
+    // `inputRowsDetail.ts`'s `resolveInputRows()`.
+    it("captures the real input_rows statistic", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("official-shape-full-stats.json"))
+      expect(root.inputRows).toBe(900000000)
+    })
+
+    it("inputRows is undefined, not fabricated, when the input never carried one", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
+      expect(root.inputRows).toBeUndefined()
+    })
   })
 })

@@ -364,6 +364,21 @@ export interface PlanNode {
   stepId?: number
   estimatedRows?: number
   actualRows?: number
+  /** Snowflake-specific: `input_rows`, a genuine top-level statistic in
+   * `GET_QUERY_OPERATOR_STATS()`'s OPERATOR_STATISTICS, sibling to
+   * `output_rows` — verified against Snowflake's own function reference the
+   * same way every other Episode 33 field was. Deliberately NOT captured in
+   * Episode 33 itself (see `docs/10-node-stats-field-catalog.md` §11's own
+   * note on why) — captured here instead, per an explicit later decision to
+   * close that gap: every rule that was deriving "input rows" by summing/
+   * maxing children's own `actualRows` (`explodingJoin.ts` and the rules
+   * built on its technique — see `inputRowsDetail.ts`) now prefers this
+   * real, engine-reported figure when present, falling back to that same
+   * derivation only when it's absent. No Postgres/SQL Server equivalent —
+   * those engines never report a scalar "rows into this operator" figure
+   * the way Snowflake does (a join's own input rows are always split
+   * per-side there instead). */
+  inputRows?: number
   /** Rows read but discarded by a post-scan filter, where derivable. */
   rowsRemovedByFilter?: number
   /** Episode 24, Story 24.3 — Postgres-specific: rows discarded by a JOIN's

@@ -14,6 +14,11 @@ export function makeNode(overrides: Partial<PlanNode> = {}): PlanNode {
     rawOperatorLabel: overrides.rawOperatorLabel ?? "Seq Scan",
     estimatedRows: overrides.estimatedRows,
     actualRows: overrides.actualRows,
+    // Snowflake's real `input_rows` (see PlanNode's own doc comment) —
+    // added immediately alongside its own capture this time, per the
+    // lesson from Episode 34's own "new PlanNode field not wired into the
+    // test helper" bug.
+    inputRows: overrides.inputRows,
     rowsRemovedByFilter: overrides.rowsRemovedByFilter,
     // Episode 24
     rowsRemovedByJoinFilter: overrides.rowsRemovedByJoinFilter,

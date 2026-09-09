@@ -64,4 +64,17 @@ describe("snowflakeAggregationHotspot", () => {
     const longText = snowflakeAggregationHotspot(node, makeContext(node))[0].longText
     expect(longText).toContain("reduction")
   })
+
+  it("prefers native inputRows over the max-of-children derivation", () => {
+    const child = makeNode({ engine: "snowflake", actualRows: 100 }) // below threshold on its own
+    const node = makeNode({
+      engine: "snowflake",
+      operatorType: "aggregate",
+      actualRows: 10,
+      inputRows: LARGE_INPUT_ROWS_THRESHOLD,
+      children: [child],
+      timeBreakdown: { overallPercentage: 10 },
+    })
+    expect(snowflakeAggregationHotspot(node, makeContext(node))).toHaveLength(1)
+  })
 })

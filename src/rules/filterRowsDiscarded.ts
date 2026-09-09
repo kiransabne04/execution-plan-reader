@@ -13,31 +13,44 @@
 // Episode 34, Story 34.1 — Snowflake enrichment, not a new rule.
 // `rowsRemovedByFilter` is NEVER populated for Snowflake (`buildTree.ts`
 // has no source for it — `GET_QUERY_OPERATOR_STATS()` gives a Filter
-// operator's own `output_rows`, but no separate "rows removed" statistic
-// and no `input_rows` capture either; see Episode 33's own deliberately-
-// deferred note on `input_rows` in the field catalog §11), so this rule
-// could never fire for Snowflake at all before this story. Fixed by
-// deriving the removed-row count for a Snowflake `filter` node from the
-// difference between its single child's `actualRows` (the input) and its
-// own `actualRows` (the output) — the same "input rows via children"
-// technique `explodingJoin.ts` already established. Deliberately scoped to
-// exactly one child: a Filter with more than one child isn't a shape this
-// derivation can honestly attribute to "the input," so it's skipped rather
-// than guessed. The derived case gets its own disclosure sentence stating
-// this is computed, not Snowflake's own reported statistic.
+// operator's own `output_rows`, but no separate "rows removed" statistic).
+// This rule could never fire for Snowflake at all before this story. Fixed
+// by deriving the removed-row count for a Snowflake `filter` node from an
+// input-row figure minus its own `actualRows` (the output).
+//
+// Later addendum — prefer Snowflake's real `input_rows` over derivation:
+// `PlanNode.inputRows` (captured after Episode 33 itself — see its own doc
+// comment in normalize.ts) is now checked FIRST via `isNativeInputRows()`;
+// only when it's absent does this fall back to the single-child
+// `child.actualRows` derivation the story originally shipped with
+// (deliberately scoped to exactly one child — a Filter with more than one
+// child isn't a shape that fallback can honestly attribute to "the
+// input"). The native path has no such restriction, since it's Snowflake's
+// own authoritative figure regardless of the tree's shape. Only the
+// fallback (never the native path) gets the "this is computed, not
+// reported" disclosure sentence.
 import type { PlanNode } from "../parsers/normalize"
 import { formatNumber } from "./format"
+import { isNativeInputRows } from "./inputRowsDetail"
 import type { Rule } from "./types"
 
-/** Derives a Snowflake Filter's removed-row count from child vs. own
- * `actualRows`, since Snowflake never reports one directly. `undefined`
- * when the shape doesn't allow an honest derivation (not a Snowflake
- * filter, not exactly one child, or either row count missing). */
+/** Derives a Snowflake Filter's removed-row count from an input-row figure
+ * minus its own `actualRows`. `undefined` when the shape doesn't allow an
+ * honest derivation (not a Snowflake filter, no usable input-row source,
+ * or either row count missing). */
 function deriveSnowflakeFilterRemoved(node: PlanNode): number | undefined {
-  if (node.engine !== "snowflake" || node.operatorType !== "filter" || node.children.length !== 1) return undefined
-  const inputRows = node.children[0].actualRows
+  if (node.engine !== "snowflake" || node.operatorType !== "filter") return undefined
   const outputRows = node.actualRows
-  if (inputRows === undefined || outputRows === undefined || !Number.isFinite(inputRows) || !Number.isFinite(outputRows)) return undefined
+  if (outputRows === undefined || !Number.isFinite(outputRows)) return undefined
+
+  let inputRows: number | undefined
+  if (isNativeInputRows(node)) {
+    inputRows = node.inputRows
+  } else if (node.children.length === 1) {
+    inputRows = node.children[0].actualRows
+  }
+  if (inputRows === undefined || !Number.isFinite(inputRows)) return undefined
+
   const removed = inputRows - outputRows
   return removed > 0 ? removed : undefined
 }
@@ -60,7 +73,11 @@ const MIN_TIME_MS_FLOOR = 1
 
 export const filterRowsDiscarded: Rule = (node) => {
   const derivedRemoved = node.rowsRemovedByFilter === undefined ? deriveSnowflakeFilterRemoved(node) : undefined
-  const isDerived = derivedRemoved !== undefined
+  // Only the single-child fallback derivation is "computed, not reported" —
+  // when `deriveSnowflakeFilterRemoved` used the native `input_rows` path
+  // instead, this is Snowflake's own real statistic, same footing as
+  // Postgres/SQL Server's native `rowsRemovedByFilter`.
+  const isDerived = derivedRemoved !== undefined && !isNativeInputRows(node)
   const rowsRemoved = node.rowsRemovedByFilter ?? derivedRemoved
   if (rowsRemoved === undefined || !Number.isFinite(rowsRemoved) || rowsRemoved <= 0) return []
   const returned = node.actualRows

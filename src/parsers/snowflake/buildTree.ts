@@ -99,6 +99,10 @@ function makeNode(row: OperatorRow): PlanNode {
   attributes["Parent Operator Ids"] = JSON.stringify(row.parentIds)
 
   const outputRows = toFiniteNumber(getField(row.statistics, "output_rows", "outputRows"))
+  // A real top-level statistic, sibling to output_rows — captured here per
+  // an explicit later decision (see PlanNode.inputRows's own doc comment
+  // for why this wasn't part of Episode 33 itself).
+  const inputRows = toFiniteNumber(getField(row.statistics, "input_rows", "inputRows"))
 
   const filterText = toText(getField(row.attributes, "filter_condition", "condition"))
   const joinCondition = toText(
@@ -124,6 +128,7 @@ function makeNode(row: OperatorRow): PlanNode {
     // Snowflake's operator stats are post-execution only — there's no
     // pre-execution estimate to report, unlike Postgres/SQL Server.
     actualRows: outputRows,
+    inputRows,
     stepId,
     role: "main",
     predicate,

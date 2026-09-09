@@ -80,4 +80,16 @@ describe("snowflakeDmlScopeInefficiency", () => {
     const node = makeDml("update", MIN_INPUT_ROWS_THRESHOLD, MIN_INPUT_ROWS_THRESHOLD + 500)
     expect(snowflakeDmlScopeInefficiency(node, makeContext(node))).toEqual([])
   })
+
+  it("prefers native inputRows over the max-of-children derivation", () => {
+    const child = makeNode({ engine: "snowflake", actualRows: 100 }) // below threshold on its own
+    const node = makeNode({
+      engine: "snowflake",
+      operatorType: "update",
+      inputRows: MIN_INPUT_ROWS_THRESHOLD,
+      children: [child],
+      dml: { rowsUpdated: 10 },
+    })
+    expect(snowflakeDmlScopeInefficiency(node, makeContext(node))).toHaveLength(1)
+  })
 })

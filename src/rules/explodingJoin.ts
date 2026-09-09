@@ -12,7 +12,14 @@
 // cardinality"/"output cardinality" as this story's own requested
 // vocabulary, so a reader doesn't quietly assume "Join" means a hash join
 // just because that's the common mental model from other engines.
+//
+// Input-rows resolution now goes through `inputRowsDetail.ts`'s shared
+// `resolveInputRows()` — prefers Snowflake's own real `input_rows` when
+// present, falling back to the same "max of children" derivation this
+// file always used (still the only path for Postgres/SQL Server, which
+// never populate `inputRows`). See that file's own header comment.
 
+import { isNativeInputRows, resolveInputRows } from "./inputRowsDetail"
 import { formatNumber } from "./format"
 import type { Rule } from "./types"
 
@@ -30,12 +37,9 @@ export const explodingJoin: Rule = (node) => {
   const outputRows = node.actualRows ?? node.estimatedRows
   if (outputRows === undefined || !Number.isFinite(outputRows) || outputRows <= 0) return []
 
-  const childRowCounts = node.children
-    .map((c) => c.actualRows ?? c.estimatedRows)
-    .filter((r): r is number => r !== undefined && Number.isFinite(r) && r > 0)
-  if (childRowCounts.length === 0) return []
+  const maxInputRows = resolveInputRows(node)
+  if (maxInputRows === undefined) return []
 
-  const maxInputRows = Math.max(...childRowCounts)
   const ratio = outputRows / maxInputRows
   if (ratio < EXPLOSION_RATIO_THRESHOLD) return []
 
@@ -54,6 +58,14 @@ export const explodingJoin: Rule = (node) => {
         `simply its generic "Join" operation, not specifically a hash join or any other named algorithm.`
       : ""
 
+  // Native `input_rows` (Snowflake's own real, reported figure) is a
+  // single total for the operator, not specifically "the largest side" —
+  // the derived fallback (max of children) IS specifically that. Wording
+  // adapts so neither source is described as the other.
+  const inputRowsPhrase = isNativeInputRows(node)
+    ? `of ${formatNumber(maxInputRows)} rows (input cardinality)`
+    : `of at most ${formatNumber(maxInputRows)} rows (input cardinality)`
+
   return [
     {
       ruleId: "exploding-join",
@@ -61,7 +73,7 @@ export const explodingJoin: Rule = (node) => {
       shortText: `Output (${formatNumber(outputRows)} rows) is ${ratioText}x its largest input — check the join condition.`,
       longText:
         `This ${node.rawOperatorLabel} produced ${formatNumber(outputRows)} rows (output cardinality) from inputs ` +
-        `of at most ${formatNumber(maxInputRows)} rows (input cardinality) — a ${ratioText}x multiplication.${snowflakeAlgorithmNote} ` +
+        `${inputRowsPhrase} — a ${ratioText}x multiplication.${snowflakeAlgorithmNote} ` +
         `This pattern usually means a missing or too-loose join condition (an accidental cross join), causing rows ` +
         `to multiply rather than match one-to-one/one-to-many as intended.`,
       provenance: {

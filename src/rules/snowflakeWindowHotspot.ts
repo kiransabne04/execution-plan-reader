@@ -14,6 +14,7 @@
 // in absolute terms, just a big fraction of a small number.
 
 import { formatNumber } from "./format"
+import { resolveInputRows } from "./inputRowsDetail"
 import { isOverallMaterial, MATERIAL_OVERALL_PERCENTAGE_THRESHOLD } from "./snowflakeTimeBreakdownDetail"
 import type { Rule } from "./types"
 
@@ -30,10 +31,8 @@ export const snowflakeWindowHotspot: Rule = (node) => {
   if (node.engine !== "snowflake" || node.operatorType !== "window_agg") return []
   if (!isOverallMaterial(node.timeBreakdown)) return []
 
-  const inputRows = node.children.map((c) => c.actualRows).filter((r): r is number => r !== undefined && Number.isFinite(r) && r > 0)
-  if (inputRows.length === 0) return []
-  const maxInputRows = Math.max(...inputRows)
-  if (maxInputRows < LARGE_INPUT_ROWS_THRESHOLD) return []
+  const maxInputRows = resolveInputRows(node)
+  if (maxInputRows === undefined || maxInputRows < LARGE_INPUT_ROWS_THRESHOLD) return []
 
   const overallPercentage = node.timeBreakdown!.overallPercentage!
   const severity = overallPercentage >= WARNING_OVERALL_PERCENTAGE_THRESHOLD ? "warning" : "info"

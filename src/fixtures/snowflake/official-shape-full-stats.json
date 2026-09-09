@@ -39,6 +39,7 @@
     "parentOperators": [],
     "attributes": {},
     "statistics": {
+      "input_rows": 900000000,
       "output_rows": 900000000,
       "io": {
         "bytes_written_to_result": 209715200,
