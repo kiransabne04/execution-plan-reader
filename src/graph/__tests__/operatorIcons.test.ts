@@ -88,6 +88,13 @@ const ACCEPTED_UNMAPPED_OPERATOR_TYPES = [
   // scan/join/sort/hash/aggregate/index-seek shape.
   "merge",
   "unload",
+  // Episode 34 — the first fixtures to exercise ExternalFunction
+  // (external-function-and-result-transfer.json) and Update
+  // (dml-update-wide-scan.json). `external_function` already existed in
+  // this file's own doc comment as deliberately unmapped; `update` is the
+  // same DML-shaped reasoning as `merge`/`unload` above.
+  "external_function",
+  "update",
 ].sort()
 
 describe("operatorIconKey", () => {

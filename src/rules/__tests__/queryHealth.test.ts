@@ -72,6 +72,27 @@ describe("computeQueryHealth", () => {
       // Worst instance (critical, -30) wins — not -30-12=-42.
       expect(health.dimensions.cardinality).toEqual({ status: "scored", score: 70 })
     })
+
+    // Episode 34 — dedicated eligibility tests for the two new cardinality
+    // evidence sources this dimension didn't recognize before (see
+    // queryHealth.ts's own isDimensionEligible comment on this).
+    it("scores (not insufficient-data) when the only cardinality evidence is a Snowflake filter's derived rows (Story 34.1)", () => {
+      const child = makeNode({ id: "child", engine: "snowflake", actualRows: 9_000_100 })
+      const root = tree([
+        makeNode({ id: "a", engine: "snowflake", operatorType: "filter", actualRows: 100, children: [child], warnings: [warning("filter-rows-discarded", "warning")] }),
+      ])
+      const context = makeContext(root, { engine: "snowflake" })
+      expect(computeQueryHealth(root, context).dimensions.cardinality.status).toBe("scored")
+    })
+
+    it("scores (not insufficient-data) when the only cardinality evidence is dml (Story 34.6)", () => {
+      const child = makeNode({ id: "child", engine: "snowflake", actualRows: 200_000 })
+      const root = tree([
+        makeNode({ id: "a", engine: "snowflake", operatorType: "update", dml: { rowsUpdated: 100 }, children: [child], warnings: [warning("dml-scope-inefficiency", "warning")] }),
+      ])
+      const context = makeContext(root, { engine: "snowflake" })
+      expect(computeQueryHealth(root, context).dimensions.cardinality.status).toBe("scored")
+    })
   })
 
   describe("Memory dimension", () => {
@@ -105,6 +126,23 @@ describe("computeQueryHealth", () => {
       const root = tree([makeNode({ id: "a", engine: "snowflake", timeBreakdown: { localDiskIoPercentage: 40 } })])
       const context = makeContext(root)
       expect(computeQueryHealth(root, context).dimensions.io).toEqual({ status: "scored", score: 100 })
+    })
+
+    // Episode 34, Story 34.5 — dedicated eligibility test: result-transfer
+    // bytes are a real io-dimension evidence source this dimension didn't
+    // recognize before (see queryHealth.ts's own isDimensionEligible comment).
+    it("scores (not insufficient-data) when the only io evidence is result-transfer bytes", () => {
+      const root = tree([
+        makeNode({
+          id: "a",
+          engine: "snowflake",
+          operatorType: "result",
+          io: { bytesWrittenToResult: 209715200 },
+          warnings: [warning("result-transfer-bottleneck", "warning")],
+        }),
+      ])
+      const context = makeContext(root, { engine: "snowflake" })
+      expect(computeQueryHealth(root, context).dimensions.io.status).toBe("scored")
     })
   })
 

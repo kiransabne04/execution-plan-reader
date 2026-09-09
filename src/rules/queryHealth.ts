@@ -115,6 +115,8 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     "aggregation-hotspot",
     // Episode 32 — same mostly-info time-share pattern as aggregation-hotspot.
     "window-hotspot",
+    // Episode 34 — same mostly-info time-share pattern.
+    "external-function-hotspot",
   ],
   cardinality: [
     "bad-row-estimate",
@@ -137,6 +139,13 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     // Episode 32 — Snowflake, same dimension as exploding-join (a
     // structural-classification specialization of it, not a new family).
     "cartesian-join",
+    // Episode 34 — Snowflake, same access-efficiency dimension as
+    // poor-partition-pruning (a paid-feature effectiveness variant of it).
+    "search-optimization-effectiveness",
+    // Episode 34 — Snowflake, same dimension as filter-rows-discarded (a
+    // write-side "examined but not acted on" ratio, same shape as that
+    // read-side finding).
+    "dml-scope-inefficiency",
   ],
   memory: [
     "disk-spill",
@@ -177,6 +186,8 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     "wal-volume",
     // Episode 31 — Snowflake network-time-dominant.
     "network-time-dominant",
+    // Episode 34 — Snowflake result-transfer-bottleneck.
+    "result-transfer-bottleneck",
   ],
   // Story 23.2 adds the parallel-worker-shortfall rule that actually feeds
   // this family; the mapping is declared here already so Story 23.2 only
@@ -226,12 +237,24 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
       // scan pruning/bytes-scanned anywhere) would read "insufficient
       // data" despite carrying one of those real, scored findings — same
       // eligibility-gap class this file has now caught 4 times.
+      //
+      // Episode 34 — two more real cardinality-dimension evidence sources
+      // this same clause didn't recognize: `filter-rows-discarded`'s new
+      // Snowflake-derived case (Story 34.1 — a Filter node with a single
+      // child's `actualRows` to compare against its own, no native
+      // `rowsRemovedByFilter` involved) and `dml-scope-inefficiency`
+      // (Story 34.6 — evidence is `node.dml` plus children's `actualRows`,
+      // neither of which any existing clause here checks). Both are real,
+      // scored findings that would otherwise read "insufficient data" —
+      // the 7th and 8th instance of this exact bug class this session.
       return nodes.some(
         (n) =>
           n.estimatedRows !== undefined ||
           n.pruning !== undefined ||
           n.io?.bytesScanned !== undefined ||
-          (JOIN_OPERATOR_TYPES.has(n.operatorType) && n.actualRows !== undefined),
+          (JOIN_OPERATOR_TYPES.has(n.operatorType) && n.actualRows !== undefined) ||
+          (n.operatorType === "filter" && n.actualRows !== undefined && n.children.some((c) => c.actualRows !== undefined)) ||
+          n.dml !== undefined,
       )
     case "memory":
       // The parser attempted spill detection for this node at all
@@ -264,13 +287,23 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
       // disk figure set at all, and without this the `io` dimension would
       // read "insufficient data" despite carrying that real finding — same
       // eligibility-gap class this file has now caught 3 times.
+      //
+      // Episode 34 — `result-transfer-bottleneck` (Story 34.5) fires off
+      // `io.bytesWrittenToResult`/`bytesReadFromResult`, neither of which
+      // this clause checked — a plan whose only io-dimension evidence was
+      // a real, scored result-transfer finding (material time share, but
+      // no local/remote/network percentage and no buffer hits/reads set)
+      // would have read "insufficient data" despite it. The 9th instance
+      // of this exact bug class this session.
       return nodes.some(
         (n) =>
           n.io?.bufferHits !== undefined ||
           n.io?.bufferReads !== undefined ||
           n.timeBreakdown?.localDiskIoPercentage !== undefined ||
           n.timeBreakdown?.remoteDiskIoPercentage !== undefined ||
-          n.timeBreakdown?.networkCommunicationPercentage !== undefined,
+          n.timeBreakdown?.networkCommunicationPercentage !== undefined ||
+          n.io?.bytesWrittenToResult !== undefined ||
+          n.io?.bytesReadFromResult !== undefined,
       )
     case "parallelism":
       // Postgres: per-node, both fields genuinely populated

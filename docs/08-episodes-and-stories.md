@@ -2439,3 +2439,137 @@ As a developer maintaining the Snowflake parser, I want a fixture that exercises
 Registered: fixtures + parser tests only, no rule-engine registration.
 
 **Deliberately out of scope for this episode** (see `docs/10-node-stats-field-catalog.md` §11's own note): `input_rows` — a real top-level statistic this app could read directly instead of deriving "input rows" by summing children's `actualRows` the way `explodingJoin.ts` and the Episode 32 rules already do. Left uncaptured to avoid an unrequested behavior change to every rule already built on the derived figure; a future episode should evaluate switching explicitly. `io.scan_progress` and `io.bytes_written` (a general write-bytes figure, distinct from the result-transfer bytes captured in Story 33.6) are real fields not covered by any of this episode's ten stories.
+
+## Episode 34 — Snowflake Operator Intelligence II
+
+Parser check performed first, same premise as every Snowflake episode: every field these 6 stories need was already captured by Episode 33 (`network.bytesSent`, `io.percentageScannedFromCache`/`externalBytesScanned`/`bytesWrittenToResult`/`bytesReadFromResult`, `searchOptimization`, `pruning.partitionsPrunedByOptima`, `dml`) — **no new parser work needed for 5 of the 6 stories.** The one exception (Story 34.3, External Functions) deliberately does NOT add new parser capture — see that story's own honesty-boundary note.
+
+**Real bug found and fixed while building this**: `src/rules/__tests__/testHelpers.ts`'s `makeNode()` builder explicitly lists every `PlanNode` field one by one (not a generic spread) — and was never updated when Episode 33 added `network`/`searchOptimization`/`dml`/`stepId` to `PlanNode`. Any test passing those fields via `makeNode({...})` overrides was silently getting `undefined` back instead of the value it asked for, regardless of what was passed in. Caught immediately by this episode's own first new test (`networkTimeDominant`'s byte-volume enrichment test failed with the byte figure simply missing). Fixed by adding the four missing fields to the builder — the exact same "new `PlanNode` field not wired into shared test/eligibility machinery" bug class this file's own `queryHealth.ts` has hit repeatedly, just in the test helper instead of the eligibility function this time.
+
+**Real eligibility gaps found and fixed** (the 7th, 8th, and 9th instances of the `queryHealth.ts` dimension-eligibility bug class this session): the `cardinality` dimension didn't recognize the Snowflake-derived case of `filter-rows-discarded` (Story 34.1) or `dml-scope-inefficiency`'s own evidence (Story 34.6); the `io` dimension didn't recognize `io.bytesWrittenToResult`/`bytesReadFromResult` (Story 34.5's own evidence). All three fixed, each covered by a dedicated `queryHealth.test.ts` unit test plus a real-fixture end-to-end proof in `applyRules.test.ts`.
+
+### Story 34.1 — Filter selectivity
+
+As a developer reading a Snowflake plan, I want to know when a Filter discarded most of the rows it examined, so that I get the same low-selectivity signal Postgres/SQL Server plans already provide — even though Snowflake never reports a "rows removed" statistic directly.
+
+**Acceptance criteria**
+- Not a new rule — enrichment of the existing, engine-agnostic `filterRowsDiscarded.ts`. `rowsRemovedByFilter` is never populated for Snowflake at all (no source field exists in `GET_QUERY_OPERATOR_STATS()` — Snowflake gives a Filter's own `output_rows`, but no separate removed-count and no `input_rows` capture either), so this rule could never fire for Snowflake before this story.
+- New `deriveSnowflakeFilterRemoved()`: for a Snowflake `filter` node with EXACTLY one child, derives removed rows as `child.actualRows - node.actualRows` — the same "input rows via children" technique `explodingJoin.ts` already established. Skipped (not guessed) for a Filter with more than one child.
+- The derived case gets its own disclosure sentence stating the figure is computed, not Snowflake's own reported statistic.
+- Native `rowsRemovedByFilter` (when present, i.e. Postgres/SQL Server) always takes priority over the derived path — never both-sourced.
+
+**Testing approach**
+- 6 new tests added to the existing `filterRowsDiscarded.test.ts` (8 original tests preserved): fires via the derived path, discloses the computation, native value takes priority when both could apply, no derivation for a multi-child Filter, no derivation for a non-filter Snowflake operator, no derivation for a non-Snowflake engine, no-throw with missing child data.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A Filter with more than one child | Can't honestly attribute "the input" to one specific child | Never derives — skipped, not guessed |
+| Both native AND derivable data present | Should never double-source | Native `rowsRemovedByFilter` always wins |
+| A non-Snowflake filter | Native field already works correctly there | Derivation path never engages |
+
+Registered: enrichment of an existing rule already in `ALL_RULES`, `cardinality` Query Health dimension (required an eligibility fix for the new derived-evidence case — see this episode's header note).
+
+### Story 34.2 — Data movement
+
+As a developer reading a Snowflake plan with a network-time-dominant finding, I want to see the actual byte volume moved, not just a percentage, so that "40% of this operator's time was network" becomes a concrete "300 MB moved" fact I can reason about.
+
+**Acceptance criteria**
+- Not a new rule — enrichment of the existing `networkTimeDominant.ts`. When `network.bytesSent` (Episode 33) is present on the same node, both `shortText` and `longText` now include the concrete byte figure alongside the existing percentage-based reasoning.
+- No change to the rule's own firing condition (still gated on relative + absolute time-share materiality) — this is a text enrichment only, same "enrich rather than duplicate" pattern Story 32.1 established.
+
+**Testing approach**
+- 2 new tests added to `networkTimeDominant.test.ts`: byte figure appears when `network.bytesSent` is present, no byte mention (and no crash) when it's absent.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| `network.bytesSent` absent | Most operators won't have this new field populated on old parses | Rule still fires normally, just without the byte sentence |
+
+Registered: enrichment of an existing rule already in `ALL_RULES`/dimension mapping — no new registration.
+
+### Story 34.3 — External functions
+
+As a developer reading a Snowflake plan with an expensive ExternalFunction call, I want an honest assessment based only on the data this app actually has, so that I'm not given fabricated invocation-count or latency-percentile numbers Snowflake's real (but uncaptured) `external_functions` statistics object would show.
+
+**Acceptance criteria**
+- New rule `external-function-hotspot`, Snowflake-only, `operatorType === "external_function"`.
+- **Honesty boundary (deliberate)**: Snowflake's official OPERATOR_STATISTICS schema exposes a richer `external_functions` object (invocation counts, row/byte transfers, latency percentiles, HTTP error counts, throttling) that this app does NOT capture — verifying its exact field names wasn't part of Episode 33's ten stories, and fabricating names without checking them would violate this app's own "never fabricate data" rule. This rule is built ONLY on already-verified fields (`timeBreakdown`, `actualRows` via children) and explicitly states in `longText` that it doesn't have invocation/latency data, rather than pretending otherwise.
+- Same dual-gate shape as Episode 32's hotspot rules (≥100,000 input rows AND material overall time share), `info` by default, `warning` at ≥25% time share.
+- Recommends checking row-batching efficiency and upstream row-volume reduction — the same honest framing the operator's own glossary entry already uses.
+
+**Testing approach**
+- 8 new tests via `makeNode`: fires info/warning at the right thresholds, no-fire below either floor, no-fire on wrong operator/engine, no-throw with missing data, and a dedicated test asserting the honesty boundary — no invocation-count or latency-percentile language anywhere in the output.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Fabricating invocation/latency data | Real data isn't captured; making it up would be dishonest | `longText` explicitly states this app doesn't have it |
+| A small row count with high time share | Network latency to any external call has a fixed cost regardless of volume | Row-count floor excludes it — not a batching signal at that scale |
+
+Registered in `ALL_RULES`, `"External function issues"` category (new), `runtime` Query Health dimension.
+
+### Story 34.4 — Search Optimization effectiveness
+
+As a developer paying for the Search Optimization Service, I want to know when it's contributing little pruning relative to a table's size, so that I have a real signal for whether this specific table/predicate combination is a good fit for it — without being told to cancel the service outright.
+
+**Acceptance criteria**
+- New rule `search-optimization-effectiveness`, Snowflake-only, fires only when `searchOptimization` data is present at all (the service is enabled/applicable to this scan).
+- Compares `searchOptimization.partitionsPrunedBySearchOptimization` against `pruning.partitionsTotal` — below a 5% contribution ratio, on a table with ≥10,000 total partitions, is judged low relative to the table's size.
+- Always `info` severity (a cost/benefit observation, not a defect) and never recommends cancelling/disabling the service — states the observation and frames it as "worth checking against this table/predicate combination," explicitly noting this plan alone can't speak to the table's broader query workload.
+
+**Testing approach**
+- 9 tests via `makeNode`: fires at/below the ratio threshold, no-fire above it, no-fire below the partitions-total floor, no-fire when the service isn't in use at all, no-fire when `pruning.partitionsTotal` is unknown, no-fire on non-Snowflake, a dedicated "never recommends cancelling" text assertion, always-info assertion.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Search Optimization not enabled on this table | Nothing to evaluate | `searchOptimization` absent — never fires |
+| Recommending cancellation as certain | This plan alone can't see the table's broader workload | Framed as "worth checking," never prescribed |
+| A small table | Barely needs pruning help from any mechanism | Partitions-total floor excludes it |
+
+Registered in `ALL_RULES`, `"Scan issues"` category (same bucket as `poor-partition-pruning`), `cardinality` Query Health dimension.
+
+### Story 34.5 — Result-transfer bottleneck
+
+As a developer reading a Snowflake plan, I want to know when returning the final result set itself is a meaningful cost driver, so that I can distinguish "the query took a long time to COMPUTE" from "the query took a long time to TRANSFER its own output."
+
+**Acceptance criteria**
+- New rule `result-transfer-bottleneck`, Snowflake-only, `operatorType === "result"`.
+- Dual-gated on result-transfer bytes (`io.bytesWrittenToResult` + `io.bytesReadFromResult`, summed — ≥1GB) AND material overall time share, same "byte floor alone isn't damning, needs additional evidence" shape `largeScanVolume.ts` already established. Escalates to `critical` at ≥10GB.
+- `longText` distinguishes transfer cost from compute cost, and offers a more selective `SELECT`, a `LIMIT`, or client-side pagination as options — never a single prescribed fix.
+
+**Testing approach**
+- 9 tests via `makeNode`: fires/escalates at the byte tiers with material time share, no-fire below either gate alone, sums written+read bytes together, no-fire on wrong operator/engine, no-throw with missing data, text-content assertion for the three recommended options.
+- New real fixture (`external-function-and-result-transfer.json`) end-to-end through `applyRules.test.ts`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Large bytes, trivial time share | A large necessary transfer that happened to be fast isn't a bottleneck | Dual-gate excludes it |
+| Only `bytesReadFromResult` set (no write) | A less common but real shape (re-reading a cached result) | Still counted — the two are summed, not written-only |
+
+Registered in `ALL_RULES`, `"I/O issues"` category (same bucket as `network-time-dominant`/`buffer-cache-inefficiency`), `io` Query Health dimension (required an eligibility fix — see this episode's header note).
+
+### Story 34.6 — DML analysis
+
+As a developer reading a Snowflake DML plan, I want to know when an UPDATE/DELETE/MERGE examined far more rows than it actually changed, so that I get the same "targeting" signal a read query's own filter-selectivity finding would give — for a write instead of a read.
+
+**Acceptance criteria**
+- New rule `dml-scope-inefficiency`, Snowflake-only, `operatorType` in `{update, delete, merge}` — deliberately excludes Insert (its own "rows read vs. rows inserted" gap is usually an upstream aggregation/dedup concern, already covered by other findings on those operators, not a DML-targeting problem) and Unload (no "rows changed" concept applies to an export).
+- Compares `dml.*` (summed across whichever of `rowsInserted`/`rowsUpdated`/`rowsDeleted` are present — relevant for a MERGE's combined branches) against input rows derived from children's `actualRows` (same technique as 34.1/`explodingJoin.ts`).
+- Reuses `filterRowsDiscarded.ts`'s own discard-ratio vocabulary and thresholds (0.9 warning / 0.99 critical) — "rows examined but not changed" is the same shape of signal as "rows examined but not returned," just for a write.
+- Skips the comparison entirely (rather than producing a nonsensical negative "discard ratio") when `rowsChanged` exceeds the derived input rows — not an honest comparison in that shape.
+
+**Testing approach**
+- 11 tests via `makeNode`: fires/escalates at the ratio thresholds, no-fire when well-targeted, no-fire below the input-rows floor, correctly sums a Merge's three branches together, no-fire for Insert/Unload (deliberately out of scope), no-fire on non-Snowflake, no-fire when `dml` is absent, no-throw with missing child data, no-fire when rowsChanged exceeds input rows.
+- New real fixture (`dml-update-wide-scan.json`, 500,000 rows scanned / 500 updated) end-to-end through `applyRules.test.ts`, proving both the rule and the new `cardinality` eligibility fix.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Insert | Different root cause (upstream computation), not DML targeting | Deliberately out of scope |
+| Unload | No "rows changed" concept applies | Deliberately out of scope |
+| `rowsChanged` exceeding derived input rows | Not an honest comparison — the derivation doesn't fit this shape | Skipped entirely, not clamped or inverted |
+
+Registered in `ALL_RULES`, `"DML issues"` category (new), `cardinality` Query Health dimension (required an eligibility fix — see this episode's header note).

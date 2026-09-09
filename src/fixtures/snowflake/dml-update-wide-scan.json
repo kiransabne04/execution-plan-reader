@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1,
+    "operation": "TableScan",
+    "parentOperators": [2],
+    "attributes": { "table_name": "MY_DB.PUBLIC.CUSTOMERS" },
+    "statistics": { "output_rows": 500000 }
+  },
+  {
+    "id": 2,
+    "operation": "Update",
+    "parentOperators": [],
+    "attributes": { "table_name": "MY_DB.PUBLIC.CUSTOMERS" },
+    "statistics": {
+      "output_rows": 500000,
+      "dml": { "number_of_rows_updated": 500 }
+    }
+  }
+]

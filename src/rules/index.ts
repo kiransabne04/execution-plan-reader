@@ -11,6 +11,10 @@ import { snowflakeCartesianJoin } from "./snowflakeCartesianJoin"
 import { snowflakeAggregationHotspot } from "./snowflakeAggregationHotspot"
 import { snowflakeWindowHotspot } from "./snowflakeWindowHotspot"
 import { snowflakeSortHotspot } from "./snowflakeSortHotspot"
+import { snowflakeExternalFunctionHotspot } from "./snowflakeExternalFunctionHotspot"
+import { snowflakeSearchOptimizationEffectiveness } from "./snowflakeSearchOptimizationEffectiveness"
+import { snowflakeResultTransferBottleneck } from "./snowflakeResultTransferBottleneck"
+import { snowflakeDmlScopeInefficiency } from "./snowflakeDmlScopeInefficiency"
 import { filterRowsDiscarded } from "./filterRowsDiscarded"
 import { hashBatching } from "./hashBatching"
 import { highLoopCount } from "./highLoopCount"
@@ -61,6 +65,10 @@ export { snowflakeCartesianJoin } from "./snowflakeCartesianJoin"
 export { snowflakeAggregationHotspot } from "./snowflakeAggregationHotspot"
 export { snowflakeWindowHotspot } from "./snowflakeWindowHotspot"
 export { snowflakeSortHotspot } from "./snowflakeSortHotspot"
+export { snowflakeExternalFunctionHotspot } from "./snowflakeExternalFunctionHotspot"
+export { snowflakeSearchOptimizationEffectiveness } from "./snowflakeSearchOptimizationEffectiveness"
+export { snowflakeResultTransferBottleneck } from "./snowflakeResultTransferBottleneck"
+export { snowflakeDmlScopeInefficiency } from "./snowflakeDmlScopeInefficiency"
 export { missingIndexOpportunity } from "./missingIndexOpportunity"
 export { nonSargablePredicate } from "./nonSargablePredicate"
 export { parallelWorkerShortfall, parallelShortfallSeverity } from "./parallelWorkerShortfall"
@@ -192,6 +200,11 @@ export const ALL_RULES: Rule[] = [
   snowflakeAggregationHotspot,
   snowflakeWindowHotspot,
   snowflakeSortHotspot,
+  // Episode 34 — Snowflake Operator Intelligence II.
+  snowflakeExternalFunctionHotspot,
+  snowflakeSearchOptimizationEffectiveness,
+  snowflakeResultTransferBottleneck,
+  snowflakeDmlScopeInefficiency,
 ]
 
 const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }

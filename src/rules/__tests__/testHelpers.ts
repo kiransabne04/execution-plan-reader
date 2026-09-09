@@ -35,6 +35,15 @@ export function makeNode(overrides: Partial<PlanNode> = {}): PlanNode {
     io: overrides.io,
     spill: overrides.spill,
     pruning: overrides.pruning,
+    // Episode 33 — Snowflake official-shape fields. Missing here meant any
+    // test passing these via makeNode() overrides silently got `undefined`
+    // instead of the value it asked for — the exact same "new PlanNode
+    // field not wired into the test helper" bug class already caught once
+    // for queryHealth.ts's dimension-eligibility checks.
+    network: overrides.network,
+    searchOptimization: overrides.searchOptimization,
+    dml: overrides.dml,
+    stepId: overrides.stepId,
     parallel: overrides.parallel,
     timeBreakdown: overrides.timeBreakdown,
     // Episode 24

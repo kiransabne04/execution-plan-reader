@@ -54,4 +54,21 @@ describe("networkTimeDominant", () => {
     expect(() => run(node)).not.toThrow()
     expect(run(node)).toEqual([])
   })
+
+  // Episode 34, Story 34.2 — concrete byte-volume enrichment.
+  describe("byte-volume enrichment (Episode 34)", () => {
+    it("includes the concrete byte figure when network.bytesSent is present", () => {
+      const node = makeNetworkNode(40, 20, { network: { bytesSent: 314572800 } })
+      const warning = run(node)[0]
+      expect(warning.shortText).toContain("300 MB")
+      expect(warning.longText).toContain("300 MB")
+      expect(warning.longText).toContain("moved")
+    })
+
+    it("still fires normally, with no byte mention, when network.bytesSent is absent", () => {
+      const warning = run(makeNetworkNode(40, 20))[0]
+      expect(warning).toBeDefined()
+      expect(warning.longText).not.toContain("moved")
+    })
+  })
 })

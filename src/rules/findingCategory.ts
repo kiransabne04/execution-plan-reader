@@ -22,6 +22,8 @@ export type FindingCategory =
   | "Partition issues"
   | "Aggregation issues"
   | "Window issues"
+  | "External function issues"
+  | "DML issues"
   | "General notes"
 
 // One entry per rule family currently in ALL_RULES (src/rules/index.ts).
@@ -41,6 +43,11 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   // sort-large/sqlserver-sort-spill) since it's a Sort-specific finding,
   // not a new category, even though its trigger can be time-only.
   "sort-hotspot": "Spill issues",
+  // Episode 34 — Snowflake Operator Intelligence II.
+  "external-function-hotspot": "External function issues",
+  "search-optimization-effectiveness": "Scan issues",
+  "result-transfer-bottleneck": "I/O issues",
+  "dml-scope-inefficiency": "DML issues",
   "bad-row-estimate": "Estimate issues",
   "disk-spill": "Spill issues",
   "buffer-cache-inefficiency": "I/O issues",
@@ -131,5 +138,7 @@ export const FINDING_CATEGORY_ORDER: FindingCategory[] = [
   "Partition issues",
   "Aggregation issues",
   "Window issues",
+  "External function issues",
+  "DML issues",
   "General notes",
 ]

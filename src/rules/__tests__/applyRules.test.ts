@@ -232,4 +232,40 @@ describe("applyRules", () => {
     applyRules(root, buildPlanContext(root))
     expect(collectNodes(root).every((n) => !n.warnings.some((w) => w.ruleId === "high-loop-count"))).toBe(true)
   })
+
+  // Episode 34 — this real fixture's ExternalFunction node processes
+  // 600,000 rows at a material 35% time share, and its own Result node
+  // moves 12GB through the result-transfer path at 65% time share — both
+  // external-function-hotspot and result-transfer-bottleneck should fire
+  // through the real Snowflake parser.
+  it("end-to-end: Snowflake external-function/result-transfer fixture fires both new hotspot rules", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("snowflake", "external-function-and-result-transfer.json"))
+    applyRules(root, buildPlanContext(root))
+    const allWarnings = collectNodes(root).flatMap((n) => n.warnings)
+    expect(allWarnings.some((w) => w.ruleId === "external-function-hotspot")).toBe(true)
+    expect(allWarnings.some((w) => w.ruleId === "result-transfer-bottleneck")).toBe(true)
+
+    const health = computeQueryHealth(root, buildPlanContext(root))
+    // Real proof the io-dimension eligibility fix works — result-transfer
+    // bytes alone (no local/remote/network time-share, no buffer hits)
+    // wouldn't have been recognized before it.
+    expect(health.dimensions.io.status).toBe("scored")
+  })
+
+  // Episode 34 — this real fixture's Update scanned 500,000 rows but only
+  // actually changed 500 of them (99.9% examined but not changed) —
+  // dml-scope-inefficiency should fire critical through the real parser.
+  it("end-to-end: Snowflake wide-scan DML fixture fires dml-scope-inefficiency", () => {
+    const { root } = parseSnowflakeOperatorStats(loadFixture("snowflake", "dml-update-wide-scan.json"))
+    applyRules(root, buildPlanContext(root))
+    const finding = root.warnings.find((w) => w.ruleId === "dml-scope-inefficiency")
+    expect(finding).toBeDefined()
+    expect(finding?.severity).toBe("critical")
+
+    const health = computeQueryHealth(root, buildPlanContext(root))
+    // Real proof the cardinality-dimension eligibility fix works — `dml`
+    // presence alone (no estimatedRows/pruning/bytesScanned/join-actualRows
+    // anywhere) wouldn't have been recognized before it.
+    expect(health.dimensions.cardinality.status).toBe("scored")
+  })
 })
