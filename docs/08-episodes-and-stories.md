@@ -2440,6 +2440,30 @@ Registered: fixtures + parser tests only, no rule-engine registration.
 
 **Deliberately out of scope for this episode** (see `docs/10-node-stats-field-catalog.md` §11's own note): `input_rows` — a real top-level statistic this app could read directly instead of deriving "input rows" by summing children's `actualRows` the way `explodingJoin.ts` and the Episode 32 rules already do. Left uncaptured to avoid an unrequested behavior change to every rule already built on the derived figure; a future episode should evaluate switching explicitly. `io.scan_progress` and `io.bytes_written` (a general write-bytes figure, distinct from the result-transfer bytes captured in Story 33.6) are real fields not covered by any of this episode's ten stories.
 
+### Story 33.11 — Prefer native `input_rows` over derivation (addendum, after Episode 34)
+
+As a developer, I want every rule that currently approximates "input rows" by summing/maxing its children's own `actualRows` to use Snowflake's real `input_rows` statistic when it's present instead, so that these findings are backed by the engine's own reported figure rather than an inferred approximation wherever possible.
+
+**Acceptance criteria**
+- New `PlanNode.inputRows` (Snowflake-specific), captured in `buildTree.ts` from the real top-level `input_rows` statistic — explicitly closing the gap Episode 33 itself deliberately deferred (see that episode's own "Deliberately out of scope" note above and field catalog §11).
+- New shared `inputRowsDetail.ts` (`resolveInputRows()`/`isNativeInputRows()`) — ONE function every affected rule now goes through, rather than each re-deriving its own copy of the preference order. Engine-agnostic in shape (for Postgres/SQL Server, `inputRows` is always `undefined`, so it always falls through to the exact same children-derivation those rules already used — a safe, behavior-preserving drop-in).
+- Updated call sites: `explodingJoin.ts` (text now distinguishes "a single total" (native) from "at most" (derived, still specifically the largest side) — the two aren't the same claim), `filterRowsDiscarded.ts`'s Snowflake derivation (native path has no single-child restriction, and drops the "this is computed" disclosure when native is what's actually used), `snowflakeAggregationHotspot.ts`, `snowflakeWindowHotspot.ts`, `snowflakeExternalFunctionHotspot.ts`, `snowflakeDmlScopeInefficiency.ts`.
+- No behavior change for any plan where `input_rows` is absent — every rule's own existing fallback-derivation tests still pass unchanged.
+
+**Testing approach**
+- New `inputRowsDetail.test.ts` (9 tests) covering the shared function directly: native preferred, fallback to max-of-children, fallback to `estimatedRows` for an estimate-only plan, non-positive native ignored, no data at all.
+- 3 new tests in `explodingJoin.test.ts`, 3 in `filterRowsDiscarded.test.ts` (native bypasses the single-child restriction, no disclosure when native is used, fallback still works when native is absent), 1 new test each in the four hotspot/DML rule test files.
+- New parser tests in `parseOperatorStats.test.ts`: real `input_rows` capture via the (extended) `official-shape-full-stats.json` fixture, `undefined` (not fabricated) when absent.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Native `input_rows` present on a multi-child Filter | The old single-child restriction existed only because derivation couldn't honestly attribute an input otherwise — native data has no such ambiguity | Native path has no child-count restriction |
+| A Postgres/SQL Server plan (never populates `inputRows`) | Must behave identically to before this story | `resolveInputRows()` always falls through to the exact same derivation those rules already used |
+| `input_rows` present but zero/negative | Not a usable real figure | Treated as absent, falls back to derivation |
+
+Registered: no new rule; `explodingJoin.ts`/`filterRowsDiscarded.ts` remain registered as before; the four hotspot/DML rules remain registered as before (Episodes 32/34) — this story only changes how they compute an existing input, not their registration.
+
 ## Episode 34 — Snowflake Operator Intelligence II
 
 Parser check performed first, same premise as every Snowflake episode: every field these 6 stories need was already captured by Episode 33 (`network.bytesSent`, `io.percentageScannedFromCache`/`externalBytesScanned`/`bytesWrittenToResult`/`bytesReadFromResult`, `searchOptimization`, `pruning.partitionsPrunedByOptima`, `dml`) — **no new parser work needed for 5 of the 6 stories.** The one exception (Story 34.3, External Functions) deliberately does NOT add new parser capture — see that story's own honesty-boundary note.
