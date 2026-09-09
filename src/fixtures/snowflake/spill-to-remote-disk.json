@@ -7,9 +7,11 @@
     "statistics": {
       "output_rows": 4200000,
       "io": {
-        "bytes_scanned": 0,
-        "bytes_spilled_to_local_storage": 104857600,
-        "bytes_spilled_to_remote_storage": 52428800
+        "bytes_scanned": 0
+      },
+      "spilling": {
+        "bytes_spilled_local_storage": 104857600,
+        "bytes_spilled_remote_storage": 52428800
       }
     },
     "executionTimeBreakdown": {

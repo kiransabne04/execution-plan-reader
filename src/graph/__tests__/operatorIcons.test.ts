@@ -82,6 +82,12 @@ const ACCEPTED_UNMAPPED_OPERATOR_TYPES = [
   "spool",
   "unknown",
   "with_clause",
+  // Episode 33 — the first fixtures to exercise Snowflake's DML operators
+  // (dml-merge.json, dml-unload.json). Same "no honest fit among the seven
+  // categories" reasoning as `modify_table` above — a DML write isn't a
+  // scan/join/sort/hash/aggregate/index-seek shape.
+  "merge",
+  "unload",
 ].sort()
 
 describe("operatorIconKey", () => {

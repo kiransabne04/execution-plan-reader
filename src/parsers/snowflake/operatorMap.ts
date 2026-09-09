@@ -27,6 +27,17 @@ const DIRECT_MAP: Record<string, string> = {
   Result: "result",
   InsertValuesClause: "values_scan",
   ValuesClause: "values_scan",
+  // Episode 33, Story 33.9 — DML operators, the nodes `DmlInfo` stats
+  // (`dml.number_of_rows_inserted`/etc.) actually attach to. No honest
+  // cross-engine equivalent — Postgres/SQL Server's own parsers in this app
+  // only ever handle read-only `EXPLAIN` output, never a DML plan, so
+  // there's no existing "insert"/"update"/etc. operatorType to reuse or
+  // collide with.
+  Insert: "insert",
+  Update: "update",
+  Delete: "delete",
+  Merge: "merge",
+  Unload: "unload",
 }
 
 export function mapSnowflakeOperatorType(operation: string): string {

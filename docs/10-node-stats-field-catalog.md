@@ -43,21 +43,42 @@ interface PlanNode {
     cacheHitRatio?: number      // derived: bufferHits / (bufferHits + bufferReads), where computable
     ioReadTimeMs?: number
     ioWriteTimeMs?: number
-    bytesScanned?: number       // Snowflake-specific, no direct Postgres/SQL Server equivalent
+    bytesScanned?: number       // Snowflake-specific: io.bytes_scanned
     readAheads?: number         // SQL Server-specific (ActualReadAheads) — deliberate prefetch, not a buffer-pool miss; see §5
+    percentageScannedFromCache?: number  // Snowflake-specific: io.percentage_scanned_from_cache (§11, Episode 33)
+    externalBytesScanned?: number        // Snowflake-specific: io.external_bytes_scanned (§11)
+    bytesWrittenToResult?: number        // Snowflake-specific: io.bytes_written_to_result (§11)
+    bytesReadFromResult?: number         // Snowflake-specific: io.bytes_read_from_result (§11)
   }
 
   spill?: {
     occurred: boolean
-    bytesLocal?: number
-    bytesRemote?: number        // Snowflake-specific distinction; Postgres/SQL Server don't separate local/remote
+    bytesLocal?: number         // Snowflake: spilling.bytes_spilled_local_storage (TOP-LEVEL, not nested in io — see §6)
+    bytesRemote?: number        // Snowflake: spilling.bytes_spilled_remote_storage; Postgres/SQL Server don't separate local/remote
     detail?: string             // engine-specific free text (e.g. SQL Server's SpillLevel, sort vs. hash spill)
   }
 
-  pruning?: {                   // Snowflake-specific — no Postgres/SQL Server equivalent
-    partitionsScanned?: number
-    partitionsTotal?: number
+  pruning?: {                   // Snowflake-specific — no Postgres/SQL Server equivalent. TOP-LEVEL pruning object, not under attributes (see §6)
+    partitionsScanned?: number  // pruning.partitions_scanned
+    partitionsTotal?: number    // pruning.partitions_total
+    partitionsPrunedByOptima?: number  // pruning.partitions_pruned_by_snowflake_optima (§11, Episode 33)
   }
+
+  network?: { bytesSent?: number }  // Snowflake-specific: network.network_bytes (§11, Episode 33)
+
+  searchOptimization?: {            // Snowflake-specific (§11, Episode 33)
+    partitionsPrunedBySearchOptimization?: number
+    partitionsPrunedBySearchOptimizationAndOptima?: number
+  }
+
+  dml?: {                           // Snowflake-specific, DML operator nodes only (§11, Episode 33)
+    rowsInserted?: number
+    rowsUpdated?: number
+    rowsDeleted?: number
+    rowsUnloaded?: number
+  }
+
+  stepId?: number                   // Snowflake-specific: STEP_ID column (§11, Episode 33)
 
   parallel?: {
     workersLaunched?: number
@@ -122,28 +143,34 @@ These are two different questions and the field catalog keeps them separate:
 
 | Concept | Postgres source | SQL Server source | Snowflake source |
 |---|---|---|---|
-| Cache/buffer hits | `Shared Hit Blocks` (+ `Local Hit Blocks` for temp objects) — requires `BUFFERS` in the `EXPLAIN` call | `RunTimeInformation`'s per-thread `ActualLogicalReads` roughly corresponds (logical reads include buffer-cache hits); SQL Server doesn't cleanly separate "from cache" vs "from disk" the way Postgres's Shared Hit/Read split does | Reported at the query level as a "percentage scanned from cache" style statistic rather than a per-operator field — coarser granularity than Postgres/SQL Server |
-| Disk reads | `Shared Read Blocks` (+ `Local Read Blocks`) | `ActualPhysicalReads` (per-thread, in `RunTimeInformation`) | `bytesScanned` on `TableScan` operators is the closest available signal — not a hit/read split, a total-bytes-read figure |
+| Cache/buffer hits | `Shared Hit Blocks` (+ `Local Hit Blocks` for temp objects) — requires `BUFFERS` in the `EXPLAIN` call | `RunTimeInformation`'s per-thread `ActualLogicalReads` roughly corresponds (logical reads include buffer-cache hits); SQL Server doesn't cleanly separate "from cache" vs "from disk" the way Postgres's Shared Hit/Read split does | `io.percentage_scanned_from_cache`, a genuine PER-OPERATOR statistic in `GET_QUERY_OPERATOR_STATS()`'s own output (`IoInfo.percentageScannedFromCache` — corrected in Episode 33; see note below) |
+| Disk reads | `Shared Read Blocks` (+ `Local Read Blocks`) | `ActualPhysicalReads` (per-thread, in `RunTimeInformation`) | `bytesScanned` (`io.bytes_scanned`) on `TableScan` operators is the closest available signal — not a hit/read split, a total-bytes-read figure. `io.external_bytes_scanned` (Episode 33, `IoInfo.externalBytesScanned`) is the equivalent for reads from an external table/stage, a genuinely different I/O path |
 | I/O timing | `I/O Read Time` / `I/O Write Time` — requires `BUFFERS` **and** `track_io_timing = on` at the server level; absent otherwise, and the panel must not imply zero I/O time when the setting simply wasn't enabled | Not typically broken out as a separate timing field distinct from the operator's overall elapsed time | Folded into the operator's `local_disk_io`/`remote_disk_io` components of the execution-time breakdown (see time section) — Snowflake's IO timing is inherently part of the time breakdown, not a separate stat |
-| Derived cache hit ratio | `bufferHits / (bufferHits + bufferReads)`, computable directly from Postgres's split fields | Approximate at best, from logical vs. physical read counts — label as approximate in the UI, don't present it with Postgres-level confidence | Use the query-level cache percentage directly where available; note it's query-level, not per-node, if displayed on an individual node |
+| Derived cache hit ratio | `bufferHits / (bufferHits + bufferReads)`, computable directly from Postgres's split fields | Approximate at best, from logical vs. physical read counts — label as approximate in the UI, don't present it with Postgres-level confidence | Use `io.percentage_scanned_from_cache` directly — it's already a per-operator percentage, not something this app needs to derive |
+| Network transfer | Not a distinct per-node concept in Postgres's own `EXPLAIN` output | Not a distinct per-node concept in Showplan XML | `network.network_bytes` (Episode 33, `NetworkInfo.bytesSent`) — a top-level statistic sibling to `io`, not nested inside it |
+| Result read/write | N/A | N/A | `io.bytes_written_to_result`/`io.bytes_read_from_result` (Episode 33, `IoInfo.bytesWrittenToResult`/`bytesReadFromResult`) — the result-cache transfer path, most relevant on a root `Result` operator returning a large result set |
 
 **Handling note for Postgres specifically**: buffer/cache stats require the plan to have been captured with `BUFFERS` (and I/O timing additionally requires `track_io_timing`). A plan captured without these flags simply won't have this data — the detail panel must say "buffer stats not captured — re-run with `EXPLAIN (ANALYZE, BUFFERS)`" rather than showing zeros, which would misrepresent an absent measurement as an actual zero-I/O result.
 
 **SQL Server read-ahead** (`io.readAheads`, from `RunTimeCountersPerThread`'s `ActualReadAheads`): a real, separate statistic from `ActualPhysicalReads` — read-ahead is SQL Server's own deliberate sequential-prefetch mechanism (pulling in pages a scan is expected to need next), not evidence of buffer-pool pressure the way an ordinary (non-prefetched) physical read is. `buffer-cache-inefficiency` (`src/rules/bufferCacheInefficiency.ts`) excludes read-ahead pages from the read count before judging SQL Server's cache-hit ratio, and discloses the exclusion in its `longText` rather than silently adjusting the number. Postgres has no equivalent concept exposed in `EXPLAIN` output; `readAheads` stays `undefined` there.
 
-**Genuine Snowflake gap, not yet closed**: the "percentage scanned from cache" statistic is real, but it comes from `QUERY_HISTORY`/the Query Profile summary — a different data source than `GET_QUERY_OPERATOR_STATS()`, which is the only input this app's Snowflake parser accepts (see `snowflake-plan-parsing` skill). It is **not** obtainable from the current single-paste input without asking the user for a second, different export — a real scope decision (a new input format, a second paste, correlating the two), not a small parser oversight. Until/unless that's decided, `bufferCacheInefficiency.ts`'s Snowflake path uses the per-node `timeBreakdown` local/remote-disk-I/O share instead (§7) — a genuine, already-available proxy for the same underlying phenomenon, not a query-level cache percentage. Do not add a `cacheHitPercentageQueryLevel`-shaped field until the input-format question above is actually decided; a field that can never be populated from real input would violate this catalog's own "absence is meaningful, never fabricated" rule.
+**Correction (Episode 33) to a previous claim in this catalog**: this section used to state, as a "genuine Snowflake gap, not yet closed," that the "percentage scanned from cache" statistic was ONLY available from `QUERY_HISTORY`/the Query Profile summary — a different data source than `GET_QUERY_OPERATOR_STATS()` — and therefore could never be captured from this app's single-paste input. **That claim was wrong.** Verified directly against Snowflake's own `GET_QUERY_OPERATOR_STATS` function reference (docs.snowflake.com): `percentage_scanned_from_cache` is a real field inside the `io` object of OPERATOR_STATISTICS, reported per-operator, in the exact input this parser already accepts. It's now captured as `IoInfo.percentageScannedFromCache` (`buildTree.ts`'s `deriveIo()`). `bufferCacheInefficiency.ts`'s Snowflake path still also has the `timeBreakdown` local/remote-disk-I/O share available as a second, independent I/O signal (§7) — the two aren't redundant (one is a cache-hit percentage, the other is a time-share breakdown), but neither is a "gap" any longer, and a future rule-engine story could use the now-real cache percentage more directly than the time-share proxy alone.
 
 ## 6. Disk spill
 
 | Concept | Postgres source | SQL Server source | Snowflake source |
 |---|---|---|---|
-| Spill occurred | Inferable from `Sort Method` containing `"external"` (e.g. `"external merge"` vs. `"quicksort"`/`"top-N heapsort"` which stay in memory), or from Hash node's `Batches` exceeding 1 (indicates the hash table spilled to multiple batches on disk) | `<Warnings><SpillToTempDb SpillLevel="N"/></Warnings>` element — directly present when a Sort or Hash operation spills to tempdb | `local_disk_io`/`remote_disk_io` values under an operator's execution-time breakdown being non-zero indicates spill; more explicitly, bytes-spilled-to-local-storage and bytes-spilled-to-remote-storage figures are available in Snowflake's query statistics |
+| Spill occurred | Inferable from `Sort Method` containing `"external"` (e.g. `"external merge"` vs. `"quicksort"`/`"top-N heapsort"` which stay in memory), or from Hash node's `Batches` exceeding 1 (indicates the hash table spilled to multiple batches on disk) | `<Warnings><SpillToTempDb SpillLevel="N"/></Warnings>` element — directly present when a Sort or Hash operation spills to tempdb | `local_disk_io`/`remote_disk_io` values under an operator's execution-time breakdown being non-zero indicates spill; more explicitly, `spilling.bytes_spilled_local_storage`/`spilling.bytes_spilled_remote_storage` — a TOP-LEVEL `spilling` object in OPERATOR_STATISTICS, a sibling of `io`, not nested inside it (corrected in Episode 33 — see note below) |
 | Spill severity/level | Not a discrete severity field — inferable from `Sort Space Used` size relative to available memory (not directly known from the plan alone) | `SpillLevel` attribute on the `SpillToTempDb` warning element — a higher number is a reasonable "more severe" signal, but this catalog previously stated two different, unverified claims about what it precisely encodes (recursion depth vs. sort-vs-hash indicator); neither has a confirmed source, so `sqlServerSortSpill.ts` (2026-09-08) deliberately escalates severity on it without asserting a specific mechanism in user-facing text | Remote-storage spill is a stronger warning signal than local-storage spill — remote spill indicates the local disk itself was insufficient, a more severe condition than local spill alone |
 | Related memory context | `Sort Space Used` / `Sort Space Type` (`"Disk"` vs `"Memory"`) directly states whether a sort stayed in memory | `MemoryGrantInfo` element (`GrantedMemory`, `MaxUsedMemory`, `RequestedMemory`) gives the memory-grant context around why a spill happened | Not exposed as an explicit memory-grant concept — Snowflake's warehouse sizing is the analogous lever, not visible from the plan itself |
 
 **This is a first-class rule-engine signal** (per `rule-engine-authoring` skill) precisely because it's inconsistently surfaced across engines — Postgres requires inference from `Sort Method`/`Batches`, SQL Server states it explicitly via a warning element, Snowflake reports it via the time-breakdown/bytes-spilled statistics. The `spill.occurred` boolean on `PlanNode` exists specifically to give the rule engine and the panel one consistent field to check, regardless of how buried or explicit the underlying engine's signal is.
 
 **Genuine SQL Server gap, confirmed (2026-09-08)**: Showplan XML has no separately-named tempdb write count or page count for a spill, for any operator — `RunTimeCountersPerThread` has no `ActualWrites`-shaped attribute in its schema at all, only reads (`ActualLogicalReads`/`ActualPhysicalReads`). `sqlServerSortSpill.ts` shows a spilling Sort's own read total (`io.bufferHits`/`bufferReads`) labeled as an attribution to the spill (a bare Sort reads nothing from a table itself), and states plainly in `longText` that writes/pages aren't available — never fabricated or approximated from another figure.
+
+**Correction (Episode 33) — Snowflake spill nesting bug**: this app's Snowflake parser read `bytes_spilled_to_local_storage`/`bytes_spilled_to_remote_storage` from inside `statistics.io` from Episode 3 through Episode 32 — wrong container (the real field lives under a top-level `spilling` object, a sibling of `io`, not nested inside it) AND wrong field names (Snowflake's real fields have no `"_to_"` in them: `bytes_spilled_local_storage`/`bytes_spilled_remote_storage`). Verified against Snowflake's own `GET_QUERY_OPERATOR_STATS` function reference. Because Snowflake never actually emits the field names this parser was looking for, `spill.occurred` would have silently come back `false` for a genuinely spilling Snowflake plan — every Snowflake spill-related rule (`disk-spill`, `remote-spill`, `local-spill`, `sort-hotspot`) was affected. Fixed in `buildTree.ts`'s `deriveSpill()`; the two existing fixtures that encoded the wrong shape (`spill-to-remote-disk.json`) were corrected, and a new `official-shape-full-stats.json` fixture now exercises the full, verified statistics shape end-to-end.
+
+**Correction (Episode 33) — Snowflake pruning nesting bug**: similarly, `derivePruning()` read `partitions_assigned` from `row.attributes` — wrong container (the real fields live under a top-level `pruning` object under `statistics`, not `attributes`) AND a field name Snowflake's real schema doesn't contain at all (the real field is `partitions_scanned`). `pruning.partitionsScanned` would have come back `undefined` for every real Snowflake TableScan, ever — `poor-partition-pruning` could never have fired against genuinely pasted Snowflake data, only against this app's own (wrongly-shaped) test fixtures. Fixed; `high-partition-count-scan.json` was corrected to the real shape. Also newly captured on the same object: `partitions_pruned_by_snowflake_optima` (`PruningInfo.partitionsPrunedByOptima`, Story 33.7).
 
 ## 7. Time (actual, and the cumulated-vs-per-execution distinction)
 
@@ -197,6 +224,25 @@ Every field below is **Postgres-only** — none of it has a SQL Server or Snowfl
 | JIT compilation timing | Top-level `JIT.Timing` object (`Generation`/`Inlining`/`Optimization`/`Emission`/`Total`) | Not specially parsed — TEXT-format JIT's own multi-line nested block (`JIT:` header + indented `Functions:`/`Options:`/`Timing:` sub-lines) is a known gap, JSON-only for now; lower confidence in getting an unverified multi-line block regex exactly right than the single combined-lines above, so left honestly unsupported rather than guessed | `PlanNode.jit` (`JitInfo`), root-node-only |
 
 **Known TEXT-format gaps, stated plainly rather than silently unsupported**: Memoize's cache-stat line and the JIT block are JSON-only for now. Every other Episode 24 field (including the three combined-line shapes) has real TEXT support, verified with dedicated parser tests — this isn't "TEXT format is second-class," it's "these two specific shapes weren't confirmed carefully enough to ship without a real Postgres instance to check against."
+
+---
+
+## 11. Snowflake official-shape fields (Episode 33)
+
+Every field below is **Snowflake-only**, verified directly against Snowflake's own `GET_QUERY_OPERATOR_STATS` function reference (docs.snowflake.com) rather than assumed from memory — see `snowflake-plan-parsing` skill's own "OPERATOR_STATISTICS's real shape" section for the full nesting diagram. Two pre-existing fields (`spill`/`pruning`) had real nesting-and-naming bugs fixed as part of this same episode — see the correction notes in §5/§6 above.
+
+| Field | Real OPERATOR_STATISTICS key | Normalized on |
+|---|---|---|
+| Cache-hit percentage | `io.percentage_scanned_from_cache` | `IoInfo.percentageScannedFromCache`, per-node (corrects the disproven "query-level only" claim previously in §5) |
+| External-table/stage bytes scanned | `io.external_bytes_scanned` | `IoInfo.externalBytesScanned`, per-node |
+| Result-transfer bytes | `io.bytes_written_to_result`, `io.bytes_read_from_result` | `IoInfo.bytesWrittenToResult`/`bytesReadFromResult`, per-node |
+| Network bytes | `network.network_bytes` (a TOP-LEVEL sibling of `io`, not nested inside it) | `PlanNode.network` (`NetworkInfo.bytesSent`), per-node |
+| Search Optimization Service pruning | `search_optimization.partitions_pruned_by_search_optimization`, `search_optimization.partitions_pruned_by_search_optimization_and_snowflake_optima` | `PlanNode.searchOptimization` (`SearchOptimizationInfo`), per-node. A genuinely different mechanism from Optima pruning below — this is specifically the paid, opt-in Search Optimization feature's own effectiveness |
+| Snowflake Optima pruning | `pruning.partitions_pruned_by_snowflake_optima` | `PruningInfo.partitionsPrunedByOptima`, per-node. Optima is automatic/non-opt-in — kept on the base `PruningInfo` object rather than `SearchOptimizationInfo` since it's the base pruning mechanism working harder, not a separate paid feature |
+| DML row counts | `dml.number_of_rows_inserted`, `number_of_rows_updated`, `number_of_rows_deleted`, `number_of_rows_unloaded` | `PlanNode.dml` (`DmlInfo`), present only on DML operator nodes (`Insert`/`Update`/`Delete`/`Merge`/`Unload` — newly mapped in `operatorMap.ts`, with real glossary entries, not just the raw fallback) |
+| Step grouping | `STEP_ID` column (not part of OPERATOR_STATISTICS itself — a sibling column on the same result row) | `PlanNode.stepId`, per-node. Snowflake's Query Profile UI groups operators into numbered execution steps this way; previously discarded entirely during row parsing |
+
+**Deliberately NOT captured yet**: `input_rows` (a real top-level statistic sibling to `output_rows`) — this app currently derives "input rows" for a node by summing its children's own `actualRows` instead (the technique `explodingJoin.ts` and the Episode 32 rules built on it already use). Switching to the real field would be a genuine improvement (it wouldn't need to assume "input = sum of children," which can be wrong for some operator shapes) but was deliberately left out of Episode 33 to avoid an unrequested behavior change to every rule already built on the derived figure — a decision for a future episode to make explicitly, not a small addition to slip in here. `io.scan_progress` and `io.bytes_written` (a general write-bytes figure, distinct from the result-transfer bytes above) were similarly left uncaptured — real fields, just not part of any of Episode 33's ten stories.
 
 ---
 

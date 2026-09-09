@@ -2242,3 +2242,200 @@ As a developer reading a Snowflake plan, I want a Snowflake-specific analysis of
 | Using `work_mem` wording | This story's own explicit instruction against it | Never appears — memory framed as warehouse size instead |
 
 Registered in `ALL_RULES`, `"Spill issues"` category (same bucket as the other sort-spill rules), `memory` Query Health dimension (required an eligibility fix for the time-only, no-spill trigger path — see this episode's header note).
+
+## Episode 33 — Snowflake Official Operator Stats Compliance
+
+**Why this episode exists**: every Snowflake rule built in Episodes 30-32 was built against this app's OWN prior assumptions about `GET_QUERY_OPERATOR_STATS()`'s JSON shape — assumptions that were never actually checked against Snowflake's own documentation. Before writing any more Snowflake rules, this episode verified the real shape directly against Snowflake's `GET_QUERY_OPERATOR_STATS` function reference (docs.snowflake.com) and found two real, previously-undetected parser bugs (spill and pruning nesting) severe enough that the affected rules could likely never have fired against genuinely pasted Snowflake data — only against this app's own, wrongly-shaped test fixtures. See `.claude/skills/snowflake-plan-parsing/SKILL.md`'s new "OPERATOR_STATISTICS's real shape" section for the full verified schema diagram, and `docs/10-node-stats-field-catalog.md` §11 for the field-by-field mapping.
+
+**No new rules in this episode** — every story below is a parser/normalization fix or a new capture into `PlanNode`, deliberately kept separate from rule-engine work (Episode 34 is where these newly-captured fields get used by actual findings).
+
+### Story 33.1 — Fix spilling nesting
+
+As a developer relying on Snowflake spill findings, I want the parser to read spill bytes from the field Snowflake actually reports them under, so that a real spilling plan is actually detected instead of silently missed.
+
+**Acceptance criteria**
+- **Real bug fixed**: `deriveSpill()` previously read `bytes_spilled_to_local_storage`/`bytes_spilled_to_remote_storage` from inside `statistics.io`. Snowflake's real schema has neither that container nor those field names — the real fields are `spilling.bytes_spilled_local_storage`/`spilling.bytes_spilled_remote_storage`, a TOP-LEVEL object sibling to `io`, not nested inside it, with no `"_to_"` in the field names.
+- Fixed to read `statistics.spilling`. `SpillInfo`'s own doc comment updated to record the real source field and the correction.
+- Existing `spill-to-remote-disk.json` fixture corrected to the real shape (values unchanged — same bytes, right container).
+
+**Testing approach**
+- New "Episode 33 — official-shape compliance" describe block in `parseOperatorStats.test.ts`: confirms spill bytes are read from the corrected fixture. Every pre-existing spill-related rule test (`remoteSpill.test.ts`, `localSpill.test.ts`, `sortDiskSpill`-family, the `applyRules.test.ts` end-to-end spill test) re-verified passing unchanged — the normalized `PlanNode.spill` output is identical, only its real source location changed.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A plan with genuine spill, real shape | This was the actual bug — real data would never have been detected | Now correctly parsed |
+| An old fixture encoding the wrong (pre-fix) shape | Would now silently fail to detect spill | Both affected fixtures corrected to the real shape |
+
+Registered: parser-only change (`buildTree.ts`), no new rule/registration.
+
+### Story 33.2 — Fix pruning nesting
+
+As a developer relying on Snowflake pruning findings, I want the parser to read partition-pruning stats from the field Snowflake actually reports them under, so that `poor-partition-pruning`/`large-scan-volume` can actually fire against real data.
+
+**Acceptance criteria**
+- **Real bug fixed**: `derivePruning()` previously read `partitions_assigned` from `row.attributes`. Snowflake's real schema has neither that container nor that field name at all — the real fields are `pruning.partitions_scanned`/`pruning.partitions_total`, a TOP-LEVEL object under `statistics`, not under `attributes`.
+- Fixed to read `statistics.pruning`, with the correct field name `partitions_scanned`. `PruningInfo`'s own doc comment updated.
+- Existing `high-partition-count-scan.json` fixture corrected to the real shape (values unchanged).
+- Also newly captures `pruning.partitions_pruned_by_snowflake_optima` on the same object (shared scope with Story 33.7's Search Optimization capture, since both are pruning-effectiveness statistics).
+
+**Testing approach**
+- New tests confirm pruning is read from the corrected fixture. `poorPartitionPruning.test.ts`/`largeScanVolume.test.ts` and the corresponding `applyRules.test.ts` end-to-end test re-verified passing unchanged.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A real high-partition-count scan | This was the actual bug — `partitionsScanned` would have been `undefined` for every real Snowflake TableScan, ever | Now correctly parsed |
+| Optima pruning present alongside base pruning | A genuinely different, additional pruning signal | Captured on the same `PruningInfo` object as a separate field |
+
+Registered: parser-only change (`buildTree.ts`), no new rule/registration.
+
+### Story 33.3 — Capture cache percentage
+
+As a developer, I want Snowflake's real per-operator cache-hit percentage captured, so that a previously-wrong claim in this app's own documentation (that this statistic wasn't available from this input at all) is corrected and the data is actually usable.
+
+**Acceptance criteria**
+- **Documentation correction**: `docs/10-node-stats-field-catalog.md` §5 and `.claude/skills/snowflake-plan-parsing/SKILL.md` both previously stated, as a "known, deliberate gap," that Snowflake's cache-percentage statistic was only available from `QUERY_HISTORY`, never from `GET_QUERY_OPERATOR_STATS()`. Verified against Snowflake's own function reference: this is false — `io.percentage_scanned_from_cache` is a real, per-operator field in the exact input this parser already accepts. Both docs corrected with an explicit "this claim was wrong" note, not a silent edit.
+- New `IoInfo.percentageScannedFromCache` field, captured in `deriveIo()`.
+
+**Testing approach**
+- New test confirms the value is read from the (pre-existing, already-correctly-shaped) `simple-table-scan.json` fixture, which happened to already carry this field even before this story — the gap was in the PARSER not reading it, not in any fixture missing it.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A node with no cache stat at all | Absence must stay meaningful | Stays `undefined`, not fabricated as 0 |
+
+Registered: parser-only change (`buildTree.ts`), no new rule/registration.
+
+### Story 33.4 — Capture network bytes
+
+As a developer, I want Snowflake's per-operator network byte volume captured, so that a future rule can reason about data-movement cost directly rather than only through the existing time-share proxy.
+
+**Acceptance criteria**
+- New `PlanNode.network` field (`NetworkInfo.bytesSent`), sourced from `network.network_bytes` — a TOP-LEVEL object in OPERATOR_STATISTICS, sibling to `io`/`pruning`/`spilling`, kept as its own `PlanNode` field for the same reason those are (not folded into `io`).
+
+**Testing approach**
+- New test via the new `official-shape-full-stats.json` fixture (Story 33.10), confirming `network.bytesSent` is read correctly.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A node with no network object at all | Most operators never report this | Stays `undefined` |
+
+Registered: parser-only change (`buildTree.ts`/`normalize.ts`), no new rule/registration.
+
+### Story 33.5 — Capture external bytes
+
+As a developer, I want bytes scanned from an external table/stage captured separately from Snowflake's own native storage scans, so that a future rule can distinguish the two genuinely different I/O paths.
+
+**Acceptance criteria**
+- New `IoInfo.externalBytesScanned` field, sourced from `io.external_bytes_scanned`.
+
+**Testing approach**
+- New test via `official-shape-full-stats.json`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A node scanning only native storage | External and native scanning are genuinely different paths | `externalBytesScanned` stays `undefined`, `bytesScanned` still populated |
+
+Registered: parser-only change, no new rule/registration.
+
+### Story 33.6 — Capture result bytes
+
+As a developer, I want the result-transfer byte counts captured, so that a future rule can reason about result-transfer cost — most relevant on a root `Result` operator returning a large result set.
+
+**Acceptance criteria**
+- New `IoInfo.bytesWrittenToResult`/`bytesReadFromResult` fields, sourced from `io.bytes_written_to_result`/`io.bytes_read_from_result`.
+
+**Testing approach**
+- New test via `official-shape-full-stats.json`.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A node with no result-transfer activity | Most non-root operators never report this | Stays `undefined` |
+
+Registered: parser-only change, no new rule/registration.
+
+### Story 33.7 — Capture Search Optimization/Optima stats
+
+As a developer, I want the Search Optimization Service's own pruning effectiveness, and Snowflake Optima's own pruning contribution, captured as distinct statistics, so that a future rule could evaluate whether a paid Search Optimization Service is actually earning its cost.
+
+**Acceptance criteria**
+- New `PlanNode.searchOptimization` field (`SearchOptimizationInfo.partitionsPrunedBySearchOptimization`/`partitionsPrunedBySearchOptimizationAndOptima`), sourced from the TOP-LEVEL `search_optimization` object.
+- New `PruningInfo.partitionsPrunedByOptima`, sourced from `pruning.partitions_pruned_by_snowflake_optima` — kept on the base `PruningInfo` object (not `SearchOptimizationInfo`) since Optima is Snowflake's own automatic, non-opt-in pruning mechanism working harder, a genuinely different thing from the paid, opt-in Search Optimization Service's own effectiveness.
+
+**Testing approach**
+- New tests via `official-shape-full-stats.json` confirming both objects are captured correctly and kept separate.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A table with no Search Optimization Service enabled | Most tables don't have this paid feature turned on | `searchOptimization` stays `undefined` |
+| Optima pruning without Search Optimization | Optima runs automatically; Search Optimization doesn't | Each captured independently — one can be present without the other |
+
+Registered: parser-only change, no new rule/registration.
+
+### Story 33.8 — Preserve STEP_ID
+
+As a developer, I want each operator's `STEP_ID` preserved, so that a future feature could group/display operators by their real execution-step grouping (the same grouping Snowflake's own Query Profile UI shows as separate step tabs) instead of discarding it during parsing.
+
+**Acceptance criteria**
+- New `OperatorRow.stepId` (parsed from `stepId`/`step_id`, tolerant of the same casing/alias conventions every other field in this parser already uses) and `PlanNode.stepId`, threaded through `buildTree.ts`.
+- `undefined` (not a fabricated `0`) when the input never carried a step id at all — a near-miss export shape may omit it.
+
+**Testing approach**
+- New tests confirm `stepId` is preserved per-row via the new `official-shape-full-stats.json` fixture (two rows, two different step ids), and stays `undefined` for the pre-existing `simple-table-scan.json` fixture (which never carried one).
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Input with no STEP_ID column at all | A near-miss/older export shape | Stays `undefined`, never fabricated |
+
+Registered: parser-only change (`rows.ts`/`buildTree.ts`/`normalize.ts`), no new rule/registration.
+
+### Story 33.9 — Capture DML stats
+
+As a developer, I want Snowflake's DML operator statistics (rows inserted/updated/deleted/unloaded) captured, and the operators they attach to correctly mapped and glossary-covered, so that a pasted DML plan doesn't silently fall through as an unrecognized operator.
+
+**Acceptance criteria**
+- New `PlanNode.dml` field (`DmlInfo.rowsInserted`/`rowsUpdated`/`rowsDeleted`/`rowsUnloaded`), sourced from the TOP-LEVEL `dml` object, present only on DML operator nodes.
+- Five new operator-type mappings in `operatorMap.ts`: `Insert`→`insert`, `Update`→`update`, `Delete`→`delete`, `Merge`→`merge`, `Unload`→`unload` — previously entirely unmapped (would have fallen to `unknown`).
+- Five new operator-glossary entries (`src/graph/glossary/entries.ts`) for the same five types, per the `operator-glossary-content` skill's data model — general, engine-and-plan-independent education, not a specific finding.
+- Five new icon-taxonomy entries in `operatorIcons.test.ts`'s `ACCEPTED_UNMAPPED_OPERATOR_TYPES` (only `merge`/`unload` actually appear in a fixture; `insert`/`update`/`delete` are mapped but not yet fixture-exercised) — same "no honest fit among the seven icon categories" reasoning already applied to `modify_table`.
+
+**Testing approach**
+- New tests via two new fixtures: `dml-merge.json` (a Merge reporting insert+update+delete counts together) and `dml-unload.json` (an Unload reporting a row-unloaded count) — both exercised end-to-end through the real parser, not just synthetic data.
+- Glossary coverage test and icon-taxonomy coverage test both re-verified passing with the new operator types included.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A plain read-only scan/join/aggregate | Must not fabricate DML stats where none exist | `dml` stays `undefined` |
+| An unmapped DML operator falling to `unknown` | Was the actual prior behavior — a real gap | Fixed via the five new mappings |
+
+Registered: `operatorMap.ts`, `src/graph/glossary/entries.ts`, `operatorIcons.test.ts`'s accepted-unmapped list. No rule-engine registration (no new rule).
+
+### Story 33.10 — Official-shape regression corpus
+
+As a developer maintaining the Snowflake parser, I want a fixture that exercises every field this episode captures against the REAL, verified OPERATOR_STATISTICS shape in one place, so that a future change can't silently regress the nesting/field-name fixes this episode made.
+
+**Acceptance criteria**
+- New `official-shape-full-stats.json` fixture: a two-node plan (TableScan → Result) exercising `io` (bytes_scanned, percentage_scanned_from_cache, external_bytes_scanned, bytes_written_to_result, bytes_read_from_result), `pruning` (partitions_scanned, partitions_total, partitions_pruned_by_snowflake_optima), `network` (network_bytes), `search_optimization` (both fields), and `STEP_ID` on every row — all in their real, verified nesting.
+- Two new DML fixtures (`dml-merge.json`, `dml-unload.json`) for Story 33.9's own end-to-end coverage.
+- Both pre-existing fixtures that encoded the wrong (pre-fix) shape (`spill-to-remote-disk.json`, `high-partition-count-scan.json`) corrected in place — a regression corpus is meaningless if some of its own fixtures still encode the bug being fixed.
+
+**Testing approach**
+- 15 new tests added to `parseOperatorStats.test.ts`'s new "Episode 33 — official-shape compliance" describe block, one or more per story (33.1 through 33.9), plus a dedicated "none of the newly captured fields leak onto an operator that never reported them" test guarding against false-positive capture.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A fixture still encoding the pre-fix wrong shape | Would defeat the whole point of a regression corpus | Both affected pre-existing fixtures corrected, not left as-is alongside the new ones |
+| A field captured on the wrong node (leaking across siblings) | Would be a false positive, not a real capture | Dedicated negative-assertion test on a fixture with none of these fields set |
+
+Registered: fixtures + parser tests only, no rule-engine registration.
+
+**Deliberately out of scope for this episode** (see `docs/10-node-stats-field-catalog.md` §11's own note): `input_rows` — a real top-level statistic this app could read directly instead of deriving "input rows" by summing children's `actualRows` the way `explodingJoin.ts` and the Episode 32 rules already do. Left uncaptured to avoid an unrequested behavior change to every rule already built on the derived figure; a future episode should evaluate switching explicitly. `io.scan_progress` and `io.bytes_written` (a general write-bytes figure, distinct from the result-transfer bytes captured in Story 33.6) are real fields not covered by any of this episode's ten stories.

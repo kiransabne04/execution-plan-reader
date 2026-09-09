@@ -56,7 +56,10 @@ export const OPERATOR_ICON_COMPONENT: Record<OperatorIconKey, Icon> = {
  * `append`/`merge_append`/`recursive_union`/`with_clause`/`materialize`/
  * `memoize`/`gather`/`gather_merge`/`lock_rows`/`modify_table`/`result`/
  * `project_set`/`filter`/`compute_scalar`/`spool`/`exchange`/`flatten`/
- * `grouping_sets`/`external_function`/`generator`. Forcing these into a
+ * `grouping_sets`/`external_function`/`generator`/`insert`/`update`/
+ * `delete`/`merge`/`unload` (Episode 33's Snowflake DML operators — same
+ * "not a scan/join/sort/hash/aggregate/index-seek shape" reasoning as
+ * `modify_table`). Forcing these into a
  * category they don't really belong to would be exactly the "false
  * equivalence" the plan-normalization skill warns against for the
  * operator-type maps themselves — the same discipline applies here.

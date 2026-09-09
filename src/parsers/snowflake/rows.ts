@@ -14,6 +14,10 @@ export interface OperatorRow {
   attributes: Record<string, unknown>
   statistics: Record<string, unknown>
   executionTimeBreakdown: Record<string, unknown> | undefined
+  /** Episode 33, Story 33.8 — `STEP_ID` column, `undefined` when absent
+   * rather than a fabricated 0 (a near-miss export shape may not carry it
+   * at all). */
+  stepId: string | undefined
 }
 
 export interface ParsedRawInput {
@@ -124,6 +128,12 @@ const PARENT_ALIASES = [
 const ATTRIBUTE_ALIASES = ["attributes", "operator_attributes", "operatorAttributes"]
 const STATISTICS_ALIASES = ["statistics", "operator_statistics", "operatorStatistics"]
 const TIME_BREAKDOWN_ALIASES = ["executionTimeBreakdown", "execution_time_breakdown"]
+// Episode 33, Story 33.8 — Snowflake's own `STEP_ID` column groups
+// operators into numbered execution steps (the Query Profile UI's own
+// step tabs). Listed here (not just read ad hoc) so the generic
+// statistics fallback below never accidentally re-absorbs it as a stray
+// statistic.
+const STEP_ID_ALIASES = ["stepId", "step_id"]
 
 function parseRow(raw: unknown, index: number): OperatorRow {
   if (!isRecord(raw)) {
@@ -155,14 +165,23 @@ function parseRow(raw: unknown, index: number): OperatorRow {
     // "outputRows", ...)` lookups already do the actual field-name
     // tolerance, this just gives them a container to look inside.
     const claimed = new Set(
-      [...ID_ALIASES, ...OPERATION_ALIASES, ...PARENT_ALIASES, ...ATTRIBUTE_ALIASES, ...STATISTICS_ALIASES, ...TIME_BREAKDOWN_ALIASES].map(
-        (k) => k.toLowerCase(),
-      ),
+      [
+        ...ID_ALIASES,
+        ...OPERATION_ALIASES,
+        ...PARENT_ALIASES,
+        ...ATTRIBUTE_ALIASES,
+        ...STATISTICS_ALIASES,
+        ...TIME_BREAKDOWN_ALIASES,
+        ...STEP_ID_ALIASES,
+      ].map((k) => k.toLowerCase()),
     )
     statistics = Object.fromEntries(Object.entries(raw).filter(([key]) => !claimed.has(key.toLowerCase())))
   }
   const timeBreakdownRaw = getField(raw, ...TIME_BREAKDOWN_ALIASES)
   const executionTimeBreakdown = timeBreakdownRaw !== undefined ? coerceRecord(timeBreakdownRaw) : undefined
+
+  const stepIdRaw = getField(raw, ...STEP_ID_ALIASES)
+  const stepId = stepIdRaw !== undefined && stepIdRaw !== null ? String(stepIdRaw) : undefined
 
   return {
     id: String(id),
@@ -171,5 +190,6 @@ function parseRow(raw: unknown, index: number): OperatorRow {
     attributes,
     statistics,
     executionTimeBreakdown,
+    stepId,
   }
 }

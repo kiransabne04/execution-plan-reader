@@ -260,6 +260,26 @@ Parser check first: `operatorMap.ts` already maps generic `Join`/`CartesianJoin`
 
 Full spec: `docs/08-episodes-and-stories.md` Episode 32. Tests: 8 in `snowflakeCartesianJoin.test.ts`, 9 in `snowflakeAggregationHotspot.test.ts`, 8 in `snowflakeWindowHotspot.test.ts`, 10 in `snowflakeSortHotspot.test.ts`, 3 new Snowflake-specific tests added to the existing `explodingJoin.test.ts` (8 total in that file). 1653/1653 full suite, tsc -b clean, oxlint clean.
 
+## Episode 33 — Snowflake Official Operator Stats Compliance
+Verified the real `GET_QUERY_OPERATOR_STATS()` JSON shape directly against Snowflake's own function reference (docs.snowflake.com) before writing any more Snowflake rules — found two real parser bugs (spill/pruning nesting) that likely meant those rules could never fire against genuinely pasted Snowflake data, only this app's own wrongly-shaped test fixtures. **No new rules this episode** — purely parser/normalization fixes and new captures, so Episode 34's rule work can build on a verified-correct foundation.
+
+| Story | Status | Notes |
+|---|---|---|
+| 33.1 — Fix spilling nesting | done | **Real bug fixed**: `deriveSpill()` read `bytes_spilled_to_local_storage`/`bytes_spilled_to_remote_storage` from inside `statistics.io` — wrong container (real: top-level `spilling` object) AND wrong field names (no `_to_`). Fixed; `spill-to-remote-disk.json` fixture corrected to the real shape. |
+| 33.2 — Fix pruning nesting | done | **Real bug fixed**: `derivePruning()` read `partitions_assigned` from `row.attributes` — wrong container (real: top-level `pruning` object under `statistics`) AND a field name that doesn't exist in Snowflake's schema at all (real: `partitions_scanned`). `pruning.partitionsScanned` would have been `undefined` for every real Snowflake TableScan, ever. Fixed; `high-partition-count-scan.json` corrected. |
+| 33.3 — Capture cache percentage | done | New `IoInfo.percentageScannedFromCache` (`io.percentage_scanned_from_cache`). **Documentation correction**: this app's own field catalog and skill doc both previously claimed this stat was only available from `QUERY_HISTORY`, never `GET_QUERY_OPERATOR_STATS()` — verified false against Snowflake's own docs; both corrected with an explicit "this claim was wrong" note. |
+| 33.4 — Capture network bytes | done | New `PlanNode.network` (`NetworkInfo.bytesSent`, from top-level `network.network_bytes`). |
+| 33.5 — Capture external bytes | done | New `IoInfo.externalBytesScanned` (`io.external_bytes_scanned`). |
+| 33.6 — Capture result bytes | done | New `IoInfo.bytesWrittenToResult`/`bytesReadFromResult` (`io.bytes_written_to_result`/`bytes_read_from_result`). |
+| 33.7 — Capture Search Optimization/Optima stats | done | New `PlanNode.searchOptimization` (top-level `search_optimization` object) and `PruningInfo.partitionsPrunedByOptima` (`pruning.partitions_pruned_by_snowflake_optima`) — kept as two separate fields since Optima (automatic) and Search Optimization Service (paid, opt-in) are genuinely different mechanisms. |
+| 33.8 — Preserve STEP_ID | done | New `OperatorRow.stepId`/`PlanNode.stepId`, threaded through `rows.ts`→`buildTree.ts`. Previously discarded entirely during row parsing. |
+| 33.9 — Capture DML stats | done | New `PlanNode.dml` (top-level `dml` object). Five new operator mappings (`Insert`/`Update`/`Delete`/`Merge`/`Unload`, previously entirely unmapped → `unknown`), five new glossary entries, five new icon-taxonomy accepted-unmapped entries. |
+| 33.10 — Official-shape regression corpus | done | New `official-shape-full-stats.json` (every captured field, real verified nesting, STEP_ID on every row), `dml-merge.json`, `dml-unload.json`. Both pre-existing wrongly-shaped fixtures (33.1/33.2) corrected in place. 15 new tests in `parseOperatorStats.test.ts`. |
+
+**Deliberately out of scope** (see field catalog §11's own note): `input_rows` — a real top-level statistic this app could read directly instead of deriving "input rows" by summing children's `actualRows`; left uncaptured to avoid an unrequested behavior change to every rule already built on the derived figure. `io.scan_progress`/`io.bytes_written` — real fields, not covered by any of these 10 stories.
+
+Full spec: `docs/08-episodes-and-stories.md` Episode 33. Tests: 15 new in `parseOperatorStats.test.ts` (`describe("Episode 33 — official-shape compliance")`), plus fixture corrections re-verified against all pre-existing spill/pruning rule tests and the `applyRules.test.ts` end-to-end tests (all unchanged, all still passing). New fixtures: `official-shape-full-stats.json`, `dml-merge.json`, `dml-unload.json`. Corrected fixtures: `spill-to-remote-disk.json`, `high-partition-count-scan.json`. 1679/1679 full suite, tsc -b clean, oxlint clean.
+
 ## Story 6.3 + Episode 26 — reverted 2026-09-04
 User-directed full revert of Story 6.3 ("canvas-first layout restructure", PR #22) and all of Episode 26 (IDE-style shell: activity bar, Issues panel, status bar, canvas-only visualizer, restyle passes — PRs #24-#30), back to this file's own Episode-6/pre-6.3 layout: persistent left sidebar (plan input/recent plans), center canvas visualizer (React Flow DOM/SVG below the node-count threshold, canvas above it), right detail panel — not the overlay-by-default icon-rail shell those 9 commits introduced. Reason: user wanted the old three-column shell back, not the IDE-style restructure.
 
@@ -274,3 +294,10 @@ Episode 6 Story 6.3's row above (line 41) is once again live — its "canvas-fir
 **`docs/11-manual-testing-gaps-episode8.md` is fully closed** — all 4 original gaps resolved (one real fix, two confirmed data-source limitations rather than bugs, one confirmed already-correct), plus a real Snowflake time-breakdown gap and a real SQL Server composite-seek-predicate bug found during re-verification, both fixed. Nothing outstanding there.
 
 Keep this file current going forward — update the relevant row the moment a story starts or finishes, as part of the same PR/commit, not as a separate cleanup pass later.
+
+## Planned next (not yet broken into stories)
+
+User-specified sequence, Episode 33 (above) first per the user's own explicit ordering — each of the two below is a named theme only, not yet given individual story numbers/acceptance criteria (per `docs/STORY_TEMPLATE.md`), so intentionally not listed as `not started` story rows here until that breakdown actually happens:
+
+- **Episode 34 — Snowflake Operator Intelligence II**: filter selectivity, data movement, external functions, Search Optimization effectiveness, result-transfer bottleneck, DML analysis. Builds on Episode 33's newly-captured (and newly-corrected) fields.
+- **Episode 35 — Snowflake Query Context**: `QUERY_HISTORY` + queuing + warehouse/load/QAS + query hash + eventual cost attribution — a genuinely different input source from `GET_QUERY_OPERATOR_STATS()` (see `snowflake-plan-parsing` skill), so this one needs an explicit architecture discussion (new input format / second paste / correlation) before any parser work, not just new rules against the existing input.

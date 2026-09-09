@@ -544,6 +544,55 @@ const ENTRIES: OperatorGlossaryEntry[] = [
     whenItsFine: "This is exactly the intended use whenever a query deliberately needs a specific quantity of synthetic rows.",
     whenToLookCloser: "Not typically a performance concern on its own, since it's a lightweight, purely synthetic row source.",
   },
+  // Episode 33, Story 33.9 — DML operators. Added alongside the new
+  // dml.* stats capture (buildTree.ts's deriveDml()) so the operator types
+  // those stats actually attach to have real glossary coverage rather than
+  // falling through to the generic "unknown" fallback.
+  {
+    operatorType: "insert",
+    displayName: "Insert",
+    shortDefinition: "Adds new rows to a table, from an INSERT statement or a COPY INTO load.",
+    longDefinition:
+      "An Insert operator writes new rows into a target table — either from an `INSERT ... VALUES`/`INSERT ... SELECT` statement, or from a `COPY INTO <table>` load reading from a stage. Snowflake's own operator statistics report the actual row count inserted directly on this operator, distinct from the row counts flowing through any read-side operators feeding it.",
+    whenItsFine: "This is the standard, expected operator for any query or load that adds data to a table.",
+    whenToLookCloser: "If the number of rows actually inserted is far smaller than the number of rows read/computed upstream, that gap (e.g. from a restrictive `WHERE` clause or a dedup step) is worth understanding — it may or may not be intentional.",
+  },
+  {
+    operatorType: "update",
+    displayName: "Update",
+    shortDefinition: "Modifies existing rows in a table that match an UPDATE statement's condition.",
+    longDefinition:
+      "An Update operator rewrites the rows in a target table matched by an `UPDATE` statement's `WHERE` clause (or matched branch of a `MERGE`). Snowflake's own operator statistics report the actual row count updated directly on this operator.",
+    whenItsFine: "This is the standard, expected operator for any statement that modifies existing rows.",
+    whenToLookCloser: "A very large number of rows updated by a single statement is often intentional (a bulk correction), but worth double-checking against the intended scope if the number is surprising.",
+  },
+  {
+    operatorType: "delete",
+    displayName: "Delete",
+    shortDefinition: "Removes existing rows from a table that match a DELETE statement's condition.",
+    longDefinition:
+      "A Delete operator removes the rows matched by a `DELETE` statement's `WHERE` clause (or matched branch of a `MERGE`) from a target table. Snowflake's own operator statistics report the actual row count deleted directly on this operator.",
+    whenItsFine: "This is the standard, expected operator for any statement that removes rows.",
+    whenToLookCloser: "A DELETE with no `WHERE` clause, or one deleting a much larger share of the table than expected, is worth double-checking against the intended scope before it's re-run.",
+  },
+  {
+    operatorType: "merge",
+    displayName: "Merge",
+    shortDefinition: "Applies a MERGE statement's insert/update/delete branches against a target table in a single pass.",
+    longDefinition:
+      "A Merge operator implements a `MERGE INTO` statement, which can insert, update, and/or delete rows in a target table in one operation depending on whether each incoming row matches an existing row under the statement's own join condition. Snowflake's own operator statistics report the actual row counts for each of the branches that fired (insert/update/delete) directly on this operator.",
+    whenItsFine: "This is the standard, expected operator for an upsert-style statement combining multiple row operations in one pass.",
+    whenToLookCloser: "If the join condition matching incoming rows to existing ones isn't selective, a MERGE can end up scanning and comparing far more of the target table than the number of rows it ultimately changes.",
+  },
+  {
+    operatorType: "unload",
+    displayName: "Unload",
+    shortDefinition: "Exports rows from a table to files in a stage, as requested by a COPY INTO <location> statement.",
+    longDefinition:
+      "An Unload operator represents a `COPY INTO <stage/location>` statement, writing a table's (or query's) result rows out to one or more files in cloud storage. Snowflake's own operator statistics report the actual row count unloaded directly on this operator.",
+    whenItsFine: "This is the standard, expected operator for exporting data out of Snowflake.",
+    whenToLookCloser: "If the unload is unexpectedly slow, the number of output files and their target size (partitioning/`MAX_FILE_SIZE`) are usually a bigger factor than the row count alone.",
+  },
 ]
 
 export default ENTRIES

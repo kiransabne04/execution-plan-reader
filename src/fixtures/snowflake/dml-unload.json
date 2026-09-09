@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "stepId": 1,
+    "operation": "TableScan",
+    "parentOperators": [2],
+    "attributes": { "table_name": "MY_DB.PUBLIC.ORDERS" },
+    "statistics": { "output_rows": 2000000 }
+  },
+  {
+    "id": 2,
+    "stepId": 2,
+    "operation": "Unload",
+    "parentOperators": [],
+    "attributes": { "location": "@MY_DB.PUBLIC.EXPORT_STAGE" },
+    "statistics": {
+      "output_rows": 2000000,
+      "dml": {
+        "number_of_rows_unloaded": 2000000
+      }
+    }
+  }
+]

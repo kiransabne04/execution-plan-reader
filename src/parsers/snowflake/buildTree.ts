@@ -111,6 +111,10 @@ function makeNode(row: OperatorRow): PlanNode {
 
   const io = deriveIo(row)
   const pruning = derivePruning(row)
+  const network = deriveNetwork(row)
+  const searchOptimization = deriveSearchOptimization(row)
+  const dml = deriveDml(row)
+  const stepId = toFiniteNumber(row.stepId)
 
   return {
     id: row.id,
@@ -120,12 +124,16 @@ function makeNode(row: OperatorRow): PlanNode {
     // Snowflake's operator stats are post-execution only — there's no
     // pre-execution estimate to report, unlike Postgres/SQL Server.
     actualRows: outputRows,
+    stepId,
     role: "main",
     predicate,
     join,
     io,
     spill,
     pruning,
+    network,
+    searchOptimization,
+    dml,
     timeBreakdown,
     children: [],
     attributes,
@@ -137,14 +145,23 @@ function toText(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined
 }
 
-/** Spill is nested inside an IO detail object and easy to overlook — promote
- * its presence to an easily-checkable top-level attribute (a first-class
- * rule-engine signal) AND the normalized `spill` sub-object, without
- * removing the raw nested data preserved generically above. */
+/** Episode 33, Story 33.1 — fixed nesting bug: Snowflake's own
+ * OPERATOR_STATISTICS carries spill data under a TOP-LEVEL `spilling`
+ * object (a sibling of `io`/`pruning`), not nested inside `io` — and the
+ * field names have no "_to_" in them (`bytes_spilled_local_storage`/
+ * `bytes_spilled_remote_storage`, not `bytes_spilled_to_local_storage`/
+ * `bytes_spilled_to_remote_storage`). Verified against Snowflake's own
+ * GET_QUERY_OPERATOR_STATS function reference (docs.snowflake.com). The
+ * prior version of this function read the wrong container AND the wrong
+ * field names — a real plan's spill would have silently never been
+ * detected at all. Promotes presence to an easily-checkable top-level
+ * attribute (a first-class rule-engine signal) AND the normalized `spill`
+ * sub-object, without removing the raw nested data preserved generically
+ * above. */
 function deriveSpill(row: OperatorRow, attributes: Record<string, string | number>): PlanNode["spill"] {
-  const io = coerceRecord(getField(row.statistics, "io"))
-  const local = toFiniteNumber(getField(io, "bytes_spilled_to_local_storage"))
-  const remote = toFiniteNumber(getField(io, "bytes_spilled_to_remote_storage"))
+  const spilling = coerceRecord(getField(row.statistics, "spilling"))
+  const local = toFiniteNumber(getField(spilling, "bytes_spilled_local_storage"))
+  const remote = toFiniteNumber(getField(spilling, "bytes_spilled_remote_storage"))
   if (local !== undefined && local > 0) attributes["Spilled To Local Storage"] = local
   if (remote !== undefined && remote > 0) attributes["Spilled To Remote Storage"] = remote
   const occurred = (local !== undefined && local > 0) || (remote !== undefined && remote > 0)
@@ -189,18 +206,86 @@ function deriveTimeBreakdown(row: OperatorRow): PlanNode["timeBreakdown"] {
   }
 }
 
+/** Episode 33 — extended to capture the rest of the `io` object's real
+ * fields (verified against Snowflake's own GET_QUERY_OPERATOR_STATS
+ * function reference): `percentage_scanned_from_cache` (Story 33.3 —
+ * corrects this app's own prior, now-disproven claim that this statistic
+ * was unavailable outside `QUERY_HISTORY`; see `IoInfo.percentageScannedFromCache`'s
+ * own doc comment), `external_bytes_scanned` (Story 33.5), and
+ * `bytes_written_to_result`/`bytes_read_from_result` (Story 33.6). */
 function deriveIo(row: OperatorRow): PlanNode["io"] {
   const io = coerceRecord(getField(row.statistics, "io"))
   const bytesScanned = toFiniteNumber(getField(io, "bytes_scanned"))
-  return bytesScanned !== undefined ? { bytesScanned } : undefined
+  const percentageScannedFromCache = toFiniteNumber(getField(io, "percentage_scanned_from_cache"))
+  const externalBytesScanned = toFiniteNumber(getField(io, "external_bytes_scanned"))
+  const bytesWrittenToResult = toFiniteNumber(getField(io, "bytes_written_to_result"))
+  const bytesReadFromResult = toFiniteNumber(getField(io, "bytes_read_from_result"))
+  if (
+    bytesScanned === undefined &&
+    percentageScannedFromCache === undefined &&
+    externalBytesScanned === undefined &&
+    bytesWrittenToResult === undefined &&
+    bytesReadFromResult === undefined
+  ) {
+    return undefined
+  }
+  return { bytesScanned, percentageScannedFromCache, externalBytesScanned, bytesWrittenToResult, bytesReadFromResult }
 }
 
-/** Snowflake-specific — no Postgres/SQL Server equivalent. */
+/** Episode 33, Story 33.2 — fixed nesting AND field-name bug: pruning stats
+ * live under a TOP-LEVEL `pruning` object in OPERATOR_STATISTICS (a
+ * sibling of `io`/`spilling`), not under `attributes` — and the scanned-
+ * count field is `partitions_scanned`, not `partitions_assigned` (which
+ * doesn't exist in Snowflake's real schema at all). Verified against
+ * Snowflake's own GET_QUERY_OPERATOR_STATS function reference. The prior
+ * version of this function read a field that Snowflake's real output never
+ * actually contains — `partitionsScanned` would have silently come back
+ * `undefined` for every real Snowflake export, on every TableScan, ever.
+ * Also now captures `partitions_pruned_by_snowflake_optima` (Story 33.7). */
 function derivePruning(row: OperatorRow): PlanNode["pruning"] {
-  const partitionsScanned = toFiniteNumber(getField(row.attributes, "partitions_assigned"))
-  const partitionsTotal = toFiniteNumber(getField(row.attributes, "partitions_total"))
-  return partitionsScanned !== undefined || partitionsTotal !== undefined
-    ? { partitionsScanned, partitionsTotal }
+  const pruning = coerceRecord(getField(row.statistics, "pruning"))
+  const partitionsScanned = toFiniteNumber(getField(pruning, "partitions_scanned"))
+  const partitionsTotal = toFiniteNumber(getField(pruning, "partitions_total"))
+  const partitionsPrunedByOptima = toFiniteNumber(getField(pruning, "partitions_pruned_by_snowflake_optima"))
+  return partitionsScanned !== undefined || partitionsTotal !== undefined || partitionsPrunedByOptima !== undefined
+    ? { partitionsScanned, partitionsTotal, partitionsPrunedByOptima }
+    : undefined
+}
+
+/** Episode 33, Story 33.4 — Snowflake-specific, `network.network_bytes`, a
+ * top-level sibling of `io`/`pruning`/`spilling` in OPERATOR_STATISTICS. */
+function deriveNetwork(row: OperatorRow): PlanNode["network"] {
+  const network = coerceRecord(getField(row.statistics, "network"))
+  const bytesSent = toFiniteNumber(getField(network, "network_bytes"))
+  return bytesSent !== undefined ? { bytesSent } : undefined
+}
+
+/** Episode 33, Story 33.7 — Snowflake-specific, the `search_optimization`
+ * object. A genuinely different mechanism from Optima pruning (which lives
+ * on `PruningInfo.partitionsPrunedByOptima` instead — see that field's own
+ * doc comment for why they're kept separate). */
+function deriveSearchOptimization(row: OperatorRow): PlanNode["searchOptimization"] {
+  const so = coerceRecord(getField(row.statistics, "search_optimization"))
+  const partitionsPrunedBySearchOptimization = toFiniteNumber(getField(so, "partitions_pruned_by_search_optimization"))
+  const partitionsPrunedBySearchOptimizationAndOptima = toFiniteNumber(
+    getField(so, "partitions_pruned_by_search_optimization_and_snowflake_optima"),
+  )
+  return partitionsPrunedBySearchOptimization !== undefined || partitionsPrunedBySearchOptimizationAndOptima !== undefined
+    ? { partitionsPrunedBySearchOptimization, partitionsPrunedBySearchOptimizationAndOptima }
+    : undefined
+}
+
+/** Episode 33, Story 33.9 — Snowflake-specific, the `dml` object. Present
+ * only on DML operator nodes (Insert/Update/Delete/Merge/Unload — see
+ * `operatorMap.ts`), never on a read-only scan/join/aggregate. */
+function deriveDml(row: OperatorRow): PlanNode["dml"] {
+  const dml = coerceRecord(getField(row.statistics, "dml"))
+  const rowsInserted = toFiniteNumber(getField(dml, "number_of_rows_inserted"))
+  const rowsUpdated = toFiniteNumber(getField(dml, "number_of_rows_updated"))
+  const rowsDeleted = toFiniteNumber(getField(dml, "number_of_rows_deleted"))
+  const rowsUnloaded = toFiniteNumber(getField(dml, "number_of_rows_unloaded"))
+  return rowsInserted !== undefined || rowsUpdated !== undefined || rowsDeleted !== undefined || rowsUnloaded !== undefined
+    ? { rowsInserted, rowsUpdated, rowsDeleted, rowsUnloaded }
     : undefined
 }
 

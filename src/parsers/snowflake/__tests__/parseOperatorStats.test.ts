@@ -132,7 +132,7 @@ describe("parseSnowflakeOperatorStats", () => {
   it("handles a very-high-partition-count TableScan without breaking numeric fields", () => {
     const { root } = parseSnowflakeOperatorStats(loadFixture("high-partition-count-scan.json"))
     expect(root.actualRows).toBe(48213000000)
-    expect(root.attributes["attr.partitions_total"]).toBe(84213)
+    expect(root.pruning?.partitionsTotal).toBe(84213)
   })
 
   it("tolerates a result-grid-style export with uppercase keys and stringified array/object columns", () => {
@@ -224,5 +224,96 @@ describe("parseSnowflakeOperatorStats", () => {
     } catch (err) {
       expect((err as PlanParseError).code).toBe("NOT_A_PLAN")
     }
+  })
+
+  // Episode 33 — official-shape compliance. Every field below was verified
+  // against Snowflake's own GET_QUERY_OPERATOR_STATS function reference
+  // (docs.snowflake.com), not assumed from memory — see docs/08-episodes-
+  // and-stories.md Episode 33 for the full research trail.
+  describe("Episode 33 — official-shape compliance", () => {
+    it("Story 33.1: reads spill bytes from the TOP-LEVEL statistics.spilling object, not nested inside io", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("spill-to-remote-disk.json"))
+      expect(root.spill?.occurred).toBe(true)
+      expect(root.spill?.bytesLocal).toBe(104857600)
+      expect(root.spill?.bytesRemote).toBe(52428800)
+    })
+
+    it("Story 33.2: reads pruning stats from the TOP-LEVEL statistics.pruning object, not from attributes", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("high-partition-count-scan.json"))
+      expect(root.pruning?.partitionsScanned).toBe(84213)
+      expect(root.pruning?.partitionsTotal).toBe(84213)
+    })
+
+    it("Story 33.3: captures io.percentage_scanned_from_cache", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("official-shape-full-stats.json"))
+      const scan = root.children[0]
+      expect(scan.io?.percentageScannedFromCache).toBe(62.5)
+    })
+
+    it("Story 33.4: captures network.network_bytes as network.bytesSent", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("official-shape-full-stats.json"))
+      expect(root.network?.bytesSent).toBe(314572800)
+    })
+
+    it("Story 33.5: captures io.external_bytes_scanned", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("official-shape-full-stats.json"))
+      const scan = root.children[0]
+      expect(scan.io?.externalBytesScanned).toBe(1073741824)
+    })
+
+    it("Story 33.6: captures io.bytes_written_to_result and io.bytes_read_from_result", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("official-shape-full-stats.json"))
+      expect(root.io?.bytesWrittenToResult).toBe(209715200)
+      expect(root.io?.bytesReadFromResult).toBe(41943040)
+    })
+
+    it("Story 33.7: captures pruning.partitions_pruned_by_snowflake_optima and the search_optimization object", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("official-shape-full-stats.json"))
+      const scan = root.children[0]
+      expect(scan.pruning?.partitionsPrunedByOptima).toBe(12000)
+      expect(scan.searchOptimization?.partitionsPrunedBySearchOptimization).toBe(30000)
+      expect(scan.searchOptimization?.partitionsPrunedBySearchOptimizationAndOptima).toBe(33800)
+    })
+
+    it("Story 33.8: preserves STEP_ID on every operator row", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("official-shape-full-stats.json"))
+      expect(root.stepId).toBe(2)
+      expect(root.children[0].stepId).toBe(1)
+    })
+
+    it("Story 33.8: stepId is undefined, not fabricated, when the input never carried one", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
+      expect(root.stepId).toBeUndefined()
+    })
+
+    it("Story 33.9: captures dml stats (insert/update/delete) on a Merge operator", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("dml-merge.json"))
+      expect(root.rawOperatorLabel).toBe("Merge")
+      expect(root.operatorType).toBe("merge")
+      expect(root.dml?.rowsInserted).toBe(12000)
+      expect(root.dml?.rowsUpdated).toBe(36000)
+      expect(root.dml?.rowsDeleted).toBe(2000)
+    })
+
+    it("Story 33.9: captures dml stats (unload) on an Unload operator", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("dml-unload.json"))
+      expect(root.rawOperatorLabel).toBe("Unload")
+      expect(root.operatorType).toBe("unload")
+      expect(root.dml?.rowsUnloaded).toBe(2000000)
+    })
+
+    it("Story 33.9: dml is undefined on a plain read-only operator", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
+      expect(root.dml).toBeUndefined()
+    })
+
+    it("Story 33.10: none of the newly captured fields leak onto an operator that never reported them", () => {
+      const { root } = parseSnowflakeOperatorStats(loadFixture("simple-table-scan.json"))
+      expect(root.network).toBeUndefined()
+      expect(root.searchOptimization).toBeUndefined()
+      expect(root.pruning).toBeUndefined()
+      expect(root.io?.externalBytesScanned).toBeUndefined()
+      expect(root.io?.bytesWrittenToResult).toBeUndefined()
+    })
   })
 })

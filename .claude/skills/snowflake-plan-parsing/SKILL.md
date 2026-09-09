@@ -17,12 +17,40 @@ Unlike Postgres (nested JSON) or SQL Server (nested XML `RelOp` elements), Snowf
 3. **Preserve the full execution-time breakdown**, not just the aggregate: `overall_percentage`, `initialization`, `processing`, `synchronization`, `local_disk_io`, `remote_disk_io`, `network_communication`. The rule engine needs these individually (e.g. to flag spill specifically) — don't flatten them into a single number during parsing.
 4. **Detect and cleanly handle redacted query text.** Organizations with `ENABLE_UNREDACTED_QUERY_SYNTAX_ERROR` off will see `<redacted>` in query text fields for users who don't own the query. Display this as "query text redacted by account policy," not as literal content, and never treat it as if it were real query text for node-to-query correlation (see `graph-visualization` skill).
 
+## OPERATOR_STATISTICS's real shape (verified Episode 33, against Snowflake's own GET_QUERY_OPERATOR_STATS function reference — docs.snowflake.com — not assumed from memory)
+
+The `statistics`/`operator_statistics` object on a row is **flat at the top level, by category** — `io`, `pruning`, `spilling`, `network`, `search_optimization`, and `dml` are all SIBLING objects, none nested inside another:
+
+```
+{
+  "input_rows": ..., "output_rows": ...,
+  "io": { "scan_progress", "bytes_scanned", "percentage_scanned_from_cache",
+           "bytes_written", "bytes_written_to_result", "bytes_read_from_result",
+           "external_bytes_scanned" },
+  "pruning": { "partitions_scanned", "partitions_total", "partitions_pruned_by_snowflake_optima" },
+  "spilling": { "bytes_spilled_local_storage", "bytes_spilled_remote_storage" },
+  "network": { "network_bytes" },
+  "search_optimization": { "partitions_pruned_by_search_optimization",
+                             "partitions_pruned_by_search_optimization_and_snowflake_optima" },
+  "dml": { "number_of_rows_inserted", "number_of_rows_updated",
+            "number_of_rows_deleted", "number_of_rows_unloaded" }
+}
+```
+
+**This parser got two of these nestings wrong from Episode 3 through Episode 32** (fixed in Episode 33 — see `docs/08-episodes-and-stories.md` Episode 33 for the full story-by-story account):
+- `deriveSpill()` read `bytes_spilled_to_local_storage`/`bytes_spilled_to_remote_storage` from inside `statistics.io` — wrong container (`spilling`, not `io`) AND wrong field names (no `_to_`). A real plan's spill would have silently never been detected.
+- `derivePruning()` read `partitions_assigned` from `row.attributes` — wrong container (`statistics.pruning`, not `attributes`) AND a field name (`partitions_assigned`) that doesn't exist in Snowflake's real schema at all (the real field is `partitions_scanned`). `pruning.partitionsScanned` would have come back `undefined` for every real Snowflake export, on every TableScan, ever.
+
+Also note `input_rows` genuinely exists as a real top-level statistic — this app currently derives "input rows" by summing children's own `actualRows` instead (see `explodingJoin.ts` and the Episode 32 rules that reuse the same technique) rather than reading it directly. That's a deliberately tracked, deferred compliance gap (not adopted in Episode 33, to avoid an unrequested behavior change to every rule already built on the derived figure), not an oversight — a future episode should evaluate switching to the real field.
+
 ## Structural handling
 
-- Spill-to-local-disk / spill-to-remote-disk stats are nested inside IO detail objects and easy to overlook — the parser should promote spill presence to a normalized, easily-checkable field (not buried in the raw `attributes` bag only) since it's a first-class rule-engine signal (see `rule-engine-authoring` skill).
+- Spill/pruning/network/search-optimization/DML stats each live under their own top-level statistics key (see shape above) and are easy to nest wrong — the parser should promote each to a normalized, easily-checkable field (not buried in the raw `attributes`/`statistics` bag only) since these are first-class rule-engine signals (see `rule-engine-authoring` skill).
 - High-partition-count `TableScan` operators (tens of thousands of partitions on large real tables) are common — don't assume small numbers in fixtures represent production scale.
 - Users may paste this data in slightly non-standard shapes (e.g. a result-grid export with extra column headers, since getting this JSON out of Snowflake requires running a function and copying output, not a UI "copy plan" button). Build tolerant parsing for near-miss formats where practical, and always give a specific, helpful error rather than a generic parse failure — point users toward the correct way to run `GET_QUERY_OPERATOR_STATS()` in the error message.
-- **Known, deliberate gap — not an oversight**: Snowflake's "percentage scanned from cache" statistic is real, but it lives in `QUERY_HISTORY`/the Query Profile summary, a genuinely different data source than `GET_QUERY_OPERATOR_STATS()` — this parser has no way to derive it from the one input format it accepts. Don't add a query-level-cache-hit field to `PlanNode` on the assumption the data is just sitting there unextracted; it isn't, without accepting a second paste from a different source (see docs/10-node-stats-field-catalog.md §5's own note on this). The rule engine's Snowflake I/O signal (`bufferCacheInefficiency.ts`) uses the already-available per-node `timeBreakdown` local/remote-disk-I/O split instead.
+- **Corrected claim (Episode 33)**: this skill previously claimed Snowflake's "percentage scanned from cache" statistic was **only** available from `QUERY_HISTORY`/the Query Profile summary, not from `GET_QUERY_OPERATOR_STATS()`. That claim was wrong — it's `io.percentage_scanned_from_cache`, present per-operator in the exact input format this parser already accepts, and is now captured on `IoInfo.percentageScannedFromCache`. Left here as a record of the correction, so a future contributor doesn't reintroduce the same wrong assumption from an old comment elsewhere.
+- `STEP_ID` (the row's own step/stage grouping, shown as separate tabs in the Query Profile UI) is a real column on `GET_QUERY_OPERATOR_STATS()`'s result set — preserve it (`PlanNode.stepId`) rather than discarding it during row parsing.
+- DML operator nodes (`Insert`/`Update`/`Delete`/`Merge`/`Unload`) carry their own `dml` statistics object — map these operator names in `operatorMap.ts` (they have no honest read-only-query equivalent to reuse) and give them real operator-glossary entries (`operator-glossary-content` skill), not just a raw fallback.
 
 ## Testing checklist for any change in this directory
 

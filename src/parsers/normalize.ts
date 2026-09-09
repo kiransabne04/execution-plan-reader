@@ -113,6 +113,76 @@ export interface IoInfo {
    * distinct from the read/write figures already above. */
   bufferDirtied?: number
   bufferWritten?: number
+  /** Episode 33, Story 33.3 — Snowflake-specific, `io.percentage_scanned_from_cache`
+   * in `GET_QUERY_OPERATOR_STATS()`'s own OPERATOR_STATISTICS object.
+   * Correction to a prior (Episode 4-era) claim in this file's own field
+   * catalog (docs/10-node-stats-field-catalog.md §5) that this statistic
+   * was ONLY available from `QUERY_HISTORY`/the Query Profile summary, not
+   * from `GET_QUERY_OPERATOR_STATS()` — verified against Snowflake's own
+   * function reference (docs.snowflake.com) that it IS present per-operator
+   * in this exact input this parser already accepts; that claim was wrong
+   * and has been corrected in the field catalog. A genuinely different
+   * concept from the generic `cacheHitRatio` above (which is DERIVED from
+   * Postgres's own hit/read block split) — this is Snowflake's own directly
+   * reported percentage, kept as its own field rather than conflated with
+   * a derived ratio from a different engine's different accounting. */
+  percentageScannedFromCache?: number
+  /** Episode 33, Story 33.5 — Snowflake-specific, `io.external_bytes_scanned`.
+   * Bytes read from an external table/stage (e.g. Parquet/CSV files in
+   * cloud storage), a genuinely different I/O path from `bytesScanned`
+   * (Snowflake's own native micro-partition storage). */
+  externalBytesScanned?: number
+  /** Episode 33, Story 33.6 — Snowflake-specific, `io.bytes_written_to_result`/
+   * `io.bytes_read_from_result`. The result-transfer path (writing a
+   * query's own output to Snowflake's result cache/service, and reading it
+   * back for a client) — a distinct I/O concern from scanning source
+   * tables, most relevant on a root `Result` operator returning a large
+   * result set. */
+  bytesWrittenToResult?: number
+  bytesReadFromResult?: number
+}
+
+/** Episode 33, Story 33.4 — Snowflake-specific, `network.network_bytes` in
+ * `GET_QUERY_OPERATOR_STATS()`'s OPERATOR_STATISTICS — a top-level sibling
+ * of `io`/`pruning`/`spilling`, not nested inside any of those, mirrored
+ * here as its own field for the same reason `pruning`/`spill` are their
+ * own `PlanNode` fields rather than folded into `io`. Named `bytesSent`
+ * (documented as reachable via `networkTimeDominant.ts`'s existing
+ * `timeBreakdown.networkCommunicationPercentage` for the TIME side of
+ * network cost) — the official field is just `network_bytes` with no
+ * documented send/receive distinction; this is the total byte volume
+ * Snowflake attributes to network communication for this operator, not
+ * assumed to be exclusively outbound. */
+export interface NetworkInfo {
+  bytesSent?: number
+}
+
+/** Episode 33, Story 33.7 — Snowflake-specific, the `search_optimization`
+ * object in `GET_QUERY_OPERATOR_STATS()`'s OPERATOR_STATISTICS. A genuinely
+ * different pruning mechanism from the base micro-partition pruning already
+ * captured on `PruningInfo` (`partitionsScanned`/`partitionsTotal`) — this
+ * is specifically how many additional partitions the Search Optimization
+ * Service (a paid, opt-in feature) was able to prune, alone or in
+ * combination with Snowflake Optima (the automatic, non-opt-in pruning
+ * enhancement also captured separately on `PruningInfo.partitionsPrunedByOptima`).
+ * Kept as its own object (not folded into `PruningInfo`) since it answers a
+ * different question — "how effective was this specific paid feature" —
+ * not "how much pruning happened overall". */
+export interface SearchOptimizationInfo {
+  partitionsPrunedBySearchOptimization?: number
+  partitionsPrunedBySearchOptimizationAndOptima?: number
+}
+
+/** Episode 33, Story 33.9 — Snowflake-specific, the `dml` object in
+ * `GET_QUERY_OPERATOR_STATS()`'s OPERATOR_STATISTICS, present on DML
+ * operator nodes (Insert/Update/Delete/Merge/Unload — see `operatorMap.ts`).
+ * No Postgres/SQL Server equivalent in this app's current parsers (both
+ * only ever parse read-only `EXPLAIN` output, never DML plans). */
+export interface DmlInfo {
+  rowsInserted?: number
+  rowsUpdated?: number
+  rowsDeleted?: number
+  rowsUnloaded?: number
 }
 
 /** Episode 24, Story 24.5 — Postgres-specific, Sort nodes only. `method` is
@@ -191,8 +261,13 @@ export interface MemoryGrantInfo {
 
 export interface SpillInfo {
   occurred: boolean
+  /** Episode 33, Story 33.1 — Snowflake's own `spilling.bytes_spilled_local_storage`
+   * (a TOP-LEVEL sibling of `io`/`pruning` in OPERATOR_STATISTICS, not
+   * nested inside `io` — a nesting bug this app's parser had until this
+   * story; see `buildTree.ts`'s `deriveSpill()`). */
   bytesLocal?: number
-  /** Snowflake-specific distinction; Postgres/SQL Server don't separate local/remote. */
+  /** Snowflake-specific distinction; Postgres/SQL Server don't separate
+   * local/remote. Snowflake's own field is `spilling.bytes_spilled_remote_storage`. */
   bytesRemote?: number
   /** Engine-specific free text (e.g. SQL Server's spill level, sort vs. hash spill). */
   detail?: string
@@ -200,16 +275,29 @@ export interface SpillInfo {
 
 /** `partitionsScanned`/`partitionsTotal` are Snowflake-specific — no
  * Postgres/SQL Server equivalent (those engines don't organize storage
- * into pruning-relevant micro-partitions). `subplansRemoved` (Episode 24,
- * Story 24.11) is Postgres-specific instead — runtime partition pruning
- * on an `Append`/`MergeAppend` over a partitioned table, a structurally
- * different concept (whole child subplans skipped, not a micro-partition
- * count) that shares this same "how much work did pruning avoid" theme,
- * which is why it lives on the same `pruning` field rather than a new one. */
+ * into pruning-relevant micro-partitions). Snowflake's own field names are
+ * `pruning.partitions_scanned`/`pruning.partitions_total` — a TOP-LEVEL
+ * `pruning` object in OPERATOR_STATISTICS, not a field under `attributes`
+ * (a nesting AND naming bug this app's parser had until Episode 33, Story
+ * 33.2 — see `buildTree.ts`'s `derivePruning()`). `subplansRemoved`
+ * (Episode 24, Story 24.11) is Postgres-specific instead — runtime
+ * partition pruning on an `Append`/`MergeAppend` over a partitioned table,
+ * a structurally different concept (whole child subplans skipped, not a
+ * micro-partition count) that shares this same "how much work did pruning
+ * avoid" theme, which is why it lives on the same `pruning` field rather
+ * than a new one. */
 export interface PruningInfo {
   partitionsScanned?: number
   partitionsTotal?: number
   subplansRemoved?: number
+  /** Episode 33, Story 33.7 — Snowflake-specific, `pruning.partitions_pruned_by_snowflake_optima`.
+   * Snowflake Optima is an automatic (non-opt-in) pruning enhancement —
+   * distinct from the opt-in Search Optimization Service, whose own
+   * pruning counts live on `SearchOptimizationInfo` instead. Kept on THIS
+   * object (rather than `SearchOptimizationInfo`) because it's Snowflake's
+   * own base pruning mechanism working harder, not a separate paid
+   * feature's own effectiveness metric. */
+  partitionsPrunedByOptima?: number
 }
 
 export interface ParallelInfo {
@@ -267,6 +355,13 @@ export interface PlanNode {
   engine: Engine
   operatorType: string // normalized (e.g. "seq_scan", "index_scan", "hash_join")
   rawOperatorLabel: string // original engine-specific label, always preserved
+  /** Episode 33, Story 33.8 — Snowflake-specific, `GET_QUERY_OPERATOR_STATS()`'s
+   * own `STEP_ID` column. Snowflake groups operators into numbered
+   * execution "steps" (visible as separate step tabs in the Query Profile
+   * UI) — a real grouping concept this app's parser previously discarded
+   * entirely. No Postgres/SQL Server equivalent (neither engine's `EXPLAIN`
+   * output groups operators into steps this way). */
+  stepId?: number
   estimatedRows?: number
   actualRows?: number
   /** Rows read but discarded by a post-scan filter, where derivable. */
@@ -339,6 +434,13 @@ export interface PlanNode {
   io?: IoInfo
   spill?: SpillInfo
   pruning?: PruningInfo
+  /** Episode 33, Story 33.4 — Snowflake-specific. */
+  network?: NetworkInfo
+  /** Episode 33, Story 33.7 — Snowflake-specific. */
+  searchOptimization?: SearchOptimizationInfo
+  /** Episode 33, Story 33.9 — Snowflake-specific, present on DML operator
+   * nodes (Insert/Update/Delete/Merge/Unload) only. */
+  dml?: DmlInfo
   parallel?: ParallelInfo
   timeBreakdown?: TimeBreakdownInfo
   /** Episode 24, Story 24.5 — Postgres-specific, Sort nodes only. */

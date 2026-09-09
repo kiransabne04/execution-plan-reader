@@ -1,0 +1,61 @@
+[
+  {
+    "id": 1,
+    "stepId": 1,
+    "operation": "TableScan",
+    "parentOperators": [2],
+    "attributes": { "table_name": "MY_DB.PUBLIC.EVENTS" },
+    "statistics": {
+      "output_rows": 900000000,
+      "io": {
+        "bytes_scanned": 48318382080,
+        "percentage_scanned_from_cache": 62.5,
+        "external_bytes_scanned": 1073741824
+      },
+      "pruning": {
+        "partitions_scanned": 4200,
+        "partitions_total": 50000,
+        "partitions_pruned_by_snowflake_optima": 12000
+      },
+      "search_optimization": {
+        "partitions_pruned_by_search_optimization": 30000,
+        "partitions_pruned_by_search_optimization_and_snowflake_optima": 33800
+      }
+    },
+    "executionTimeBreakdown": {
+      "overall_percentage": 65,
+      "initialization": 0.5,
+      "processing": 40,
+      "synchronization": 1,
+      "local_disk_io": 15,
+      "remote_disk_io": 8,
+      "network_communication": 0.5
+    }
+  },
+  {
+    "id": 2,
+    "stepId": 2,
+    "operation": "Result",
+    "parentOperators": [],
+    "attributes": {},
+    "statistics": {
+      "output_rows": 900000000,
+      "io": {
+        "bytes_written_to_result": 209715200,
+        "bytes_read_from_result": 41943040
+      },
+      "network": {
+        "network_bytes": 314572800
+      }
+    },
+    "executionTimeBreakdown": {
+      "overall_percentage": 35,
+      "initialization": 0.1,
+      "processing": 5,
+      "synchronization": 0.4,
+      "local_disk_io": 0,
+      "remote_disk_io": 0,
+      "network_communication": 29.5
+    }
+  }
+]
