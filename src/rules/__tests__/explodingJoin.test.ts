@@ -37,4 +37,37 @@ describe("explodingJoin", () => {
     expect(() => explodingJoin(join, makeContext(join))).not.toThrow()
     expect(explodingJoin(join, makeContext(join))).toEqual([])
   })
+
+  // Episode 32, Story 32.1.
+  describe("Snowflake — never labels a generic Join as a hash join", () => {
+    it("uses input/output cardinality vocabulary and discloses no physical algorithm is known", () => {
+      const left = makeNode({ engine: "snowflake", actualRows: 100 })
+      const right = makeNode({ engine: "snowflake", actualRows: 50 })
+      const join = makeNode({ engine: "snowflake", operatorType: "join", rawOperatorLabel: "Join", actualRows: 5000, children: [left, right] })
+      const longText = explodingJoin(join, makeContext(join))[0].longText
+      expect(longText).toContain("output cardinality")
+      expect(longText).toContain("input cardinality")
+      expect(longText).toContain("doesn't reveal which physical join algorithm")
+      // Allowed to NAME "hash join" only as part of explicitly ruling it
+      // out — never as an affirmative claim that this operator IS one.
+      expect(longText).toContain("not specifically a hash join")
+      expect(longText).not.toMatch(/\bis (a |specifically a )?hash join\b/i)
+    })
+
+    it("does not add the algorithm disclosure for a Snowflake CartesianJoin — its own name is already explicit", () => {
+      const left = makeNode({ engine: "snowflake", actualRows: 100 })
+      const right = makeNode({ engine: "snowflake", actualRows: 50 })
+      const join = makeNode({ engine: "snowflake", operatorType: "cartesian_join", rawOperatorLabel: "CartesianJoin", actualRows: 5000, children: [left, right] })
+      const longText = explodingJoin(join, makeContext(join))[0].longText
+      expect(longText).not.toContain("doesn't reveal which physical join algorithm")
+    })
+
+    it("does not add the Snowflake disclosure for a Postgres/SQL Server join", () => {
+      const left = makeNode({ actualRows: 100 })
+      const right = makeNode({ actualRows: 50 })
+      const join = makeNode({ operatorType: "hash_join", actualRows: 5000, children: [left, right] })
+      const longText = explodingJoin(join, makeContext(join))[0].longText
+      expect(longText).not.toContain("Snowflake")
+    })
+  })
 })

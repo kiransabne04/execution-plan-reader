@@ -7,6 +7,10 @@ import { dominantTimeComponent } from "./dominantTimeComponent"
 import { estimateOnlyNote } from "./estimateOnlyNote"
 import { executionMode } from "./executionMode"
 import { explodingJoin } from "./explodingJoin"
+import { snowflakeCartesianJoin } from "./snowflakeCartesianJoin"
+import { snowflakeAggregationHotspot } from "./snowflakeAggregationHotspot"
+import { snowflakeWindowHotspot } from "./snowflakeWindowHotspot"
+import { snowflakeSortHotspot } from "./snowflakeSortHotspot"
 import { filterRowsDiscarded } from "./filterRowsDiscarded"
 import { hashBatching } from "./hashBatching"
 import { highLoopCount } from "./highLoopCount"
@@ -53,6 +57,10 @@ export { bufferCacheInefficiency } from "./bufferCacheInefficiency"
 export { diskSpill } from "./diskSpill"
 export { highLoopCount } from "./highLoopCount"
 export { explodingJoin } from "./explodingJoin"
+export { snowflakeCartesianJoin } from "./snowflakeCartesianJoin"
+export { snowflakeAggregationHotspot } from "./snowflakeAggregationHotspot"
+export { snowflakeWindowHotspot } from "./snowflakeWindowHotspot"
+export { snowflakeSortHotspot } from "./snowflakeSortHotspot"
 export { missingIndexOpportunity } from "./missingIndexOpportunity"
 export { nonSargablePredicate } from "./nonSargablePredicate"
 export { parallelWorkerShortfall, parallelShortfallSeverity } from "./parallelWorkerShortfall"
@@ -179,6 +187,11 @@ export const ALL_RULES: Rule[] = [
   networkTimeDominant,
   synchronizationOverhead,
   dominantTimeComponent,
+  // Episode 32 — Snowflake join & analytical operator reasoning.
+  snowflakeCartesianJoin,
+  snowflakeAggregationHotspot,
+  snowflakeWindowHotspot,
+  snowflakeSortHotspot,
 ]
 
 const SEVERITY_RANK: Record<Warning["severity"], number> = { critical: 0, warning: 1, info: 2 }

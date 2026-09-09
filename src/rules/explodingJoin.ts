@@ -1,5 +1,17 @@
 // MVP rule 5: exploding join — output rows far exceeding input rows, the
 // classic signature of an accidental cross join / missing join condition.
+//
+// Episode 32, Story 32.1 — Snowflake-specific enrichment on this same
+// finding, not a second rule: Snowflake's own generic `Join` operation
+// (`operatorMap.ts`) never reveals which physical algorithm actually ran
+// (no hash/merge/nested-loop distinction the way Postgres/SQL Server
+// expose) — this rule already used `node.rawOperatorLabel` (the genuine
+// engine label, "Join"/"CartesianJoin") rather than a fabricated one, so
+// it never mislabeled anything, but it also never said so explicitly. A
+// Snowflake-only sentence now states this plainly, using "input
+// cardinality"/"output cardinality" as this story's own requested
+// vocabulary, so a reader doesn't quietly assume "Join" means a hash join
+// just because that's the common mental model from other engines.
 
 import { formatNumber } from "./format"
 import type { Rule } from "./types"
@@ -29,16 +41,29 @@ export const explodingJoin: Rule = (node) => {
 
   const ratioText = formatNumber(Math.round(ratio))
 
+  // Story 32.1's own explicit instruction: never let a generic Snowflake
+  // "Join" read as if it were specifically a hash join. Only added for
+  // Snowflake's own generic `join` type — `cartesian_join` already IS an
+  // explicit Snowflake operation name (nothing ambiguous to disclose
+  // there), and Postgres/SQL Server's own `join`/generic types (their
+  // "algorithm not surfaced separately" case) have a different, already-
+  // correct disclosure in the glossary rather than this rule's own text.
+  const snowflakeAlgorithmNote =
+    node.engine === "snowflake" && node.operatorType === "join"
+      ? ` Snowflake's own plan output doesn't reveal which physical join algorithm actually ran here — this is ` +
+        `simply its generic "Join" operation, not specifically a hash join or any other named algorithm.`
+      : ""
+
   return [
     {
       ruleId: "exploding-join",
       severity: node.operatorType === "cartesian_join" ? "critical" : "warning",
       shortText: `Output (${formatNumber(outputRows)} rows) is ${ratioText}x its largest input — check the join condition.`,
       longText:
-        `This ${node.rawOperatorLabel} produced ${formatNumber(outputRows)} rows from inputs of at most ` +
-        `${formatNumber(maxInputRows)} rows — a ${ratioText}x multiplication. This pattern usually means a ` +
-        `missing or too-loose join condition (an accidental cross join), causing rows to multiply rather than ` +
-        `match one-to-one/one-to-many as intended.`,
+        `This ${node.rawOperatorLabel} produced ${formatNumber(outputRows)} rows (output cardinality) from inputs ` +
+        `of at most ${formatNumber(maxInputRows)} rows (input cardinality) — a ${ratioText}x multiplication.${snowflakeAlgorithmNote} ` +
+        `This pattern usually means a missing or too-loose join condition (an accidental cross join), causing rows ` +
+        `to multiply rather than match one-to-one/one-to-many as intended.`,
       provenance: {
         threshold: `output_rows / max_input_rows ≥ ${EXPLOSION_RATIO_THRESHOLD}`,
         computed: `${ratio.toFixed(2)}x`,

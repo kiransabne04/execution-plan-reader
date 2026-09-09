@@ -20,6 +20,8 @@ export type FindingCategory =
   | "Planning issues"
   | "Caching issues"
   | "Partition issues"
+  | "Aggregation issues"
+  | "Window issues"
   | "General notes"
 
 // One entry per rule family currently in ALL_RULES (src/rules/index.ts).
@@ -31,6 +33,14 @@ const RULE_FAMILY_CATEGORY: Record<string, FindingCategory> = {
   "missing-index-opportunity": "Index issues",
   "non-sargable-predicate": "Index issues",
   "exploding-join": "Join issues",
+  // Episode 32 — Snowflake structural CartesianJoin classification.
+  "cartesian-join": "Join issues",
+  "aggregation-hotspot": "Aggregation issues",
+  "window-hotspot": "Window issues",
+  // Story 32.5 — same bucket as the other sort-spill rules (sort-disk/
+  // sort-large/sqlserver-sort-spill) since it's a Sort-specific finding,
+  // not a new category, even though its trigger can be time-only.
+  "sort-hotspot": "Spill issues",
   "bad-row-estimate": "Estimate issues",
   "disk-spill": "Spill issues",
   "buffer-cache-inefficiency": "I/O issues",
@@ -119,5 +129,7 @@ export const FINDING_CATEGORY_ORDER: FindingCategory[] = [
   "Planning issues",
   "Caching issues",
   "Partition issues",
+  "Aggregation issues",
+  "Window issues",
   "General notes",
 ]

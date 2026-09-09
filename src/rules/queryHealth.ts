@@ -15,6 +15,8 @@
 import { collectNodes, type PlanNode } from "../parsers/normalize"
 import type { PlanContext } from "./types"
 import { collectAllFindings } from "./findings"
+import { JOIN_OPERATOR_TYPES } from "./explodingJoin"
+import { isOverallMaterial } from "./snowflakeTimeBreakdownDetail"
 import { dedupeByFamily, ruleFamily, type Finding } from "./summarize"
 
 export type QueryHealthDimension = "runtime" | "cardinality" | "memory" | "io" | "parallelism"
@@ -108,6 +110,11 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     "execution-mode",
     // Episode 31 — Snowflake, same always-info/mapped-anyway pattern.
     "dominant-time-component",
+    // Episode 32 — Snowflake, mostly-info time-share finding (can escalate
+    // to warning at extreme volume — see snowflakeAggregationHotspot.ts).
+    "aggregation-hotspot",
+    // Episode 32 — same mostly-info time-share pattern as aggregation-hotspot.
+    "window-hotspot",
   ],
   cardinality: [
     "bad-row-estimate",
@@ -127,6 +134,9 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     // missing-index-opportunity (access-efficiency, not caching).
     "poor-partition-pruning",
     "large-scan-volume",
+    // Episode 32 — Snowflake, same dimension as exploding-join (a
+    // structural-classification specialization of it, not a new family).
+    "cartesian-join",
   ],
   memory: [
     "disk-spill",
@@ -153,6 +163,14 @@ const DIMENSION_RULE_FAMILIES: Record<QueryHealthDimension, string[]> = {
     // spill rules above.
     "remote-spill",
     "local-spill",
+    // Episode 32 — Snowflake Sort-specific enrichment of the same family;
+    // can also fire on time-only evidence with no spill at all (see
+    // isDimensionEligible's own memory case below, which already covers
+    // this via node.spill presence for the spill-triggered case — the
+    // time-only case has no memory-dimension signal of its own to add,
+    // consistent with this being a Sort-specific rule, not a new source
+    // of "did memory pressure exist" evidence).
+    "sort-hotspot",
   ],
   io: [
     "buffer-cache-inefficiency",
@@ -199,7 +217,22 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
       // already caught once — Snowflake's own pruning/bytesScanned data is
       // an independent, equally-real source of cardinality-dimension
       // evidence for this engine.
-      return nodes.some((n) => n.estimatedRows !== undefined || n.pruning !== undefined || n.io?.bytesScanned !== undefined)
+      //
+      // Episode 32 — `exploding-join`/`cartesian-join` are real
+      // cardinality-dimension findings that fire purely off `actualRows`
+      // (Snowflake has no `estimatedRows` at all — see above — so nothing
+      // to compare against exists). Without this clause, a plan whose only
+      // cardinality evidence is a join node's own actual row counts (no
+      // scan pruning/bytes-scanned anywhere) would read "insufficient
+      // data" despite carrying one of those real, scored findings — same
+      // eligibility-gap class this file has now caught 4 times.
+      return nodes.some(
+        (n) =>
+          n.estimatedRows !== undefined ||
+          n.pruning !== undefined ||
+          n.io?.bytesScanned !== undefined ||
+          (JOIN_OPERATOR_TYPES.has(n.operatorType) && n.actualRows !== undefined),
+      )
     case "memory":
       // The parser attempted spill detection for this node at all
       // (`SpillInfo` present), regardless of whether it actually spilled —
@@ -214,7 +247,16 @@ function isDimensionEligible(dimension: QueryHealthDimension, nodes: PlanNode[],
       // for it — exactly the "a plan could carry a finding and still show
       // a misleadingly clean [dimension]" failure this file's own header
       // comment warns against.
-      return nodes.some((n) => n.spill !== undefined || n.memoryGrant !== undefined)
+      //
+      // Episode 32 — `sort-hotspot` can fire on Snowflake purely from time
+      // share, with NO spill data at all (a Sort can be expensive without
+      // ever spilling — see snowflakeSortHotspot.ts's own header comment).
+      // Without recognizing that time-only trigger here, a plan whose only
+      // memory-dimension evidence is a non-spilling Sort's time share would
+      // read "insufficient data" despite carrying that real, scored
+      // finding — same eligibility-gap class this file has now caught 5
+      // times.
+      return nodes.some((n) => n.spill !== undefined || n.memoryGrant !== undefined || (n.engine === "snowflake" && (n.operatorType === "sort" || n.operatorType === "sort_with_limit") && isOverallMaterial(n.timeBreakdown)))
     case "io":
       // Episode 31 — `networkCommunicationPercentage` is an independent
       // io-dimension signal for Snowflake (`network-time-dominant`'s own

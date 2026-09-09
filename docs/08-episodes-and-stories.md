@@ -2125,3 +2125,120 @@ As a developer reading a Snowflake plan, I want a plain-language summary of wher
 | Overlap with 31.3/31.4's own findings | This info-tier insight can and should coexist with a warning-tier finding on the same node | No suppression — both can fire together, at different severities, for different purposes |
 
 Registered in `ALL_RULES`, `"General notes"` category (always-info), `runtime` Query Health dimension.
+
+## Episode 32 — Snowflake Join & Analytical Operator Reasoning
+
+Parser check performed first, same premise as Episodes 30/31: `operatorMap.ts` already maps Snowflake's generic `Join` to `operatorType: "join"` and the distinct `CartesianJoin` to `"cartesian_join"`; `Aggregate`, `Sort`, `SortWithLimit`, and `WindowFunction` were all already mapped too. `buildTree.ts` already populates `actualRows` (from `output_rows`) for every node type, including joins/aggregates/windows/sorts. **No new parser work needed for any of the 5 stories below** — "input rows" for any operator is derived the same way `explodingJoin.ts` already does it, by reading each child's own `actualRows`.
+
+**Real eligibility gaps found and fixed while building this** (the same class of bug caught in Episodes 29–31, now the 5th and 6th instance): `queryHealth.ts`'s `cardinality` dimension eligibility didn't recognize join-derived `actualRows` evidence at all — a plan whose only cardinality signal was an `exploding-join`/`cartesian-join` finding (no scan pruning or bytes-scanned data anywhere) would have scored "insufficient data" despite carrying a real, scored finding. Separately, the `memory` dimension didn't recognize that `sort-hotspot` can fire on Snowflake purely from time share with **no spill at all** — a non-spilling but slow Sort would have hit the same "insufficient data" false negative. Both fixed, each covered by a dedicated eligibility test.
+
+### Story 32.1 — Exploding join refinement (Snowflake enrichment)
+
+As a developer reading a Snowflake plan, I want an exploding-join finding on a generic `Join` operator to say plainly that Snowflake's own output doesn't reveal which physical algorithm ran, so that I never walk away assuming "Join" secretly means "Hash Join" just because that's the mental model from other engines.
+
+**Acceptance criteria**
+- Not a new rule — `explodingJoin.ts`'s existing `JOIN_OPERATOR_TYPES` set already included Snowflake's `"join"`/`"cartesian_join"`, and the rule already used `node.rawOperatorLabel` (the genuine engine string) rather than a fabricated label, so it never actually mislabeled anything. The gap was a missing explicit disclosure, not a mislabeling bug.
+- `longText` now uses "input cardinality"/"output cardinality" vocabulary (this story's own requested wording) for the row-count mentions.
+- A new Snowflake-only sentence, added ONLY when `engine === "snowflake" && operatorType === "join"` (the ambiguous generic case — `cartesian_join` already has an unambiguous name, nothing to disclose there), states plainly that Snowflake's plan doesn't reveal the physical join algorithm and that this is "not specifically a hash join or any other named algorithm" — naming "hash join" only to rule it out, never as an affirmative claim.
+
+**Testing approach**
+- Extended the existing `explodingJoin.test.ts` (5 original tests preserved) with 3 new tests: the Snowflake generic-join disclosure text is present and uses the cardinality vocabulary, with a regex guard (`/\bis (a |specifically a )?hash join\b/i`) confirming no affirmative "is a hash join" claim slips in; the disclosure is absent for `cartesian_join` (already unambiguous); the disclosure is absent entirely for a non-Snowflake join.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Naming "hash join" only to rule it out | A naive substring-ban test would wrongly fail honest negation text | Regex checks for the AFFIRMATIVE pattern specifically, not any mention of the phrase |
+| Snowflake `cartesian_join` | Its own operation name is already unambiguous | No algorithm-disclosure sentence added |
+| Postgres/SQL Server joins | Disclosure is Snowflake-specific | No "Snowflake" text appears at all |
+
+Registered in `ALL_RULES` (no change — enrichment of an existing rule), `"Join issues"` category, `cardinality` Query Health dimension (unchanged).
+
+### Story 32.2 — Cartesian join (explicit structural classification)
+
+As a developer reading a Snowflake plan, I want a dedicated finding when Snowflake's own plan explicitly classifies an operator as a Cartesian join, so that the alert is based on the engine's own structural fact, not an inference from how big the output happens to be.
+
+**Acceptance criteria**
+- New rule `cartesian-join`, `engine === "snowflake"` only, firing purely on `operatorType === "cartesian_join"` — Snowflake's own distinct `CartesianJoin` operation name — never on a ratio or output-volume inference (this story's own explicit instruction: "do not infer from output volume alone").
+- A minimal row floor (1,000 output rows) excludes a trivial, likely-intentional cross join (e.g. a handful of rows crossed against a small constant table) from generating its own finding — the structural fact is still true below the floor, it's just not worth flagging on its own.
+- `longText` explicitly states this is the engine's own classification, not a volume-based inference, and names both the legitimate case (an intentional cross join, e.g. generating combinations from a small reference set) and the more common accidental case (a missing/incorrect join condition).
+- Independent of, and coexists with, `exploding-join`'s existing ratio-based `critical` escalation for `cartesian_join` nodes — a small Cartesian join below the ratio threshold but above this rule's row floor now still gets its own structural finding even when `exploding-join` doesn't escalate.
+
+**Testing approach**
+- Unit tests via `makeNode`: fires above the row floor, does not fire below it, fires exactly at the floor, does not fire on a generic Snowflake `join` regardless of output size (the core "structural evidence only" requirement), does not fire for a non-Snowflake engine even with `operatorType: "cartesian_join"`, includes input row counts from children when available, does not throw with missing row data, does not fire on a non-join operator.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A generic Snowflake `join` with a huge output | This story's own core instruction against volume-based inference | Never fires — only the explicit `cartesian_join` operator type qualifies |
+| A tiny, likely-intentional cross join | Not every Cartesian join is a mistake | Row floor (1,000) excludes trivial cases from their own finding |
+| Non-Snowflake engine reporting `cartesian_join` | This rule is Snowflake-specific by design | Never fires |
+
+Registered in `ALL_RULES`, `"Join issues"` category, `cardinality` Query Health dimension (required an eligibility fix — see this episode's header note).
+
+### Story 32.3 — Expensive aggregation
+
+As a developer reading a Snowflake plan, I want to know when substantial runtime was spent aggregating an extremely large intermediate set, so that I have a data point about where the query's time actually went — without being told a large, necessary aggregation is automatically wrong.
+
+**Acceptance criteria**
+- New rule `aggregation-hotspot`, `engine === "snowflake"` only, `operatorType === "aggregate"`.
+- Dual-gated on input rows (max of children's own `actualRows`, ≥ 10,000,000) AND time share (`timeBreakdown.overallPercentage` material, via the existing shared `isOverallMaterial`/`MATERIAL_OVERALL_PERCENTAGE_THRESHOLD` from `snowflakeTimeBreakdownDetail.ts`) — both input volume and time share, per this story's own instruction to analyze input rows, output rows, and time share together.
+- Severity defaults to `info` ("mostly informational initially," this story's own instruction) and escalates to `warning` only at a combination of extreme input volume (≥ 100,000,000 rows) AND heavy time share (≥ 20%) — both together, not either alone.
+- `longText` mentions the output row count and the input-to-output reduction ratio when available, and explicitly states that a large necessary aggregation isn't automatically a problem.
+
+**Testing approach**
+- Unit tests via `makeNode`: fires as `info` at the base dual-gate, escalates to `warning` only when both extreme thresholds are met together, stays `info` at huge input rows but insufficient time share, no-fire below either base threshold, no-fire on a non-aggregate operator, no-fire on a non-Snowflake engine, no-throw with missing child row data, reduction-ratio text present when output rows are known.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Huge input rows but low time share | Story's own instruction: analyze time share too, not rows alone | Dual-gate excludes it |
+| Material time share but modest input rows | A time-share-heavy but small aggregation isn't "an extremely large intermediate set" | Dual-gate excludes it |
+| Extreme input rows AND heavy time share together | The story's own "substantial runtime... extremely large" combined case | Escalates to `warning` |
+
+Registered in `ALL_RULES`, `"Aggregation issues"` category (new), `runtime` Query Health dimension (same bucket as `dominant-time-component` — a mostly-info time-share family).
+
+### Story 32.4 — Window operator hotspot
+
+As a developer reading a Snowflake plan, I want to know when a Window operator is genuinely expensive, with recommendations that fit how Snowflake actually works, so that I'm not pointed at "add an index" for something that has no index to add.
+
+**Acceptance criteria**
+- New rule `window-hotspot`, `engine === "snowflake"` only, `operatorType === "window_agg"`.
+- Same dual-gate shape as 32.3 (max input rows ≥ 5,000,000 AND material overall time share), reusing the same `snowflakeTimeBreakdownDetail.ts` helpers.
+- Severity `info` by default, escalating to `warning` at ≥ 20% overall time share.
+- `longText` explicitly recommends: reducing upstream row volume (a more selective filter before the window runs), simplifying the window definition (fewer/narrower windows, combining ones sharing the same PARTITION BY/ORDER BY), and examining the partition and order keys — this story's own three required angles.
+- `longText` explicitly states Snowflake has no index to add for a window function, so there's no "missing index" fix here — this story's own explicit instruction against pretending traditional indexing applies.
+
+**Testing approach**
+- Unit tests via `makeNode`: fires as `info` at the base dual-gate, escalates to `warning` at the time-share threshold, no-fire below either base threshold, no-fire on a non-window operator, no-fire on a non-Snowflake engine, no-throw with missing child row data, and a dedicated text-content test asserting all three required recommendation angles are present AND that no "add an index" language appears anywhere.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Recommending an index | Windows have no index to add on Snowflake | `longText` explicitly states this, asserted by a negative-match test |
+| Huge input but trivial time share | Not genuinely expensive in absolute terms | Dual-gate excludes it |
+| Missing all three recommendation angles | This story's own explicit requirement | Test asserts all three phrases are present |
+
+Registered in `ALL_RULES`, `"Window issues"` category (new), `runtime` Query Health dimension.
+
+### Story 32.5 — Sort hotspot
+
+As a developer reading a Snowflake plan, I want a Snowflake-specific analysis of an expensive Sort, based on real time or spill evidence, so that the explanation matches how Snowflake actually manages memory — not a `work_mem` setting that doesn't exist on this engine.
+
+**Acceptance criteria**
+- New rule `sort-hotspot`, `engine === "snowflake"` only, `operatorType` in `{"sort", "sort_with_limit"}`.
+- Fires on EITHER kind of evidence — material overall time share (via `isOverallMaterial`) OR local/remote spill bytes present (reusing `snowflakeSpillDetail.ts`'s existing byte-severity tiers directly, remote checked first since it's judged worse at the same byte count) — a Sort can be expensive by either route.
+- Severity follows the spill byte tier when a spill occurred; time-only evidence (no spill) stays `info`.
+- Layers on top of the engine-agnostic `disk-spill`/`remote-spill`/`local-spill` rather than replacing them, the same pattern `sqlServerSortSpill.ts` established for SQL Server's own Sort-specific enrichment.
+- `longText` never uses "work_mem" (this story's own explicit instruction) — instead names Snowflake's actual memory lever (warehouse size, not a per-query setting) and recommends reducing row/column volume, sorting fewer/narrower columns, or tightening a LIMIT for a top-N sort, framing a larger warehouse as one possible angle rather than the prescribed fix.
+
+**Testing approach**
+- Unit tests via `makeNode`: fires as `info` on time-only evidence, escalates on local spill crossing its warning floor, escalates further on an equivalent-or-smaller remote spill (comparative severity), reaches `critical` at the remote critical floor, applies equally to `sort_with_limit`, no-fire below both floors together, no-fire on a non-sort operator, no-fire on a non-Snowflake engine, an explicit lowercase-text check that "work_mem" never appears, no-throw with no time or spill data at all.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| A non-spilling but slow Sort | Time alone is real evidence, not just spill | Fires as `info` on time evidence alone |
+| Small spill bytes below either severity floor, no material time | Neither piece of evidence is actually substantial | No finding |
+| Using `work_mem` wording | This story's own explicit instruction against it | Never appears — memory framed as warehouse size instead |
+
+Registered in `ALL_RULES`, `"Spill issues"` category (same bucket as the other sort-spill rules), `memory` Query Health dimension (required an eligibility fix for the time-only, no-spill trigger path — see this episode's header note).
