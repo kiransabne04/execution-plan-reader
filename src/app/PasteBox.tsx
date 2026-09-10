@@ -50,13 +50,21 @@ function readFileAsText(file: File): Promise<string> {
  * privacy-architecture skill).
  *
  * Design review (post-Episode 19): reorganized to match the reference
- * mock — a compact drop target that collapses to a one-line "pasted · N
- * lines" summary once there's content (so a loaded plan doesn't leave a
- * wall of raw JSON sitting in the rail), and the Analyze button promoted
- * to sit directly under the input. The collapse is a pure CSS visibility
+ * mock — a drop target that collapses to a one-line "pasted · N lines"
+ * summary once there's content (so a loaded plan doesn't leave a wall of
+ * raw JSON sitting in the rail), and the Analyze button promoted to sit
+ * directly under the input. The collapse is a pure CSS visibility
  * toggle, not a conditional unmount — the textarea (and its
  * `paste-textarea` test id/value) stays in the DOM either way, so drag/drop
  * and the file picker below still target the same element.
+ *
+ * User-directed correction (post-launch): the mock's own empty state had
+ * this collapse to a single-row sliver (matching the dropzone bar's
+ * footprint exactly) — pasting into it still worked, but visually it gave
+ * no invitation to paste at all. The empty state now keeps a real, small
+ * but visible box (same `min-height` as the filled state — see
+ * `planReaderPage.css`'s own comment on `.paste-box__textarea:placeholder-shown`)
+ * instead of collapsing to near-zero.
  *
  * The mock has nothing below the short privacy line — no caveat text, no
  * "don't save"/"clear saved data" controls. Those stay (Episode 17, Story
@@ -228,7 +236,7 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
           onDragOver={handleDragOver}
           onDragLeave={() => setIsDraggingOver(false)}
           placeholder="Drop a .json, .xml, .sqlplan, or .txt file, or paste it here."
-          rows={text.length === 0 ? 1 : 12}
+          rows={text.length === 0 ? 4 : 12}
           aria-label="Paste your execution plan"
         />
 

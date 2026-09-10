@@ -412,14 +412,20 @@
   transition: border-color 0.1s ease;
 }
 
-/* The empty state: a compact single row matching the dropzone overlay's
-   own footprint (above) exactly, so the two read as one element — its
-   own border/background go transparent since the overlay already draws
+/* The empty state: kept genuinely paste-able — a real, visible box (same
+   min-height as the filled state below, not a near-zero sliver) rather
+   than a one-line bar that reads as "nowhere to paste" until you already
+   know to click it (user-reported UX gap: pasting worked, but the empty
+   state gave no visual invitation to do it). The dropzone overlay (above)
+   still draws the dashed border/"Drop ... or browse" content on top of
+   this same footprint — `align-items: center` on that overlay centers it
+   within the taller box instead of pinning it to one thin row. Own
+   border/background stay transparent since the overlay already draws
    them; `::placeholder` (below) hides the native hint text the same way,
    since the overlay's decorative text carries it visually instead. */
 .paste-box__textarea:placeholder-shown {
-  min-height: 0;
-  padding: 10px;
+  min-height: 96px;
+  padding: 12px;
   border-color: transparent;
   background: transparent;
   font-family:
