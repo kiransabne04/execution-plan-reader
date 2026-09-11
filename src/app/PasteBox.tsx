@@ -177,6 +177,17 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
               // textarea:placeholder-shown), so the drag-over cue has to
               // render on the overlay itself instead, or it'd be invisible.
               text.length === 0 && isDraggingOver && "paste-box__dropzone--drag-over",
+              // User-directed (temporary): hide the "Drop ... or browse"
+              // bar visually for the truly-empty state — the textarea's own
+              // native placeholder now carries that guidance instead (see
+              // below). Kept RENDERED (not unmounted) rather than removed
+              // outright: drag-and-drop still needs no help (the textarea's
+              // own handlers, below, are independent of this overlay), and
+              // the hidden file input/"browse" label stay reachable by
+              // their existing test ids — this is a visibility change, not
+              // a feature removal, and a future pass can bring the visible
+              // affordance back without re-plumbing anything.
+              text.length === 0 && "paste-box__dropzone--hidden-for-now",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -235,7 +246,7 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={() => setIsDraggingOver(false)}
-          placeholder="Drop a .json, .xml, .sqlplan, or .txt file, or paste it here."
+          placeholder="Paste your execution plan here."
           rows={text.length === 0 ? 4 : 12}
           aria-label="Paste your execution plan"
         />

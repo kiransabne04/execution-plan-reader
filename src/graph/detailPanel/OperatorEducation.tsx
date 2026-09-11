@@ -1,4 +1,4 @@
-import { memo, useState } from "react"
+import { memo, useLayoutEffect, useRef, useState } from "react"
 import { CaretRight, Check, GraduationCap, Warning as WarningIcon } from "@phosphor-icons/react"
 import type { PlanNode } from "../../parsers/normalize"
 import { getGlossaryEntry, getGlossaryFallback } from "../glossary"
@@ -62,6 +62,55 @@ function ExpertEducationDisclosure({ displayName, shortDefinition }: { displayNa
         </div>
       )}
     </section>
+  )
+}
+
+/** User-directed: Beginner mode's "What this operator does" paragraph
+ * (`entry.longDefinition`) can run long for some operators — clamped to 6
+ * lines by default, with a "Read more"/"Show less" toggle (styled as a
+ * plain text link, not a button-looking button) that only appears when
+ * the text actually overflows that clamp. `scrollHeight > clientHeight`
+ * on the clamped element is the real signal for "this text is genuinely
+ * being cut off" — never guessed from a character/word count, which would
+ * be wrong across different container widths/font sizes. Measured only
+ * while collapsed (the clamp CSS is what creates the overflow to detect);
+ * once expanded, the toggle's own presence already proves overflow was
+ * real, so there's nothing left to (re-)measure. Callers should mount this
+ * with `key={node.id}` so switching to a different node's text starts
+ * fresh (collapsed, re-measured) rather than carrying over the previous
+ * node's expanded/canExpand state. */
+function ExpandableLongDefinition({ text }: { text: string }) {
+  const paragraphRef = useRef<HTMLParagraphElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [canExpand, setCanExpand] = useState(false)
+
+  useLayoutEffect(() => {
+    if (expanded) return
+    const el = paragraphRef.current
+    if (!el) return
+    setCanExpand(el.scrollHeight > el.clientHeight + 1)
+  }, [text, expanded])
+
+  return (
+    <>
+      <p
+        ref={paragraphRef}
+        className={expanded ? "detail-panel__education-text" : "detail-panel__education-text detail-panel__education-text--clamped"}
+      >
+        {text}
+      </p>
+      {canExpand && (
+        <button
+          type="button"
+          className="detail-panel__education-readmore"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          data-testid="operator-education-readmore"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </>
   )
 }
 
@@ -132,7 +181,7 @@ function OperatorEducationInner({ node, expertMode }: OperatorEducationProps) {
       <section className="detail-panel__section" data-testid="operator-education-what">
         <EducationHeading>What this operator does</EducationHeading>
         <div className="detail-panel__education">
-          <p>{entry.longDefinition}</p>
+          <ExpandableLongDefinition key={node.id} text={entry.longDefinition} />
           <ul className="detail-panel__education-bullets">
             {/* Design tokens spec: "Phosphor, regular weight, fill only
                 for the brand mark" — the mockup's own saved source uses
