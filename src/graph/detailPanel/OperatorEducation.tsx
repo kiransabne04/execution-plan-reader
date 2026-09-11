@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useRef, useState } from "react"
+import { memo, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { CaretRight, Check, GraduationCap, Warning as WarningIcon } from "@phosphor-icons/react"
 import type { PlanNode } from "../../parsers/normalize"
 import { getGlossaryEntry, getGlossaryFallback } from "../glossary"
@@ -65,40 +65,62 @@ function ExpertEducationDisclosure({ displayName, shortDefinition }: { displayNa
   )
 }
 
-/** User-directed: Beginner mode's "What this operator does" paragraph
- * (`entry.longDefinition`) can run long for some operators — clamped to 6
- * lines by default, with a "Read more"/"Show less" toggle (styled as a
- * plain text link, not a button-looking button) that only appears when
- * the text actually overflows that clamp. `scrollHeight > clientHeight`
- * on the clamped element is the real signal for "this text is genuinely
- * being cut off" — never guessed from a character/word count, which would
- * be wrong across different container widths/font sizes. Measured only
- * while collapsed (the clamp CSS is what creates the overflow to detect);
- * once expanded, the toggle's own presence already proves overflow was
- * real, so there's nothing left to (re-)measure. Callers should mount this
- * with `key={node.id}` so switching to a different node's text starts
- * fresh (collapsed, re-measured) rather than carrying over the previous
- * node's expanded/canExpand state. */
-function ExpandableLongDefinition({ text }: { text: string }) {
-  const paragraphRef = useRef<HTMLParagraphElement>(null)
+/** User-directed: the WHOLE "What this operator does" body (not just the
+ * long-definition paragraph) collapses behind a single "Read more"/"Show
+ * less" toggle (styled as a plain text link, not a button-looking
+ * button) — the needed-details bullets (`whenItsFine`/`whenToLookCloser`)
+ * AND the full prose definition are both inside the same collapsible
+ * region, so collapsing genuinely hides everything past the first ~6
+ * lines' worth of content, not just the prose paragraph on its own.
+ *
+ * Height-based clamping (`max-height` + `overflow: hidden`), not CSS
+ * `line-clamp`: `line-clamp` only truncates a single run of text
+ * cleanly — it doesn't handle mixed content (icons, a `<ul>`, multiple
+ * paragraphs) predictably, and this body is exactly that mix now that the
+ * bullets sit above the definition. `COLLAPSED_MAX_HEIGHT_PX` is a
+ * deliberate approximation of "about 6 lines" for this mixed content
+ * (plain text alone would be ~6 × 19.5px line-height ≈ 117px; a little
+ * extra accounts for the bullets' own icon alignment/gaps), not an exact
+ * line count the way a single clamped paragraph could claim.
+ *
+ * `scrollHeight > clientHeight` on the clamped wrapper is the real signal
+ * for "this content is genuinely being cut off" — never guessed from a
+ * character/word count, which would be wrong across different container
+ * widths/font sizes or content mixes. Measured once, at mount, while
+ * still collapsed (the clamp is what creates the overflow to detect) —
+ * toggling back to collapsed later doesn't need re-measuring, since the
+ * toggle's own presence already proved overflow was real. Callers should
+ * mount this with `key={node.id}` so switching to a different node's
+ * content starts fresh (collapsed, re-measured) rather than carrying over
+ * the previous node's expanded/canExpand state. */
+const COLLAPSED_MAX_HEIGHT_PX = 132
+
+function ExpandableEducationBody({ children }: { children: ReactNode }) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [canExpand, setCanExpand] = useState(false)
 
   useLayoutEffect(() => {
-    if (expanded) return
-    const el = paragraphRef.current
+    const el = wrapperRef.current
     if (!el) return
     setCanExpand(el.scrollHeight > el.clientHeight + 1)
-  }, [text, expanded])
+    // Measure once, right after this fresh mount (see this component's
+    // own doc comment on why `expanded` toggling later never needs a
+    // second measurement) — the empty deps array is deliberate, not an
+    // oversight; adding `expanded` here would re-measure a now-unclamped
+    // (and therefore never-overflowing) element and silently erase a
+    // correctly-detected `canExpand`.
+  }, [])
 
   return (
     <>
-      <p
-        ref={paragraphRef}
-        className={expanded ? "detail-panel__education-text" : "detail-panel__education-text detail-panel__education-text--clamped"}
+      <div
+        ref={wrapperRef}
+        className={expanded ? "detail-panel__education-body" : "detail-panel__education-body detail-panel__education-body--clamped"}
+        style={expanded ? undefined : { maxHeight: COLLAPSED_MAX_HEIGHT_PX }}
       >
-        {text}
-      </p>
+        {children}
+      </div>
       {canExpand && (
         <button
           type="button"
@@ -138,11 +160,12 @@ function ExpandableLongDefinition({ text }: { text: string }) {
  *
  * Design review (downloaded "beginner overlay details" PNG): the mockup
  * merges what used to be two boxes ("What this operator does" and a
- * separate "In general") into ONE card — long definition, then
- * `whenItsFine`/`whenToLookCloser` as a green-check / amber-warning
- * bullet pair instead of two plain paragraphs, closed with a small
- * "General education — not a finding about your node." caption
- * (`operator-education-general` as a distinct testid is gone; the
+ * separate "In general") into ONE card — `whenItsFine`/`whenToLookCloser`
+ * as a green-check / amber-warning bullet pair, then the long definition
+ * (user-directed reorder: the actionable verdict first, the fuller prose
+ * after it — see `ExpandableEducationBody`'s own doc comment), closed
+ * with a small "General education — not a finding about your node."
+ * caption (`operator-education-general` as a distinct testid is gone; the
  * content lives inside `operator-education-what` now). Heading text
  * stays the existing generic "What this operator does" rather than the
  * mockup's own dynamic "WHAT A SEQUENTIAL SCAN IS" — building a
@@ -181,20 +204,29 @@ function OperatorEducationInner({ node, expertMode }: OperatorEducationProps) {
       <section className="detail-panel__section" data-testid="operator-education-what">
         <EducationHeading>What this operator does</EducationHeading>
         <div className="detail-panel__education">
-          <ExpandableLongDefinition key={node.id} text={entry.longDefinition} />
-          <ul className="detail-panel__education-bullets">
-            {/* Design tokens spec: "Phosphor, regular weight, fill only
-                for the brand mark" — the mockup's own saved source uses
-                plain `ph-check`/`ph-warning` (regular), not bold/fill. */}
-            <li className="detail-panel__education-bullet detail-panel__education-bullet--fine">
-              <Check aria-hidden="true" />
-              <span>{entry.whenItsFine}</span>
-            </li>
-            <li className="detail-panel__education-bullet detail-panel__education-bullet--warning">
-              <WarningIcon aria-hidden="true" />
-              <span>{entry.whenToLookCloser}</span>
-            </li>
-          </ul>
+          {/* User-directed reorder: the needed-details bullets (is this
+              fine, or worth a second look) come FIRST — a beginner
+              skimming wants that verdict before the fuller prose
+              definition below it, not after. Both live inside the same
+              collapsible body (see ExpandableEducationBody's own doc
+              comment) so "Read more" reveals the whole rest of the
+              section, not just the paragraph. */}
+          <ExpandableEducationBody key={node.id}>
+            <ul className="detail-panel__education-bullets">
+              {/* Design tokens spec: "Phosphor, regular weight, fill only
+                  for the brand mark" — the mockup's own saved source uses
+                  plain `ph-check`/`ph-warning` (regular), not bold/fill. */}
+              <li className="detail-panel__education-bullet detail-panel__education-bullet--fine">
+                <Check aria-hidden="true" />
+                <span>{entry.whenItsFine}</span>
+              </li>
+              <li className="detail-panel__education-bullet detail-panel__education-bullet--warning">
+                <WarningIcon aria-hidden="true" />
+                <span>{entry.whenToLookCloser}</span>
+              </li>
+            </ul>
+            <p className="detail-panel__education-text">{entry.longDefinition}</p>
+          </ExpandableEducationBody>
           <p className="detail-panel__education-caption">General education — not a finding about your node.</p>
         </div>
       </section>

@@ -358,23 +358,29 @@
   color: var(--dp-finding-warning-text);
 }
 
-/* User-directed: Beginner mode's long operator definition clamps to 6
-   lines by default — `line-clamp`/`-webkit-line-clamp` is the only way to
-   cap a paragraph at a LINE count (not a character count, which would be
-   wrong across different widths/font sizes) without JS measuring and
-   re-slicing the text itself. `OperatorEducation.tsx`'s own
-   `ExpandableLongDefinition` only shows the "Read more" toggle when this
-   clamp is actually cutting the text off (a real `scrollHeight >
-   clientHeight` measurement), never merely because the text is present. */
 .detail-panel__education-text {
-  margin: 0;
+  margin: 10px 0 0;
 }
 
-.detail-panel__education-text--clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
+/* User-directed: the WHOLE Beginner-mode "What this operator does" body
+   (needed-details bullets AND the prose definition together, not the
+   paragraph alone) clamps to about 6 lines' worth of height by default.
+   A `max-height` clamp (set inline by `OperatorEducation.tsx`'s own
+   `ExpandableEducationBody`, `COLLAPSED_MAX_HEIGHT_PX`), not CSS
+   `line-clamp` — `line-clamp` only handles a single run of text
+   predictably, not this mix of a `<ul>` plus a paragraph. The fade
+   (`mask-image`) signals "there's more below" the same way
+   `PasteBox.tsx`'s own collapsed-summary preview already does, rather
+   than an abrupt hard cutoff. `ExpandableEducationBody` only shows the
+   "Read more" toggle when this clamp is actually cutting content off (a
+   real `scrollHeight > clientHeight` measurement), never merely because
+   the section has content. */
+.detail-panel__education-body {
   overflow: hidden;
+}
+
+.detail-panel__education-body--clamped {
+  mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent 100%);
 }
 
 /* Styled as a plain text link (no button chrome) per explicit instruction
