@@ -61,6 +61,20 @@ describe("PlanReaderPage", () => {
     expect(screen.queryByTestId("plan-node-card")).not.toBeInTheDocument()
   })
 
+  // User-directed SEO pass: the app's only `<h1>` — real, visible, only
+  // ever present in this same empty (no-plan-loaded) state, so it's purely
+  // additive and never competes with the working tool's own UI once a plan
+  // is pasted (see PlanReaderPage.tsx's own comment on this).
+  it("has exactly one real, visible <h1> in the empty state, and it's gone once a plan is analyzed", () => {
+    render(<PlanReaderPage />)
+    const headings = screen.getAllByRole("heading", { level: 1 })
+    expect(headings).toHaveLength(1)
+    expect(headings[0]).toHaveTextContent("Analyze PostgreSQL, SQL Server & Snowflake Execution Plans")
+
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0)
+  })
+
   it("shows a footer connecting the tool to Kiran's existing content, for first-time-visitor credibility", () => {
     render(<PlanReaderPage />)
     expect(screen.getByText(/scalingbackend/i)).toBeInTheDocument()

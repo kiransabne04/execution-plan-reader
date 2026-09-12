@@ -1,5 +1,7 @@
 # PlanReader — Landing Page Positioning Brief
 
+**Update (2026-09-12), user-directed SEO pass**: the meta title, meta description, and the schema.org `url`/`description` fields below were superseded by a later, more search-intent-targeted brief — see each section's own note. The hero headline/subheadline below are historical record of the Episode 8 brief for a hero component that no longer exists (Episode 19 retired the marketing hero — see `docs/BACKLOG-STATUS.md`'s Episode 19 entry). A real, current on-page `<h1>`/subheading pair — using NEW wording from that same SEO pass, not this section's original text — now exists in the app itself for the first time (`PlanReaderPage.tsx`'s empty first-load canvas state), closing this doc's own checklist item 1 below, which previously had no `<h1>` anywhere to satisfy it at all.
+
 ## The disambiguation problem
 
 "PlanReader" reads as generic outside a database context — it could plausibly be a financial-planning app, a document reader, a project-planning tool, or a fitness/meal-plan app. The pattern that generically-named dev tools use to solve this is consistent: front-load the *category* in the very first words a person or a crawler sees (hero headline, title tag, meta description), then use the subheadline to name the concrete input/output so intent is unambiguous within seconds — never rely on the name alone to carry meaning. The category noun ("execution plan") has to appear before any scroll, any click, and ideally before the fold.
@@ -18,17 +20,23 @@ This does three jobs at once: kills signup-friction anxiety immediately (the #1 
 
 ## Recommended meta title
 
-`PlanReader — Explain Any Database Execution Plan in Plain English`
+~~`PlanReader — Explain Any Database Execution Plan in Plain English`~~ — **superseded (2026-09-12)**:
 
-Kept under ~60 characters for search-result display, leads with the brand name (for people who already know it, e.g. return visitors or referral clicks) immediately followed by the category-clarifying phrase.
+`PostgreSQL, SQL Server & Snowflake Execution Plan Analyzer | PlanReader`
+
+Kept under ~60 characters for search-result display. The original brief above led with the brand name; this later, more deliberately search-intent-targeted version leads with the actual phrases people search ("postgres execution plan analyzer," "sql server execution plan analyzer," "snowflake query profile analyzer"), moving the brand name to the end — competitors were found to be putting these exact phrases in their own title/H1/content, giving search engines much clearer topical signals than a brand-first title does.
 
 ## Recommended meta description
 
-`Paste a raw Postgres, SQL Server, or Snowflake execution plan and get a free, plain-English explanation plus a visual node-graph — no signup, nothing stored.`
+~~`Paste a raw Postgres, SQL Server, or Snowflake execution plan and get a free, plain-English explanation plus a visual node-graph — no signup, nothing stored.`~~ — **superseded (2026-09-12)**:
+
+`Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis.`
 
 Under ~160 characters, repeats the engine names (people search "postgres explain plan visualizer" or "snowflake query profile explained" far more often than "PlanReader"), and states the privacy stance explicitly since that's a recurring trust concern found across every competitor's own docs and support content.
 
 ## Recommended schema.org structured data
+
+**`url` and `description` superseded (2026-09-12)**: `url` is now the canonical `https://www.planreader.dev` (the `www` host — apex `planreader.dev` 308-redirects to it; the SEO pass's own explicit instruction was to make `www` the one consistent canonical hostname everywhere, `<link rel="canonical">` included). `description` now matches the superseded-meta-description note above, for the same reason.
 
 ```json
 {
@@ -38,8 +46,8 @@ Under ~160 characters, repeats the engine names (people search "postgres explain
   "applicationCategory": "DeveloperApplication",
   "applicationSubCategory": "Database Performance Tool",
   "operatingSystem": "Any (web-based)",
-  "url": "https://planreader.dev",
-  "description": "A free, no-signup web tool that explains raw database execution plans (Postgres, SQL Server, Snowflake) in plain English, with an interactive node-graph visualization of the plan tree.",
+  "url": "https://www.planreader.dev",
+  "description": "Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis.",
   "offers": {
     "@type": "Offer",
     "price": "0",

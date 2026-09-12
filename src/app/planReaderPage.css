@@ -948,13 +948,39 @@
 .plan-shell__canvas--empty {
   align-items: center;
   justify-content: center;
+  flex-direction: column;
   border: 1px dashed var(--pr-border);
   border-radius: 8px;
 }
 
-.plan-shell__empty-placeholder {
+/* User-directed SEO addition — the page's only `<h1>`, real and visible
+   (not a hidden/off-screen trick), kept modest in size so it still reads
+   as part of a calm empty state rather than reintroducing the retired
+   marketing hero above. */
+.plan-shell__empty-heading {
+  margin: 0 0 8px;
+  padding: 0 24px;
+  max-width: 480px;
+  text-align: center;
+  color: var(--pr-text);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.plan-shell__empty-subheading {
   margin: 0;
-  padding: 24px;
+  padding: 0 24px;
+  max-width: 440px;
+  text-align: center;
+  color: var(--pr-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.plan-shell__empty-placeholder {
+  margin: 16px 0 0;
+  padding: 0 24px;
   text-align: center;
   color: var(--pr-text-muted);
   font-size: 14px;

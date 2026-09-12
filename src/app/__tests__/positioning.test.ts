@@ -21,14 +21,24 @@ function extractJsonLd(html: string): Record<string, unknown> {
 }
 
 describe("Episode 8 positioning: index.html matches the brief exactly", () => {
+  // User-directed SEO pass (2026-09-12) superseded the original Episode 8
+  // meta title/description and the schema.org `url`/`description` fields —
+  // see docs/05-landing-page-positioning.md's own "superseded" notes on
+  // each. These assertions were updated to match the new brief, which is
+  // now the actual regression guard, same as before.
   it("has the exact recommended meta title", () => {
-    expect(indexHtml).toContain("<title>PlanReader — Explain Any Database Execution Plan in Plain English</title>")
+    expect(indexHtml).toContain("<title>PostgreSQL, SQL Server &amp; Snowflake Execution Plan Analyzer | PlanReader</title>")
   })
 
   it("has the exact recommended meta description", () => {
     expect(indexHtml).toContain(
-      'content="Paste a raw Postgres, SQL Server, or Snowflake execution plan and get a free, plain-English explanation plus a visual node-graph — no signup, nothing stored."',
+      'content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis."',
     )
+  })
+
+  it("uses the canonical www host consistently — canonical link, og:url, and JSON-LD url all agree", () => {
+    expect(indexHtml).toContain('<link rel="canonical" href="https://www.planreader.dev/" />')
+    expect(indexHtml).toContain('<meta property="og:url" content="https://www.planreader.dev/" />')
   })
 
   it("has schema.org SoftwareApplication structured data matching the brief exactly", () => {
@@ -40,9 +50,9 @@ describe("Episode 8 positioning: index.html matches the brief exactly", () => {
       applicationCategory: "DeveloperApplication",
       applicationSubCategory: "Database Performance Tool",
       operatingSystem: "Any (web-based)",
-      url: "https://planreader.dev",
+      url: "https://www.planreader.dev",
       description:
-        "A free, no-signup web tool that explains raw database execution plans (Postgres, SQL Server, Snowflake) in plain English, with an interactive node-graph visualization of the plan tree.",
+        "Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis.",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       featureList: [
         "Plain-English explanation of execution plans",

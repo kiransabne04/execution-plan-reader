@@ -1028,8 +1028,19 @@ export function PlanReaderPage() {
               {!analyzed && (
                 // Episode 19's chosen empty state (confirmed with the user):
                 // a plain, honest placeholder — not the retired marketing
-                // hero, not a fabricated preview of the graph.
+                // hero, not a fabricated preview of the graph. User-directed
+                // SEO addition on top of that: this is the page's only real
+                // heading (there is no other `<h1>` anywhere in the app) and
+                // it only ever renders in this already-empty, no-plan-loaded
+                // state — purely additive, since a loaded plan replaces this
+                // whole block with the graph anyway. No change to the actual
+                // working tool's UI once a plan is pasted.
                 <main className="plan-shell__canvas plan-shell__canvas--empty" data-testid="plan-shell-canvas">
+                  <h1 className="plan-shell__empty-heading">Analyze PostgreSQL, SQL Server &amp; Snowflake Execution Plans</h1>
+                  <p className="plan-shell__empty-subheading">
+                    Find expensive scans, bad estimates, spills, inefficient joins, poor pruning and other performance
+                    problems — entirely in your browser.
+                  </p>
                   <p className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
                     Paste a plan on the left to see it visualized here.
                   </p>
