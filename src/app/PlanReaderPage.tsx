@@ -37,6 +37,7 @@ import { collectFindingsAcrossStatements } from "../rules/findings"
 import { computeQueryHealth } from "../rules/queryHealth"
 import { pickMetricValue, type MetricKey } from "../graph/encoding"
 import { loadExpertMode, saveExpertMode } from "./expertModePersistence"
+import { EMPTY_STATE_HEADING, EMPTY_STATE_SUBHEADING } from "./emptyStateCopy"
 import {
   saveSession,
   loadSession,
@@ -1034,13 +1035,13 @@ export function PlanReaderPage() {
                 // it only ever renders in this already-empty, no-plan-loaded
                 // state — purely additive, since a loaded plan replaces this
                 // whole block with the graph anyway. No change to the actual
-                // working tool's UI once a plan is pasted.
+                // working tool's UI once a plan is pasted. Text sourced from
+                // `emptyStateCopy.ts` — the same constants index.html's own
+                // static SEO snapshot is checked against, so the two can't
+                // silently drift apart (see that file's own comment).
                 <main className="plan-shell__canvas plan-shell__canvas--empty" data-testid="plan-shell-canvas">
-                  <h1 className="plan-shell__empty-heading">Analyze PostgreSQL, SQL Server &amp; Snowflake Execution Plans</h1>
-                  <p className="plan-shell__empty-subheading">
-                    Find expensive scans, bad estimates, spills, inefficient joins, poor pruning and other performance
-                    problems — entirely in your browser.
-                  </p>
+                  <h1 className="plan-shell__empty-heading">{EMPTY_STATE_HEADING}</h1>
+                  <p className="plan-shell__empty-subheading">{EMPTY_STATE_SUBHEADING}</p>
                   <p className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
                     Paste a plan on the left to see it visualized here.
                   </p>

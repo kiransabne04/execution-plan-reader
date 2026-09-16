@@ -20,6 +20,9 @@
     />
     <meta property="og:url" content="https://www.planreader.dev/" />
     <meta property="og:image" content="https://www.planreader.dev/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="PostgreSQL, SQL Server &amp; Snowflake Execution Plan Analyzer | PlanReader" />
@@ -59,9 +62,93 @@
         }
       }
     </script>
+
+    <!-- User-directed SEO follow-up: this is a 100% client-rendered SPA
+         (the privacy architecture depends on it — see
+         .claude/skills/privacy-architecture/SKILL.md). Without this block,
+         the raw HTML response is `<div id="root"></div>` and nothing
+         else — invisible to any crawler that doesn't execute JS (Google
+         generally does, on a delayed second render pass; Bing and most
+         other crawlers/bots often don't). This is a real, static snapshot
+         of the app's own empty (no-plan-loaded) state — same text
+         `PlanReaderPage.tsx` renders via `emptyStateCopy.ts`'s
+         constants, not fabricated placeholder copy — self-contained
+         (its own inline styles, no dependency on the app's own CSS
+         classes/bundle) so it can never silently break if those are
+         refactored. `main.tsx` clears this out of `#root` before
+         mounting the real app, so a JS-capable visitor never sees both
+         at once. `seoSnapshot.test.ts` asserts this block's text still
+         matches `emptyStateCopy.ts` exactly, so the two can't drift
+         apart unnoticed. -->
+    <style>
+      .seo-snapshot {
+        min-height: 100vh;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 48px 24px;
+        background: #0b0f19;
+        color: #e6e6f0;
+        font-family:
+          -apple-system,
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+        text-align: center;
+      }
+      .seo-snapshot__brand {
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: -0.01em;
+        color: #cfcbe8;
+      }
+      .seo-snapshot h1 {
+        margin: 0;
+        max-width: 720px;
+        font-size: 26px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+      .seo-snapshot p {
+        margin: 0;
+        max-width: 620px;
+        font-size: 15px;
+        line-height: 1.5;
+        color: #a9a6c2;
+      }
+      .seo-snapshot__footer {
+        margin-top: 16px;
+        font-size: 12px;
+        color: #6f6c88;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="seo-snapshot">
+        <span class="seo-snapshot__brand">PlanReader</span>
+        <h1>Analyze PostgreSQL, SQL Server &amp; Snowflake Execution Plans</h1>
+        <p>
+          Find expensive scans, bad estimates, spills, inefficient joins, poor pruning and other performance problems
+          — entirely in your browser.
+        </p>
+        <p>
+          Nothing you paste ever leaves your browser. Parsing, analysis, and rendering all run locally — no signup,
+          no server, no limit.
+        </p>
+        <p class="seo-snapshot__footer">
+          Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.
+        </p>
+      </div>
+    </div>
+    <noscript>
+      <p style="text-align: center; font-family: sans-serif; padding: 24px">
+        PlanReader needs JavaScript enabled to parse and visualize a pasted execution plan.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
