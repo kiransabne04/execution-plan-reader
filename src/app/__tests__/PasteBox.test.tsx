@@ -40,6 +40,16 @@ describe("PasteBox — Story 18.5", () => {
     expect(screen.getByTestId("paste-textarea")).toHaveValue("Seq Scan on users  (cost=0.00..1.00 rows=1 width=8)")
   })
 
+  it("file input accepts .sqlplan and a picked .sqlplan file is analyzed", async () => {
+    const { onAnalyze } = renderPasteBox()
+    expect(screen.getByTestId("file-picker-input")).toHaveAttribute("accept", expect.stringContaining(".sqlplan"))
+    const file = new File(["<ShowPlanXML/>"], "query.sqlplan", { type: "" })
+
+    fireEvent.change(screen.getByTestId("file-picker-input"), { target: { files: [file] } })
+
+    await waitFor(() => expect(onAnalyze).toHaveBeenCalledWith("<ShowPlanXML/>", "query.sqlplan"))
+  })
+
   it("dropping a file onto the textarea (the dropzone) reads and analyzes it the same way the file picker does", async () => {
     const { onAnalyze } = renderPasteBox()
     const file = new File(["dropped plan content"], "dropped.txt", { type: "text/plain" })
