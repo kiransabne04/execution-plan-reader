@@ -39,7 +39,6 @@ import { computeQueryHealth } from "../rules/queryHealth"
 import { pickMetricValue, type MetricKey } from "../graph/encoding"
 import { loadExpertMode, saveExpertMode } from "./expertModePersistence"
 import { EMPTY_STATE_SUBHEADING } from "./emptyStateCopy"
-import { LightHero } from "./LightHero"
 import { setShareLinkNoIndex } from "./robotsMeta"
 import { HomepageSections } from "./HomepageSections"
 import {
@@ -651,7 +650,6 @@ export function PlanReaderPage() {
     // the point of it existing at all).
     <>
       <main className="plan-reader-page">
-      {!analyzed && <LightHero />}
       {/* Episode 19: `.plan-shell` is now the app's only page — it renders
           unconditionally from first paint, not gated behind `analyzed` the
           way it was through Episode 18. Story 8.1's hero (headline/
