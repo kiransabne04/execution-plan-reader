@@ -1107,3 +1107,17 @@ describe("PlanReaderPage — standalone STATISTICS IO comparison", () => {
     expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
   })
 })
+
+describe("PlanReaderPage — light hero", () => {
+  it("shows one h1, engine badges and a sample link before a plan is loaded, and hides the hero after analyzing", () => {
+    render(<PlanReaderPage />)
+    const hero = screen.getByTestId("light-hero")
+    expect(within(hero).getByRole("heading", { level: 1 })).toHaveTextContent("Understand Your Database Execution Plan")
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1)
+    for (const engine of ["PostgreSQL", "SQL Server", "Snowflake"]) expect(within(hero).getByText(engine)).toBeInTheDocument()
+    expect(screen.getByTestId("hero-sample-link")).toBeInTheDocument()
+
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    expect(screen.queryByTestId("light-hero")).toBeNull()
+  })
+})

@@ -13,3 +13,10 @@ export const EMPTY_STATE_HEADING = "Understand Your Database Execution Plan"
 
 export const EMPTY_STATE_SUBHEADING =
   "Analyze PostgreSQL EXPLAIN plans, SQL Server Showplan XML and Snowflake operator profiles. Find expensive scans, bad estimates, spills, inefficient joins and other performance problems directly in your browser."
+
+// Light hero above the tool (empty state only) — one line, not a pitch. The
+// engine badges reuse the names from the supported-databases copy.
+export const HERO_TAGLINE =
+  "Free, no signup. Paste a plan for plain-English findings and an interactive graph — nothing leaves your browser."
+export const HERO_ENGINES = ["PostgreSQL", "SQL Server", "Snowflake"]
+export const HERO_SAMPLE_CTA = "Try a sample plan"

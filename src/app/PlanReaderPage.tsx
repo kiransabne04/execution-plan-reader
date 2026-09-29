@@ -38,7 +38,8 @@ import { collectFindingsAcrossStatements } from "../rules/findings"
 import { computeQueryHealth } from "../rules/queryHealth"
 import { pickMetricValue, type MetricKey } from "../graph/encoding"
 import { loadExpertMode, saveExpertMode } from "./expertModePersistence"
-import { EMPTY_STATE_HEADING, EMPTY_STATE_SUBHEADING } from "./emptyStateCopy"
+import { EMPTY_STATE_SUBHEADING } from "./emptyStateCopy"
+import { LightHero } from "./LightHero"
 import { setShareLinkNoIndex } from "./robotsMeta"
 import { HomepageSections } from "./HomepageSections"
 import {
@@ -650,6 +651,7 @@ export function PlanReaderPage() {
     // the point of it existing at all).
     <>
       <main className="plan-reader-page">
+      {!analyzed && <LightHero />}
       {/* Episode 19: `.plan-shell` is now the app's only page — it renders
           unconditionally from first paint, not gated behind `analyzed` the
           way it was through Episode 18. Story 8.1's hero (headline/
@@ -1069,7 +1071,6 @@ export function PlanReaderPage() {
                 // static SEO snapshot is checked against, so the two can't
                 // silently drift apart (see that file's own comment).
                 <main className="plan-shell__canvas plan-shell__canvas--empty" data-testid="plan-shell-canvas">
-                  <h1 className="plan-shell__empty-heading">{EMPTY_STATE_HEADING}</h1>
                   <p className="plan-shell__empty-subheading">{EMPTY_STATE_SUBHEADING}</p>
                   {ioOnlyMode ? (
                     <div className="plan-shell__io-standalone" data-testid="statistics-io-standalone">
