@@ -25,6 +25,20 @@ describe("recentPlans", () => {
     expect(list[1].text).toBe("plan A text")
   })
 
+  it("re-adding identical plan text keeps one entry instead of duplicating", async () => {
+    await addRecentPlan("same plan", { rootOperatorLabel: "Seq Scan", nodeCount: 1 })
+    await addRecentPlan("same plan", { rootOperatorLabel: "Seq Scan", nodeCount: 1 })
+    expect(await listRecentPlans()).toHaveLength(1)
+  })
+
+  it("plans differing only in whitespace count as the same plan", async () => {
+    await addRecentPlan("Seq Scan on  users\n  (cost=1)", { rootOperatorLabel: "Seq Scan", nodeCount: 1 })
+    await addRecentPlan("  Seq Scan on users (cost=1)\n", { rootOperatorLabel: "Seq Scan", nodeCount: 1 })
+    const list = await listRecentPlans()
+    expect(list).toHaveLength(1)
+    expect(list[0].text).toBe("  Seq Scan on users (cost=1)\n")
+  })
+
   it("caps at RECENT_PLANS_LIMIT, evicting the oldest entry on overflow", async () => {
     // A real user's saves are always naturally spaced out in time; a tight
     // synchronous loop like this test can otherwise tie on Date.now()'s

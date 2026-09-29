@@ -11,7 +11,7 @@ export const RECENT_PLANS_ENVELOPE_VERSION = 1
 
 /** Tunable, not hardcoded inline elsewhere — the oldest entry is evicted
  * once a new one would push the list past this. */
-export const RECENT_PLANS_LIMIT = 10
+export const RECENT_PLANS_LIMIT = 6
 
 export interface RecentPlanEntry {
   id: string
@@ -51,6 +51,10 @@ function isWellFormedEntry(value: unknown): value is RecentPlanEntry {
   )
 }
 
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ").trim()
+}
+
 export type AddRecentPlanResult = { ok: true } | { ok: false; reason: "quota_exceeded" | "unavailable" | "error" }
 
 /**
@@ -73,6 +77,17 @@ export async function addRecentPlan(
     nodeCount: meta.nodeCount,
     savedAt,
     label: buildLabel(meta.rootOperatorLabel, meta.nodeCount, savedAt),
+  }
+
+  // Distinct plans only: re-analyzing the same text (ignoring whitespace
+  // differences) replaces the older entry (so it moves to the top) instead
+  // of filling the list with copies. The original text is what's stored.
+  const normalized = normalizeWhitespace(rawText)
+  const existing = await getAllRecords<RecentPlanEntry>(RECENT_PLANS_STORE)
+  if (existing.ok) {
+    for (const dup of existing.value) {
+      if (isWellFormedEntry(dup) && normalizeWhitespace(dup.text) === normalized) await deleteRecord(RECENT_PLANS_STORE, dup.id)
+    }
   }
 
   const putResult = await putRecord(RECENT_PLANS_STORE, entry)
