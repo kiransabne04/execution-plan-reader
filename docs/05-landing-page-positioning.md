@@ -1,5 +1,7 @@
 # PlanReader — Landing Page Positioning Brief
 
+**Update (2026-09-17), Episode SEO-02 (Story 02.1/02.3), user-directed**: the meta title, meta description, and the on-page `<h1>`/subheading below were superseded again — see each section's own note. The schema.org type was also changed from `SoftwareApplication` to the more specific `WebApplication` (Story 02.3), keeping the same factual-only property set (no ratings/review/user/download counts were ever added).
+
 **Update (2026-09-12), user-directed SEO pass**: the meta title, meta description, and the schema.org `url`/`description` fields below were superseded by a later, more search-intent-targeted brief — see each section's own note. The hero headline/subheadline below are historical record of the Episode 8 brief for a hero component that no longer exists (Episode 19 retired the marketing hero — see `docs/BACKLOG-STATUS.md`'s Episode 19 entry). A real, current on-page `<h1>`/subheading pair — using NEW wording from that same SEO pass, not this section's original text — now exists in the app itself for the first time (`PlanReaderPage.tsx`'s empty first-load canvas state), closing this doc's own checklist item 1 below, which previously had no `<h1>` anywhere to satisfy it at all.
 
 ## The disambiguation problem
@@ -20,23 +22,37 @@ This does three jobs at once: kills signup-friction anxiety immediately (the #1 
 
 ## Recommended meta title
 
-~~`PlanReader — Explain Any Database Execution Plan in Plain English`~~ — **superseded (2026-09-12)**:
+~~`PlanReader — Explain Any Database Execution Plan in Plain English`~~ — ~~superseded (2026-09-12)~~:
 
-`PostgreSQL, SQL Server & Snowflake Execution Plan Analyzer | PlanReader`
+~~`PostgreSQL, SQL Server & Snowflake Execution Plan Analyzer | PlanReader`~~ — **superseded (2026-09-17, Story 02.1)**:
 
-Kept under ~60 characters for search-result display. The original brief above led with the brand name; this later, more deliberately search-intent-targeted version leads with the actual phrases people search ("postgres execution plan analyzer," "sql server execution plan analyzer," "snowflake query profile analyzer"), moving the brand name to the end — competitors were found to be putting these exact phrases in their own title/H1/content, giving search engines much clearer topical signals than a brand-first title does.
+`Execution Plan Analyzer for PostgreSQL, SQL Server & Snowflake | PlanReader`
+
+Still under ~60 characters, still leads with the search-intent phrase before the brand name. Reordered to put "Execution Plan Analyzer" first rather than the engine list, per Episode SEO-02's own brief — the category noun now leads the title, not just the description.
 
 ## Recommended meta description
 
-~~`Paste a raw Postgres, SQL Server, or Snowflake execution plan and get a free, plain-English explanation plus a visual node-graph — no signup, nothing stored.`~~ — **superseded (2026-09-12)**:
+~~`Paste a raw Postgres, SQL Server, or Snowflake execution plan and get a free, plain-English explanation plus a visual node-graph — no signup, nothing stored.`~~ — ~~superseded (2026-09-12)~~:
 
-`Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis.`
+~~`Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis.`~~ — **superseded (2026-09-17, Story 02.1)**:
 
-Under ~160 characters, repeats the engine names (people search "postgres explain plan visualizer" or "snowflake query profile explained" far more often than "PlanReader"), and states the privacy stance explicitly since that's a recurring trust concern found across every competitor's own docs and support content.
+`Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries with private, client-side analysis.`
+
+Same content as the 2026-09-12 version, merged into one sentence ("...slow queries with private, client-side analysis" instead of two separate sentences) per Episode SEO-02's exact brief text — still under ~160 characters, still repeats the engine names and states the privacy stance explicitly.
+
+## Recommended on-page H1 and supporting text (Story 02.1)
+
+**H1**: `Understand Your Database Execution Plan`
+
+**Supporting text**: `Analyze PostgreSQL EXPLAIN plans, SQL Server Showplan XML and Snowflake operator profiles. Find expensive scans, bad estimates, spills, inefficient joins and other performance problems directly in your browser.`
+
+Supersedes the 2026-09-12 pair (`Analyze PostgreSQL, SQL Server & Snowflake Execution Plans` / `Find expensive scans, bad estimates, spills, inefficient joins, poor pruning and other performance problems — entirely in your browser.`). Implemented in `src/app/emptyStateCopy.ts`, rendered both by the real React empty state (`PlanReaderPage.tsx`) and the static SEO snapshot in `index.html`'s `#root` (`seoSnapshot.test.ts` is the drift guard between the two).
 
 ## Recommended schema.org structured data
 
 **`url` and `description` superseded (2026-09-12)**: `url` is now the canonical `https://www.planreader.dev` (the `www` host — apex `planreader.dev` 308-redirects to it; the SEO pass's own explicit instruction was to make `www` the one consistent canonical hostname everywhere, `<link rel="canonical">` included). `description` now matches the superseded-meta-description note above, for the same reason.
+
+**`@type` superseded (2026-09-17, Story 02.3)**: changed from `SoftwareApplication` to `WebApplication` — a more specific, more accurate schema.org type for a purely browser-based tool with no install, and the type Story 02.3 explicitly asked for. Added `browserRequirements: "Requires JavaScript"` (factual — the app has no server-rendered content path; see `docs/BACKLOG-STATUS.md`'s indexing-infrastructure entry for the static SEO snapshot that exists specifically to soften this for non-JS crawlers). No rating, review, user-count, or download-count property was added or has ever existed on this schema — Story 02.3's "no fabricated" list was already satisfied without removing anything.
 
 ```json
 {

@@ -1,0 +1,141 @@
+/* Episode SEO-02, Story 02.2 — homepage content sections below the
+   analyzer shell. Same --pr-* token aliases as planReaderPage.css for
+   visual consistency with the shell above it. Dark-only, no
+   prefers-color-scheme branch — matches the rest of the app
+   (src/styles/tokens.css's own header comment). */
+
+.homepage-sections {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 56px 24px 80px;
+  box-sizing: border-box;
+  color: var(--pr-text);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+.homepage-section {
+  padding: 32px 0;
+  border-top: 1px solid var(--pr-border);
+}
+
+.homepage-section:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.homepage-section h2 {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.homepage-section h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.homepage-section p {
+  margin: 0;
+  color: var(--pr-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.homepage-section ul {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.homepage-section li {
+  color: var(--pr-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.homepage-section__engines {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.homepage-section__engine-card {
+  padding: 16px;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  background: var(--pr-badge-bg, transparent);
+}
+
+.homepage-section__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.homepage-section__steps li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.homepage-section__step-number {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--pr-accent);
+  color: var(--pr-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.homepage-section__cta {
+  margin-top: 16px;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  background: var(--pr-accent);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.homepage-section__cta:hover {
+  filter: brightness(1.08);
+}
+
+.homepage-section__faq {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.homepage-section__faq-item dt {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.homepage-section__faq-item dd {
+  margin: 0;
+  color: var(--pr-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}

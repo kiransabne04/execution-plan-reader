@@ -21,18 +21,19 @@ function extractJsonLd(html: string): Record<string, unknown> {
 }
 
 describe("Episode 8 positioning: index.html matches the brief exactly", () => {
-  // User-directed SEO pass (2026-09-12) superseded the original Episode 8
-  // meta title/description and the schema.org `url`/`description` fields —
-  // see docs/05-landing-page-positioning.md's own "superseded" notes on
-  // each. These assertions were updated to match the new brief, which is
-  // now the actual regression guard, same as before.
+  // Episode SEO-02, Story 02.1/02.3 (2026-09-17) superseded the 2026-09-12
+  // meta title/description again, and Story 02.3 switched the schema.org
+  // type from SoftwareApplication to the more specific WebApplication — see
+  // docs/05-landing-page-positioning.md's own "superseded" notes on each.
   it("has the exact recommended meta title", () => {
-    expect(indexHtml).toContain("<title>PostgreSQL, SQL Server &amp; Snowflake Execution Plan Analyzer | PlanReader</title>")
+    expect(indexHtml).toContain(
+      "<title>Execution Plan Analyzer for PostgreSQL, SQL Server &amp; Snowflake | PlanReader</title>",
+    )
   })
 
   it("has the exact recommended meta description", () => {
     expect(indexHtml).toContain(
-      'content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis."',
+      'content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries with private, client-side analysis."',
     )
   })
 
@@ -41,18 +42,19 @@ describe("Episode 8 positioning: index.html matches the brief exactly", () => {
     expect(indexHtml).toContain('<meta property="og:url" content="https://www.planreader.dev/" />')
   })
 
-  it("has schema.org SoftwareApplication structured data matching the brief exactly", () => {
+  it("has schema.org WebApplication structured data with only factual properties — no fabricated ratings/users/downloads", () => {
     const schema = extractJsonLd(indexHtml)
     expect(schema).toEqual({
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
+      "@type": "WebApplication",
       name: "PlanReader",
       applicationCategory: "DeveloperApplication",
       applicationSubCategory: "Database Performance Tool",
       operatingSystem: "Any (web-based)",
+      browserRequirements: "Requires JavaScript",
       url: "https://www.planreader.dev",
       description:
-        "Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis.",
+        "Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries with private, client-side analysis.",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       featureList: [
         "Plain-English explanation of execution plans",
@@ -63,6 +65,8 @@ describe("Episode 8 positioning: index.html matches the brief exactly", () => {
       ],
       creator: { "@type": "Person", name: "Kiran Sabne" },
     })
+    const forbiddenKeys = ["aggregateRating", "review", "ratingValue", "interactionCount", "userInteractionCount"]
+    for (const key of forbiddenKeys) expect(schema).not.toHaveProperty(key)
   })
 })
 

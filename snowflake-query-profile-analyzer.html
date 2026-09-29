@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Snowflake Query Profile Analyzer | PlanReader</title>
+    <meta
+      name="description"
+      content="Paste Snowflake GET_QUERY_OPERATOR_STATS() output or an exported Query Profile and get a free, plain-English breakdown with an interactive node graph. No signup, fully client-side."
+    />
+    <link rel="canonical" href="https://www.planreader.dev/snowflake-query-profile-analyzer" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PlanReader" />
+    <meta property="og:title" content="Snowflake Query Profile Analyzer | PlanReader" />
+    <meta
+      property="og:description"
+      content="Paste Snowflake GET_QUERY_OPERATOR_STATS() output or an exported Query Profile and get a free, plain-English breakdown with an interactive node graph. No signup, fully client-side."
+    />
+    <meta property="og:url" content="https://www.planreader.dev/snowflake-query-profile-analyzer" />
+    <meta property="og:image" content="https://www.planreader.dev/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Snowflake Query Profile Analyzer | PlanReader" />
+    <meta
+      name="twitter:description"
+      content="Paste Snowflake GET_QUERY_OPERATOR_STATS() output or an exported Query Profile and get a free, plain-English breakdown with an interactive node graph. No signup, fully client-side."
+    />
+    <meta name="twitter:image" content="https://www.planreader.dev/og-image.png" />
+
+    <meta name="theme-color" content="#0b0f19" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "Snowflake Query Profile Analyzer",
+        "description": "Paste Snowflake GET_QUERY_OPERATOR_STATS() output or an exported Query Profile and get a free, plain-English breakdown with an interactive node graph. No signup, fully client-side.",
+        "url": "https://www.planreader.dev/snowflake-query-profile-analyzer",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "PlanReader",
+          "url": "https://www.planreader.dev"
+        }
+      }
+    </script>
+
+    <!-- Episode SEO-03, Story 03.3: same rationale as index.html's own
+         `.seo-snapshot`/`.seo-sections` blocks — this is a 100%
+         client-rendered SPA, so without a static snapshot a non-JS
+         crawler would see only an empty `#root`. Kept in exact sync with
+         snowflakeLandingContent.ts by snowflakeLandingSnapshot.test.ts,
+         same drift-guard pattern. snowflake-landing-main.tsx clears this
+         out of `#root` before mounting the real page. Deliberately no
+         Query Context / QUERY_HISTORY / warehouse-queuing content
+         anywhere on this page — see snowflakeLandingContent.ts. -->
+    <style>
+      .landing-page {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 56px 24px 80px;
+        text-align: left;
+        color: #e6e6f0;
+        background: #0b0f19;
+        font-family:
+          -apple-system,
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+      }
+      .landing-page section,
+      .landing-page header,
+      .landing-page footer {
+        padding: 32px 0;
+        border-top: 1px solid #23263a;
+      }
+      .landing-page header {
+        border-top: none;
+        padding-top: 0;
+      }
+      .landing-page h1 {
+        font-size: 32px;
+        margin: 0 0 16px;
+      }
+      .landing-page h2 {
+        font-size: 22px;
+        margin: 0 0 12px;
+      }
+      .landing-page p,
+      .landing-page li {
+        font-size: 14px;
+        line-height: 1.6;
+        color: #a9a6c2;
+      }
+      .landing-page pre {
+        padding: 12px 16px;
+        border-radius: 6px;
+        border: 1px solid #23263a;
+        overflow-x: auto;
+        color: #e6e6f0;
+      }
+      .landing-page a {
+        color: #9184d9;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="landing-page">
+        <header>
+          <h1>Snowflake Query Profile Analyzer</h1>
+          <p>
+            Paste real operator-profile output from Snowflake and get a plain-English breakdown of what's slow and
+            why, with an interactive node-graph visualization — free, no signup, nothing sent to a server.
+          </p>
+          <p><a href="/">Analyze your plan free</a></p>
+        </header>
+
+        <section>
+          <h2>What PlanReader analyzes</h2>
+          <p>
+            PlanReader parses your query profile into a normalized plan tree entirely in your browser, runs it
+            through a rule engine that checks for known Snowflake operator-level performance problems, and renders
+            the result as an interactive node graph you can click through node by node. This tool analyzes the
+            operator profile of a single query — not warehouse-level or account-level query history.
+          </p>
+        </section>
+
+        <section>
+          <h2>Supported input formats</h2>
+          <ul>
+            <li><code>GET_QUERY_OPERATOR_STATS() output</code> — the table function's result, pasted directly</li>
+            <li><code>Exported Query Profile JSON</code> — the JSON export of a query's profile</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>What it detects</h2>
+          <ul>
+            <li>Poor micro-partition pruning</li>
+            <li>Cartesian joins</li>
+            <li>Aggregation hotspots</li>
+            <li>Window function hotspots</li>
+            <li>External function hotspots</li>
+            <li>Sort hotspots</li>
+            <li>Local (disk) spill</li>
+            <li>Remote (cloud storage) spill</li>
+            <li>Search Optimization Service effectiveness</li>
+            <li>Result-transfer bottlenecks</li>
+            <li>DML scope inefficiency (UPDATE/DELETE/MERGE examining far more rows than changed)</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Example finding</h2>
+          <p>
+            An aggregation spilled to remote storage mid-query, adding cloud-storage round trips on top of the
+            compute cost. PlanReader flags this as a remote spill, shows exactly which operator spilled in the graph,
+            and explains in plain English that the operator needed more memory than the warehouse size provided —
+            instead of just showing you a raw bytes-spilled counter.
+          </p>
+        </section>
+
+        <section>
+          <h2>Privacy</h2>
+          <ul>
+            <li>Nothing you paste is ever sent to a server — parsing and analysis run entirely in your browser</li>
+            <li>No account, no signup, no tracking of plan content</li>
+            <li>
+              Share links encode your plan into the URL itself, in a fragment your browser never sends in any
+              request — not stored anywhere
+            </li>
+            <li>Local history, if you use it, stays in your own browser's storage</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>How to get this output</h2>
+          <p>Using the query's own ID:</p>
+          <pre><code>SELECT * FROM TABLE(GET_QUERY_OPERATOR_STATS('&lt;query_id&gt;'));</code></pre>
+        </section>
+
+        <section>
+          <h2>Try a sample plan</h2>
+          <p>No plan handy? Load a real Snowflake sample and see PlanReader work immediately — no paste required.</p>
+          <p><a href="/#sample-plans">Try a sample Snowflake plan</a></p>
+        </section>
+
+        <footer>
+          <a href="/">&larr; Back to PlanReader</a>
+        </footer>
+      </div>
+    </div>
+    <noscript>
+      <p style="text-align: center; font-family: sans-serif; padding: 24px">
+        PlanReader needs JavaScript enabled to parse and visualize a pasted execution plan.
+      </p>
+    </noscript>
+    <script type="module" src="/src/snowflake-landing-main.tsx"></script>
+  </body>
+</html>

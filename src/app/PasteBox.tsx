@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type DragEvent, type FormEvent } from "reac
 import { ArrowsOutSimple, CaretDown, CaretUp, UploadSimple } from "@phosphor-icons/react"
 import { PRIVACY_CAVEAT_NOTE, PRIVACY_STATEMENT_SHORT } from "../privacy/copy"
 import { SAMPLE_FIXTURES } from "./sampleFixtures"
+import { SAMPLE_PLANS_ANCHOR_ID } from "./homepageContent"
 
 export interface PasteBoxProps {
   /** `filename` is a real name (a dropped/picked file's own name, or a
@@ -170,24 +171,12 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
           <div
             className={[
               "paste-box__dropzone",
-              text.length === 0 ? "paste-box__dropzone--overlay" : "paste-box__dropzone--static",
-              // The textarea's own drag handlers (below) still fire through
-              // this click-through overlay (Story 18.5) — but its own
-              // border is transparent while overlaid (see .paste-box__
-              // textarea:placeholder-shown), so the drag-over cue has to
-              // render on the overlay itself instead, or it'd be invisible.
-              text.length === 0 && isDraggingOver && "paste-box__dropzone--drag-over",
-              // User-directed (temporary): hide the "Drop ... or browse"
-              // bar visually for the truly-empty state — the textarea's own
-              // native placeholder now carries that guidance instead (see
-              // below). Kept RENDERED (not unmounted) rather than removed
-              // outright: drag-and-drop still needs no help (the textarea's
-              // own handlers, below, are independent of this overlay), and
-              // the hidden file input/"browse" label stay reachable by
-              // their existing test ids — this is a visibility change, not
-              // a feature removal, and a future pass can bring the visible
-              // affordance back without re-plumbing anything.
-              text.length === 0 && "paste-box__dropzone--hidden-for-now",
+              "paste-box__dropzone--static",
+              // Empty state: a visible static bar BELOW the textarea, so
+              // "upload a file" is discoverable next to the paste box.
+              // Drag-over cue lives on the textarea itself (its border is
+              // visible in this state), so no overlay-specific handling.
+              text.length === 0 && "paste-box__dropzone--below",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -212,10 +201,10 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
                 explicit mobile handling since touch devices simply never
                 fire HTML5 drag events in the first place. */}
             <label className="paste-box__dropzone-browse" data-testid="file-picker-label">
-              browse
+              upload a file
               <input
                 type="file"
-                accept=".json,.xml,.txt,text/plain,application/json,text/xml,application/xml"
+                accept=".json,.xml,.sqlplan,.txt,text/plain,application/json,text/xml,application/xml"
                 onChange={handleFileInputChange}
                 data-testid="file-picker-input"
                 className="paste-box__file-input"
@@ -289,7 +278,11 @@ export function PasteBox({ onAnalyze, initialText, dontSave, onDontSaveChange, h
           hidden once a plan is actually loaded/pasted, same as the mock
           (which only shows this on the empty landing state). */}
       {!showCollapsedSummary && (
-        <div className="paste-box__samples" data-testid="sample-plan-list">
+        // Episode SEO-02, Story 02.2: real `id` (not just a data-testid) so
+        // the homepage's "Try an Example" section below the shell can
+        // scroll here rather than duplicating these three buttons and
+        // their loadSample() wiring a second time.
+        <div className="paste-box__samples" id={SAMPLE_PLANS_ANCHOR_ID} data-testid="sample-plan-list">
           <span className="paste-box__samples-label">No plan handy? Start from a sample</span>
           {SAMPLE_FIXTURES.map((sample) => (
             <button

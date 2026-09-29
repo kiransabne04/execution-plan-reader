@@ -4,19 +4,19 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PostgreSQL, SQL Server &amp; Snowflake Execution Plan Analyzer | PlanReader</title>
+    <title>Execution Plan Analyzer for PostgreSQL, SQL Server &amp; Snowflake | PlanReader</title>
     <meta
       name="description"
-      content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis."
+      content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries with private, client-side analysis."
     />
     <link rel="canonical" href="https://www.planreader.dev/" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="PlanReader" />
-    <meta property="og:title" content="PostgreSQL, SQL Server &amp; Snowflake Execution Plan Analyzer | PlanReader" />
+    <meta property="og:title" content="Execution Plan Analyzer for PostgreSQL, SQL Server &amp; Snowflake | PlanReader" />
     <meta
       property="og:description"
-      content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis."
+      content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries with private, client-side analysis."
     />
     <meta property="og:url" content="https://www.planreader.dev/" />
     <meta property="og:image" content="https://www.planreader.dev/og-image.png" />
@@ -25,10 +25,10 @@
     <meta property="og:image:type" content="image/png" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="PostgreSQL, SQL Server &amp; Snowflake Execution Plan Analyzer | PlanReader" />
+    <meta name="twitter:title" content="Execution Plan Analyzer for PostgreSQL, SQL Server &amp; Snowflake | PlanReader" />
     <meta
       name="twitter:description"
-      content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis."
+      content="Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries with private, client-side analysis."
     />
     <meta name="twitter:image" content="https://www.planreader.dev/og-image.png" />
 
@@ -37,13 +37,14 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
+        "@type": "WebApplication",
         "name": "PlanReader",
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Database Performance Tool",
         "operatingSystem": "Any (web-based)",
+        "browserRequirements": "Requires JavaScript",
         "url": "https://www.planreader.dev",
-        "description": "Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries. Private, client-side analysis.",
+        "description": "Free execution plan analyzer for PostgreSQL, SQL Server and Snowflake. Visualize query plans, detect performance problems and understand slow queries with private, client-side analysis.",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -124,16 +125,52 @@
         font-size: 12px;
         color: #6f6c88;
       }
+      .seo-sections {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 32px 24px 80px;
+        text-align: left;
+        color: #e6e6f0;
+        background: #0b0f19;
+        font-family:
+          -apple-system,
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+      }
+      .seo-sections section {
+        padding: 24px 0;
+        border-top: 1px solid #23263a;
+      }
+      .seo-sections section:first-child {
+        border-top: none;
+      }
+      .seo-sections h2 {
+        font-size: 19px;
+        margin: 0 0 12px;
+      }
+      .seo-sections p,
+      .seo-sections li,
+      .seo-sections dd {
+        font-size: 14px;
+        line-height: 1.6;
+        color: #a9a6c2;
+      }
+      .seo-sections dt {
+        font-weight: 600;
+        color: #e6e6f0;
+        margin-top: 12px;
+      }
     </style>
   </head>
   <body>
     <div id="root">
       <div class="seo-snapshot">
         <span class="seo-snapshot__brand">PlanReader</span>
-        <h1>Analyze PostgreSQL, SQL Server &amp; Snowflake Execution Plans</h1>
+        <h1>Understand Your Database Execution Plan</h1>
         <p>
-          Find expensive scans, bad estimates, spills, inefficient joins, poor pruning and other performance problems
-          — entirely in your browser.
+          Analyze PostgreSQL EXPLAIN plans, SQL Server Showplan XML and Snowflake operator profiles. Find expensive
+          scans, bad estimates, spills, inefficient joins and other performance problems directly in your browser.
         </p>
         <p>
           Nothing you paste ever leaves your browser. Parsing, analysis, and rendering all run locally — no signup,
@@ -142,6 +179,109 @@
         <p class="seo-snapshot__footer">
           Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.
         </p>
+      </div>
+
+      <!-- Episode SEO-02, Story 02.2: same rationale as the .seo-snapshot
+           block above (this is a 100% client-rendered SPA; a crawler that
+           doesn't execute JS otherwise sees none of this) — real static
+           text for the homepage content sections that normally render via
+           HomepageSections.tsx below the analyzer shell, kept in exact
+           sync with homepageContent.ts by homepageSnapshot.test.ts, same
+           drift-guard pattern as seoSnapshot.test.ts. main.tsx clears all
+           of #root (this block included) before mounting the real app. -->
+      <div class="seo-sections">
+        <section>
+          <h2>Supported Databases</h2>
+          <p>PostgreSQL — EXPLAIN (ANALYZE, BUFFERS) output — JSON or plain text</p>
+          <p>SQL Server — Showplan XML (.sqlplan) — the Actual Execution Plan</p>
+          <p>Snowflake — GET_QUERY_OPERATOR_STATS() output or exported Query Profile JSON</p>
+        </section>
+        <section>
+          <h2>What PlanReader Detects</h2>
+          <ul>
+            <li>Expensive sequential or full table scans on large tables</li>
+            <li>Row estimate mismatches, where the planner misjudges how many rows a step will touch</li>
+            <li>Disk spills — sorts and hashes that overflow available memory</li>
+            <li>Inefficient joins — nested loop blowups, exploding joins, and cartesian joins</li>
+            <li>Missing index opportunities, where derivable from the plan itself</li>
+            <li>
+              Engine-specific issues — SQL Server key lookup explosions and memory grant problems, Snowflake
+              partition pruning and spill
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h2>Why PlanReader</h2>
+          <ul>
+            <li>Free, no signup, no account</li>
+            <li>100% client-side — nothing you paste ever leaves your browser</li>
+            <li>Plain-English explanations, not just raw operator names</li>
+            <li>Interactive node-graph visualization of the whole plan</li>
+            <li>One tool for PostgreSQL, SQL Server, and Snowflake</li>
+          </ul>
+        </section>
+        <section>
+          <h2>How It Works</h2>
+          <ol>
+            <li>
+              <strong>Paste your plan.</strong>
+              EXPLAIN output, Showplan XML, or Snowflake operator stats.
+            </li>
+            <li>
+              <strong>Parsed and analyzed locally.</strong>
+              The rule engine flags scans, spills, bad estimates, and inefficient joins — entirely in your browser.
+            </li>
+            <li>
+              <strong>Explore the graph.</strong>
+              Click any node for a plain-English breakdown, or copy a share link — nothing is stored on a server.
+            </li>
+          </ol>
+        </section>
+        <section>
+          <h2>Privacy</h2>
+          <ul>
+            <li>Nothing you paste is ever sent to a server — parsing and analysis run entirely in your browser</li>
+            <li>No account, no signup, no tracking of plan content</li>
+            <li>
+              Share links encode your plan into the URL itself, in a fragment your browser never sends in any
+              request — not stored anywhere
+            </li>
+            <li>Local history, if you use it, stays in your own browser's storage</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Try an Example</h2>
+          <p>No plan handy? Load a real sample for each engine above and see PlanReader work immediately.</p>
+        </section>
+        <section>
+          <h2>Learn More</h2>
+          <p>
+            Every node in the graph includes a plain-English glossary entry — click a node, then "Learn more" for
+            what the operator does, when it's fine, and when it's worth a second look. That's the fastest way to go
+            deeper on any specific operator without leaving the tool.
+          </p>
+        </section>
+        <section>
+          <h2>FAQ</h2>
+          <dl>
+            <dt>Is PlanReader free?</dt>
+            <dd>Yes — free, no signup, no account required.</dd>
+            <dt>Is my execution plan sent to a server?</dt>
+            <dd>
+              No. Parsing and analysis run 100% client-side in your browser; nothing you paste is ever transmitted.
+            </dd>
+            <dt>Which databases are supported?</dt>
+            <dd>PostgreSQL, SQL Server, and Snowflake.</dd>
+            <dt>Can I share a plan with a teammate?</dt>
+            <dd>Yes — the share link encodes your plan directly in the URL. It's never stored on a server.</dd>
+            <dt>Can PlanReader tell me why a query is sometimes fast and sometimes slow?</dt>
+            <dd>
+              Not definitively. A single pasted plan is one snapshot of one execution — if a query's performance
+              varies, a different plan may be used for different input values, which one pasted plan can't show
+              you.
+            </dd>
+          </dl>
+        </section>
       </div>
     </div>
     <noscript>

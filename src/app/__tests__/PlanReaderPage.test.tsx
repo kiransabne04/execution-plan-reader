@@ -69,7 +69,7 @@ describe("PlanReaderPage", () => {
     render(<PlanReaderPage />)
     const headings = screen.getAllByRole("heading", { level: 1 })
     expect(headings).toHaveLength(1)
-    expect(headings[0]).toHaveTextContent("Analyze PostgreSQL, SQL Server & Snowflake Execution Plans")
+    expect(headings[0]).toHaveTextContent("Understand Your Database Execution Plan")
 
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0)
@@ -78,6 +78,19 @@ describe("PlanReaderPage", () => {
   it("shows a footer connecting the tool to Kiran's existing content, for first-time-visitor credibility", () => {
     render(<PlanReaderPage />)
     expect(screen.getByText(/scalingbackend/i)).toBeInTheDocument()
+  })
+
+  // Episode SEO-02, Story 02.2: same empty-state-only gate as the credit
+  // footer just above, and for the same reason — once a plan is loaded
+  // this is a working tool, not a landing page, and spec §2b's "the page
+  // itself never grows past the viewport" invariant (plan-shell.spec.ts's
+  // own regression test) only holds with the marketing sections gone.
+  it("shows the homepage content sections only in the empty state — gone once a plan is analyzed", () => {
+    render(<PlanReaderPage />)
+    expect(screen.getByTestId("homepage-sections")).toBeInTheDocument()
+
+    pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
+    expect(screen.queryByTestId("homepage-sections")).not.toBeInTheDocument()
   })
 
   it("shows the privacy statement (and the browser-extension caveat, behind its disclosure) at the paste box before anything is analyzed", () => {
@@ -520,6 +533,35 @@ describe("PlanReaderPage — shareable link (Story 11.2)", () => {
 
     expect(screen.getByTestId("parse-error")).toHaveTextContent(/incomplete|corrupted/i)
     expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
+  })
+
+  // SEO indexing infrastructure, Requirement 6 — a share-link URL must
+  // never become an indexable page.
+  it("adds a noindex meta tag when the URL has a share-link fragment", () => {
+    const encoded = encodeShareLink(loadFixture("postgres", "simple-seq-scan.json"), "https://example.com/")
+    expect(encoded.ok).toBe(true)
+    if (!encoded.ok) return
+    window.location.hash = encoded.url.split("#")[1]
+
+    render(<PlanReaderPage />)
+
+    expect(document.querySelector('meta[name="robots"][content="noindex, nofollow"]')).not.toBeNull()
+  })
+
+  it("adds a noindex meta tag even when the share-link fragment fails to decode — it's still someone else's pasted content", () => {
+    window.location.hash = "plan=not-a-real-encoded-fragment"
+
+    render(<PlanReaderPage />)
+
+    expect(document.querySelector('meta[name="robots"][content="noindex, nofollow"]')).not.toBeNull()
+  })
+
+  it("does NOT add a noindex meta tag on a normal load with no share-link fragment", () => {
+    window.location.hash = ""
+
+    render(<PlanReaderPage />)
+
+    expect(document.querySelector('meta[name="robots"][content="noindex, nofollow"]')).toBeNull()
   })
 
   it("makes no attempt at share-link recovery on an ordinary visit with no fragment at all", () => {

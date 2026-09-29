@@ -18,26 +18,23 @@
      unambiguous regardless of the parent's flex algorithm quirks. */
   width: 100%;
   /* Spec §2b: "the shell is 100dvh... so only the rails and panel
-     scroll — never the page." #root is already `display:flex;
-     flex-direction:column; min-height:100svh` — flex:1 here makes this
-     section claim all of that height (instead of just its own content
-     height), and the column direction lets `.plan-shell` below fill it
-     in turn. A literal `height:100dvh` directly on `.plan-shell` would
-     work too when this IS the whole page (Episode 19 retired the hero
-     that used to sit above it), but would overflow the page the moment
-     anything else renders below it — the empty-state credit paragraph,
-     for one — which is exactly the "never the page" scroll this rule
-     exists to prevent. flex:1 degrades correctly instead: .plan-shell
-     still gets everything BUT what that sibling needs. */
-  flex: 1;
-  /* Bug fix, paired with #root's `height: 100svh` fix (index.css): a flex
-     item's implicit `min-height: auto` refuses to shrink below its own
-     content's natural size, which is exactly what let this element (and
-     everything under it) grow taller than #root's ceiling instead of
-     respecting it — the matching half of the same gotcha, not a separate
-     bug. Without this, #root's new fixed height alone still wouldn't have
-     stopped the page from scrolling. */
-  min-height: 0;
+     scroll — never the page" — still true of THIS element's own
+     contents (the shell + the empty-state credit paragraph that can
+     render below it): `.plan-shell` (flex:1; min-height:0) fills
+     whatever this box's fixed height leaves after that sibling, exactly
+     as before.
+
+     Episode SEO-02, Story 02.2 (2026-09-17): this element now states its
+     own `height: 100svh` literally instead of `flex: 1` against a
+     fixed-height #root — #root itself changed to `min-height: 100svh`
+     (index.css) so `<HomepageSections>`, a NEW sibling of this element
+     (not a descendant), can make the page taller than one viewport and
+     scroll, which is the entire point of that content's existence. This
+     element's own box is numerically identical to before (100svh either
+     way) — only #root's ability to grow past it changed, so nothing
+     inside here (including the flex:1/min-height:0 shell-vs-credit
+     relationship above) needed to change to match. */
+  height: 100svh;
   display: flex;
   flex-direction: column;
   margin: 0 auto;
@@ -371,14 +368,14 @@
 }
 
 /* User-directed (temporary): the "Drop ... or browse" bar hidden for the
-   truly-empty state — the textarea's own native placeholder (below)
+
    carries that guidance instead. `display: none`, not unmounted (see
    PasteBox.tsx's own comment on this class) — the hidden file input and
    its "browse" label stay in the DOM at their existing test ids, and
    drag-and-drop keeps working via the textarea's own handlers regardless
    of whether this bar is visible. */
-.paste-box__dropzone--hidden-for-now {
-  display: none;
+.paste-box__dropzone--below {
+  order: 1;
 }
 
 .paste-box__dropzone-icon {
@@ -411,7 +408,7 @@
 .paste-box__textarea {
   width: 100%;
   box-sizing: border-box;
-  min-height: 96px;
+  min-height: 120px;
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   font-size: 13px;
   padding: 12px;
@@ -433,7 +430,7 @@
    overlay on top to supply them — and its native `::placeholder` (below)
    is the one thing carrying the "paste here" guidance now. */
 .paste-box__textarea:placeholder-shown {
-  min-height: 96px;
+  min-height: 120px;
   padding: 12px;
   font-family:
     system-ui,

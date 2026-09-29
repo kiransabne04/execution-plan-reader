@@ -9,7 +9,7 @@
 // `seoSnapshot.test.ts` imports these same constants and asserts
 // index.html's literal text still matches them exactly, so the two can
 // never silently drift apart the way two independently-typed copies could.
-export const EMPTY_STATE_HEADING = "Analyze PostgreSQL, SQL Server & Snowflake Execution Plans"
+export const EMPTY_STATE_HEADING = "Understand Your Database Execution Plan"
 
 export const EMPTY_STATE_SUBHEADING =
-  "Find expensive scans, bad estimates, spills, inefficient joins, poor pruning and other performance problems — entirely in your browser."
+  "Analyze PostgreSQL EXPLAIN plans, SQL Server Showplan XML and Snowflake operator profiles. Find expensive scans, bad estimates, spills, inefficient joins and other performance problems directly in your browser."

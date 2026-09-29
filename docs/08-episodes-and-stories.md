@@ -2597,3 +2597,120 @@ As a developer reading a Snowflake DML plan, I want to know when an UPDATE/DELET
 | `rowsChanged` exceeding derived input rows | Not an honest comparison — the derivation doesn't fit this shape | Skipped entirely, not clamped or inverted |
 
 Registered in `ALL_RULES`, `"DML issues"` category (new), `cardinality` Query Health dimension (required an eligibility fix — see this episode's header note).
+
+## Episode SEO-03 — Product landing pages
+
+User-directed, three engine-specific landing pages targeting product search intent
+("postgres execution plan analyzer" etc.) rather than generic education —
+deliberately only three pages (one per MVP engine, `03-prd-v1.md` §5), not a
+sprawling content-marketing section. Each page reuses the real, existing
+analyzer as its CTA rather than embedding a second copy of it; each links
+out to a deeper existing resource for readers who want more than a product
+page gives (kiransabne.dev for Postgres, mssqlserver.dev for SQL Server) —
+per Episode SEO-02's own "factual, sourced from real coverage" rule, page
+copy names only rules/fields that actually exist in `src/rules/` and
+`src/parsers/`, never aspirational capability.
+
+Shared page structure (all three stories): H1 -> Analyzer CTA (links to `/`,
+the real paste box) -> What PlanReader analyzes -> Supported input formats
+-> What it detects -> Example finding -> Privacy -> How to generate input ->
+Try sample plan (links to `/#sample-plans`, the real existing anchor id
+already on `PasteBox.tsx`'s sample-button list — no new deep-link plumbing
+needed) -> Deep learning resources (external link) -> footer.
+
+Architecture: each page is a real, separate static URL (own `<title>`,
+meta description, canonical, OG/Twitter tags, JSON-LD), not a client-side
+route — a Vite multi-page build entry (own root-level `.html` file,
+`vite.config.ts`'s `build.rollupOptions.input`), consistent with this
+being a 100% client-rendered SPA that Episode SEO-02's `index.html`
+snapshot work already established can't rely on JS execution for a crawler.
+Vercel's `cleanUrls: true` strips the `.html` extension in production
+(`vercel.json`) so the public URL matches the story's own spec exactly. No
+new network calls anywhere — privacy-architecture skill n/a beyond the
+existing no-fetch invariant, already satisfied by every fixture being a
+build-time bundled string, same technique `sampleFixtures.ts` already uses.
+
+### Story 03.1 — PostgreSQL
+
+As a stuck junior/mid-level developer who just got told a Postgres query is
+slow, I want a page that shows up when I search for a Postgres execution
+plan analyzer, so that I land somewhere that explains the actual product
+before I have to paste anything.
+
+**Acceptance criteria**
+- URL `/postgresql-execution-plan-analyzer` (clean, no `.html`).
+- Title: `PostgreSQL EXPLAIN ANALYZE Visualizer & Execution Plan Analyzer | PlanReader`.
+- Page structure per this episode's shared list above, Postgres-specific throughout.
+- "What it detects" names only real Postgres rules from `src/rules/` (e.g. `seq-scan-on-large-table`, `bad-row-estimate`, `disk-spill`, `exploding-join`, `missing-index-opportunity`, `non-sargable-predicate`) — no invented capability.
+- "Supported input formats" states both real accepted forms: `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` and plain TEXT `EXPLAIN ANALYZE` output (Episode 1, Stories 1.1/1.2).
+- "How to generate EXPLAIN input" gives the real command for both formats.
+- "Deep learning resources" links out to the existing comprehensive EXPLAIN guide on kiransabne.dev instead of recreating that content here.
+- Analyzer CTA and "Try sample plan" are plain links to `/` and `/#sample-plans` respectively — this page embeds no second copy of the paste box or analyzer.
+- Crawlable without JS: page content is present in the raw HTML response, not injected only after React mounts (same reasoning as `index.html`'s `.seo-snapshot`/`.seo-sections` blocks).
+- `sitemap.xml` includes the new URL.
+
+**Testing approach**
+- Component test (`PostgresLandingPage.test.tsx`) rendering the page component, asserting every section heading and all copy strings.
+- Snapshot/drift test (`postgresLandingSnapshot.test.ts`, same pattern as `homepageSnapshot.test.ts`) comparing the raw `.html` file's static content against the same TS content constants used by the React component.
+- E2E (`e2e/postgres-landing-page.spec.ts`): real page load asserts title, canonical, meta description, JSON-LD present; Analyzer CTA navigates to `/`; "Try sample plan" link lands on `/` scrolled to the existing `#sample-plans` anchor.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Content drifts between the React component and the static HTML snapshot | Non-JS crawlers only ever see the static copy | Drift test fails the build the moment the two disagree, same mechanism as the homepage's own guard |
+| Preview/non-production Vercel deploy | This page must not compete with production in search, same as the homepage | Existing `noindexOnVercelPreview` Vite plugin applies per-HTML-file already — no page-specific change needed, confirmed by test |
+| A crawler or user requests the `.html` path directly | Would create a duplicate-content URL alongside the clean one | `cleanUrls: true` in `vercel.json` redirects/serves canonically; canonical tag also states the clean URL regardless of the URL requested |
+| Listing a rule that doesn't exist or has been renamed | Page copy silently goes stale as rules evolve | Rule names/ids referenced in page copy are asserted against `src/rules/index.ts`'s real `ALL_RULES` registry in a test, not just typed by hand |
+
+### Story 03.2 — SQL Server
+
+As a stuck junior/mid-level developer who just got told a SQL Server query
+is slow, I want a page that shows up when I search for a SQL Server
+execution plan analyzer, so that I land somewhere that explains the actual
+product before I have to paste anything.
+
+**Acceptance criteria**
+- URL `/sql-server-execution-plan-analyzer` (clean, no `.html`).
+- Title: `SQL Server Execution Plan Analyzer & Showplan Viewer | PlanReader`.
+- Page structure per this episode's shared list above, SQL-Server-specific throughout.
+- Covers actual product capabilities only: Showplan XML input, estimated vs. actual plans, Key Lookup / RID Lookup detection (`keyLookupExplosion.ts`), cardinality (row estimate vs. actual), spills (`sqlServerSortSpill.ts`/`sqlServerHashSpill.ts`), memory grants (`memoryGrantExcessive.ts`/`memoryGrantPressure.ts`/`memoryGrantFeedback.ts`), implicit conversion (`implicitConversion.ts`), and multi-statement plans (batch summary/parameter-sensitivity-note UI, Episode 27-29).
+- Does **not** claim `.sqlplan` file upload/parsing support unless that specific capability is confirmed still built at the time this story is implemented — check `docs/BACKLOG-STATUS.md`'s Episode 2 row first; copy states only whichever of "paste Showplan XML" / "upload a `.sqlplan` file" is actually true.
+- "Deep learning resources" links out to mssqlserver.dev for deep technical content instead of recreating it here.
+- Same CTA-links-to-real-app, no-second-analyzer-embed, crawlable-without-JS, and sitemap requirements as Story 03.1.
+
+**Testing approach**
+- Same three-layer approach as Story 03.1 (component test, drift test, e2e), against SQL-Server-specific content.
+- Rule names referenced in "What it detects" checked against `src/rules/index.ts`'s real registry, same as 03.1's edge case.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| `.sqlplan` upload support state is uncertain at write time | Overclaiming a file format the parser doesn't accept is a real, checkable factual error | Verified against `BACKLOG-STATUS.md`/`src/parsers/sqlserver/` before writing that line, not assumed from the episode name |
+| Multi-statement plan claim | This is a real, specific capability (Episode 27-29), not implied by "SQL Server support" alone | Copy explicitly names multi-statement batches, doesn't just say "SQL Server plans" |
+| Content drift, preview noindex, direct `.html` request | Same as Story 03.1 | Same handling as Story 03.1 |
+
+### Story 03.3 — Snowflake
+
+As a stuck junior/mid-level developer who just got told a Snowflake query
+is slow, I want a page that shows up when I search for a Snowflake query
+profile analyzer, so that I land somewhere that explains the actual
+product before I have to paste anything.
+
+**Acceptance criteria**
+- URL `/snowflake-query-profile-analyzer` (clean, no `.html`).
+- Title: `Snowflake Query Profile Analyzer | PlanReader`.
+- Page structure per this episode's shared list above, Snowflake-specific throughout.
+- Tightly scoped to operator-profile analysis: `GET_QUERY_OPERATOR_STATS()` / Query Profile JSON input, pruning (`poorPartitionPruning.ts`/`snowflakePruningDetail.ts`), spill (`snowflakeSpillDetail.ts`/`remoteSpill.ts`/`localSpill.ts`), join/aggregation/window/external-function hotspots (Episode 32/34), DML scope inefficiency, result-transfer bottleneck.
+- Explicitly does **not** mention or link to Snowflake Query Context / `QUERY_HISTORY` / warehouse-queuing / QAS content — that's Episode 35, held per this file's own "Planned next" note (`BACKLOG-STATUS.md`) pending an explicit architecture discussion, and is a genuinely different input source this page must not imply already exists.
+- Same CTA-links-to-real-app, no-second-analyzer-embed, crawlable-without-JS, and sitemap requirements as Story 03.1. No external "deep learning resources" link required (no equivalent third-party site named for Snowflake) — this section may be omitted for this page alone if no linkable resource exists, rather than inventing one.
+
+**Testing approach**
+- Same three-layer approach as Stories 03.1/03.2, against Snowflake-specific content.
+- A dedicated negative assertion (both component and drift tests) that no Query Context / `QUERY_HISTORY` / warehouse-queuing terminology appears anywhere on the page — mirrors the existing "never recommends cancelling" / "no ratings property" style of negative test already used elsewhere in this codebase (`snowflakeSearchOptimizationEffectiveness.test.ts`, `positioning.test.ts`).
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| Scope creep into Query Context / Episode 35 territory | That's a held, architecturally-undecided feature — implying it exists on a live marketing page would be a real product misstatement | Explicit negative test asserts the terminology's total absence from this page |
+| No natural "deep learning resources" link exists for Snowflake | Inventing a placeholder link would repeat the Episode 9 "placeholder URL" pattern this codebase already flagged as a pre-launch TODO elsewhere | Section omitted for this page rather than filled with an invented or unrelated URL |
+| Content drift, preview noindex, direct `.html` request | Same as Story 03.1 | Same handling as Story 03.1 |

@@ -38,6 +38,8 @@ import { computeQueryHealth } from "../rules/queryHealth"
 import { pickMetricValue, type MetricKey } from "../graph/encoding"
 import { loadExpertMode, saveExpertMode } from "./expertModePersistence"
 import { EMPTY_STATE_HEADING, EMPTY_STATE_SUBHEADING } from "./emptyStateCopy"
+import { setShareLinkNoIndex } from "./robotsMeta"
+import { HomepageSections } from "./HomepageSections"
 import {
   saveSession,
   loadSession,
@@ -106,6 +108,21 @@ function loadFromLocationHash(): InitialState | null {
 
 export function PlanReaderPage() {
   const [initial] = useState(loadFromLocationHash)
+
+  // SEO indexing infrastructure, Requirement 6: a share-link URL must
+  // never become an indexable page (see robotsMeta.ts's own doc comment
+  // for why this has to be a client-side DOM check — the server can't
+  // see the fragment at all). `initial !== null` is exactly "a hash was
+  // present at mount" — the same signal `loadFromLocationHash` itself
+  // uses, computed once, reused rather than re-reading location.hash a
+  // second time. Applies even when the share link failed to decode
+  // (`initial.error` set): the URL itself still carries someone else's
+  // pasted fragment, which is reason enough not to index it.
+  useEffect(() => {
+    setShareLinkNoIndex(initial !== null)
+    return () => setShareLinkNoIndex(false)
+  }, [initial])
+
   const [analyzed, setAnalyzed] = useState<AnalyzedPlan | null>(initial?.analyzed ?? null)
   const [error, setError] = useState<string | null>(initial?.error ?? null)
   const [rawText, setRawText] = useState(initial?.rawText ?? "")
@@ -622,7 +639,14 @@ export function PlanReaderPage() {
   }, [])
 
   return (
-    <main className="plan-reader-page">
+    // Episode SEO-02, Story 02.2: <HomepageSections> is a sibling of
+    // `<main>`, not a child of it — see planReaderPage.css's updated
+    // `.plan-reader-page` comment for why (the shell stays exactly one
+    // viewport tall and internally-scrolling; this new content is what
+    // makes the PAGE itself taller than one viewport and scroll, which is
+    // the point of it existing at all).
+    <>
+      <main className="plan-reader-page">
       {/* Episode 19: `.plan-shell` is now the app's only page — it renders
           unconditionally from first paint, not gated behind `analyzed` the
           way it was through Episode 18. Story 8.1's hero (headline/
@@ -1284,6 +1308,16 @@ export function PlanReaderPage() {
           to carry it and a first-time visitor would otherwise never see
           it at all. */}
       {!analyzed && <p className="plan-reader-page__credit">Built by Kiran, creator of the @scalingbackend execution-plan video series and blog post.</p>}
-    </main>
+      </main>
+      {/* Episode SEO-02, Story 02.2: empty-state only, same gate as the
+          credit paragraph just above (and for the same underlying reason
+          spec §2b's "the page itself never grows past the viewport" rule
+          exists — plan-shell.spec.ts has a real regression test for
+          exactly this, against the ANALYZED state specifically). Once a
+          plan is loaded, this is a working tool, not a landing page — the
+          shell alone should fill the viewport, scrolling internally,
+          exactly as before this story. */}
+      {!analyzed && <HomepageSections />}
+    </>
   )
 }
