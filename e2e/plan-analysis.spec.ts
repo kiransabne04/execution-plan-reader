@@ -32,13 +32,18 @@ test("surfaces every statement in a multi-statement SQL Server batch and switche
   await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "multi-statement-batch.xml"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-  const tabs = page.getByRole("tab")
-  await expect(tabs).toHaveCount(2)
-  await expect(tabs.first()).toHaveAttribute("aria-selected", "true")
+  const trigger = page.getByTestId("statement-picker-trigger")
+  await expect(trigger).toContainText("1 of 2")
+  await trigger.click()
+  const options = page.getByRole("listbox", { name: "Statements in this batch" }).getByRole("option")
+  await expect(options).toHaveCount(2)
+  await expect(options.first()).toHaveAttribute("aria-selected", "true")
 
-  await tabs.nth(1).click()
-  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true")
-  await expect(tabs.first()).toHaveAttribute("aria-selected", "false")
+  await options.nth(1).click()
+  await expect(trigger).toContainText("2 of 2")
+  await trigger.click()
+  await expect(page.getByRole("listbox", { name: "Statements in this batch" }).getByRole("option").nth(1)).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByRole("listbox", { name: "Statements in this batch" }).getByRole("option").first()).toHaveAttribute("aria-selected", "false")
 })
 
 test("shows the redacted-query-text note for a Snowflake plan with redaction enabled", async ({ page }) => {

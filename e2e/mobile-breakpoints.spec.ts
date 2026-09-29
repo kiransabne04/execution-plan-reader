@@ -98,9 +98,9 @@ test("statement tabs meet the 44px touch-target floor and compose visually disti
   await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "multi-statement-batch.xml"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-  const statementTabs = page.getByRole("tab", { name: /SELECT/ })
-  await expect(statementTabs.first()).toBeVisible()
-  const box = await statementTabs.first().boundingBox()
+  const statementTabs = page.getByTestId("statement-picker-trigger")
+  await expect(statementTabs).toBeVisible()
+  const box = await statementTabs.boundingBox()
   expect(box).not.toBeNull()
   expect(box!.height).toBeGreaterThanOrEqual(44)
 

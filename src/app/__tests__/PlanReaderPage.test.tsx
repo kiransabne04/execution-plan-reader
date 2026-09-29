@@ -41,6 +41,17 @@ function pasteAndAnalyze(text: string) {
   fireEvent.click(screen.getByRole("button", { name: /analyze plan/i }))
 }
 
+
+// Multi-statement batches use the StatementPicker (trigger + listbox), not
+// an always-visible tab strip: open it, then read the options.
+function openStatementPicker() {
+  if (!screen.queryByRole("listbox", { name: "Statements in this batch" })) fireEvent.click(screen.getByTestId("statement-picker-trigger"))
+  return within(screen.getByRole("listbox", { name: "Statements in this batch" })).getAllByRole("option")
+}
+function statementOptions() {
+  return openStatementPicker().filter((o) => o.getAttribute("data-testid") !== "statement-tab-group")
+}
+
 describe("PlanReaderPage", () => {
   // Episode 19: the hero (headline/subheadline/engine badges) these two
   // tests used to check is retired — the three-column shell is the app's
@@ -137,17 +148,20 @@ describe("PlanReaderPage", () => {
     expect(screen.getByTestId("plan-result")).toBeInTheDocument()
   })
 
-  it("shows statement tabs for a multi-statement SQL Server batch and switches between them", () => {
+  it("shows a statement picker for a multi-statement SQL Server batch and switches between them", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
 
-    const tabs = screen.getAllByRole("tab")
-    expect(tabs).toHaveLength(2)
-    expect(tabs[0]).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByTestId("statement-picker-trigger")).toHaveTextContent("1 of 2")
+    const options = statementOptions()
+    expect(options).toHaveLength(2)
+    expect(options[0]).toHaveAttribute("aria-selected", "true")
 
-    fireEvent.click(tabs[1])
-    expect(tabs[1]).toHaveAttribute("aria-selected", "true")
-    expect(tabs[0]).toHaveAttribute("aria-selected", "false")
+    fireEvent.click(options[1])
+    expect(screen.getByTestId("statement-picker-trigger")).toHaveTextContent("2 of 2")
+    const reopened = statementOptions()
+    expect(reopened[1]).toHaveAttribute("aria-selected", "true")
+    expect(reopened[0]).toHaveAttribute("aria-selected", "false")
   })
 
   // Story 20.1
@@ -157,13 +171,14 @@ describe("PlanReaderPage", () => {
 
     // 5 statements total: 2 real (index 0, 4) + a run of 3 trivial ones
     // (index 1-3) collapsed into a single group row.
-    expect(screen.getAllByRole("tab")).toHaveLength(2)
+    openStatementPicker()
+    expect(statementOptions()).toHaveLength(2)
     const group = screen.getByTestId("statement-tab-group")
     expect(group).toHaveTextContent("3 control-flow statements")
     expect(group).toHaveAttribute("aria-expanded", "false")
 
     fireEvent.click(group)
-    expect(screen.getAllByRole("tab")).toHaveLength(5)
+    expect(statementOptions()).toHaveLength(5)
     // Story 20.3: the group row stays, now offering a way back — it must
     // NOT vanish once expanded, the original bug this story fixes.
     expect(screen.getByTestId("statement-tab-group")).toHaveTextContent("Collapse 3 control-flow statements")
@@ -175,18 +190,19 @@ describe("PlanReaderPage", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("sqlserver", "many-trivial-statements.xml"))
 
+    openStatementPicker()
     fireEvent.click(screen.getByTestId("statement-tab-group")) // expand
-    expect(screen.getAllByRole("tab")).toHaveLength(5)
+    expect(statementOptions()).toHaveLength(5)
 
     fireEvent.click(screen.getByTestId("statement-tab-group")) // collapse back
-    expect(screen.getAllByRole("tab")).toHaveLength(2)
+    expect(statementOptions()).toHaveLength(2)
     expect(screen.getByTestId("statement-tab-group")).toHaveTextContent("3 control-flow statements — expand")
   })
 
-  it("does not show statement tabs for a single-statement plan", () => {
+  it("does not show the statement picker for a single-statement plan", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("postgres", "simple-seq-scan.json"))
-    expect(screen.queryByRole("tab")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("statement-picker")).not.toBeInTheDocument()
   })
 
   // Episode 29, Stories 29.3/29.4.
@@ -195,13 +211,12 @@ describe("PlanReaderPage", () => {
     pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
 
     expect(screen.getByTestId("batch-statement-overview")).toBeInTheDocument()
-    const tabs = screen.getAllByRole("tab")
-    expect(tabs[1]).toHaveAttribute("aria-selected", "false")
+    expect(screen.getByTestId("statement-picker-trigger")).toHaveTextContent("1 of 2")
 
     const [firstTopStatementButton] = screen.getAllByRole("button", { name: /SELECT/ })
     fireEvent.click(firstTopStatementButton)
-    // Whichever statement ranked first is now the active tab.
-    expect(screen.getAllByRole("tab").some((tab) => tab.getAttribute("aria-selected") === "true")).toBe(true)
+    // Whichever statement ranked first is now the active statement.
+    expect(statementOptions().some((o) => o.getAttribute("aria-selected") === "true")).toBe(true)
   })
 
   it("does not show the batch statement overview for a single-statement plan", () => {
@@ -211,10 +226,11 @@ describe("PlanReaderPage", () => {
   })
 
   // Episode 18, Story 18.11 — additive to the existing tab structure.
-  it("statement tabs show a duration figure per tab, additive to the label", () => {
+  it("statement picker shows a duration figure per statement, additive to the label", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
 
+    openStatementPicker()
     const durations = screen.getAllByTestId("statement-tab-duration")
     expect(durations.length).toBeGreaterThan(0)
     // This fixture is estimate-only (no ANALYZE actual-time capture) — the
@@ -222,11 +238,11 @@ describe("PlanReaderPage", () => {
     // an actual-time figure that was never in the source plan.
     durations.forEach((el) => expect(el).toHaveTextContent(/^cost \d+$/))
 
-    const tabs = screen.getAllByRole("tab")
+    const tabs = statementOptions()
     expect(tabs[0]).toHaveTextContent("SELECT * FROM Orders") // original label text still present
   })
 
-  it("statement tabs show a severity dot for a statement with a real finding, none for a clean one, and format actual-time as ms", () => {
+  it("statement picker shows a severity dot for a statement with a real finding, none for a clean one, and format actual-time as ms", () => {
     const xml = `<?xml version="1.0" encoding="utf-8"?>
 <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0.1000.6">
   <BatchSequence>
@@ -260,7 +276,7 @@ describe("PlanReaderPage", () => {
     render(<PlanReaderPage />)
     pasteAndAnalyze(xml)
 
-    const tabs = screen.getAllByRole("tab")
+    const tabs = statementOptions()
     expect(within(tabs[0]).getByTestId("statement-tab-severity")).toHaveClass("plan-reader-page__statement-tab-severity--warning")
     expect(within(tabs[0]).getByTestId("statement-tab-duration")).toHaveTextContent("8.0ms")
     expect(within(tabs[1]).queryByTestId("statement-tab-severity")).not.toBeInTheDocument()
@@ -947,11 +963,10 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
       pasteAndAnalyze(loadFixture("sqlserver", "multi-statement-batch.xml"))
       expect(screen.getByTestId("query-health-card")).toBeInTheDocument()
 
-      const tabs = screen.getAllByRole("tab")
-      fireEvent.click(tabs[1])
+      fireEvent.click(statementOptions()[1])
       expect(screen.getByTestId("query-health-card")).toBeInTheDocument()
 
-      fireEvent.click(tabs[0])
+      fireEvent.click(statementOptions()[0])
       expect(screen.getByTestId("query-health-card")).toBeInTheDocument()
     })
   })
@@ -1061,7 +1076,7 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
 
       expect(findHeaderNotices()).toHaveLength(1)
 
-      fireEvent.click(screen.getAllByRole("tab")[1]) // switch to the second statement
+      fireEvent.click(statementOptions()[1]) // switch to the second statement
       // Still exactly one header notice — it's a plan-wide fact, so
       // switching statements neither removes it nor adds a second copy.
       expect(findHeaderNotices()).toHaveLength(1)

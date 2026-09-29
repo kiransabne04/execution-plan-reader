@@ -43,7 +43,8 @@ test("zero outbound requests while analyzing a SQL Server plan and switching sta
   await page.getByTestId("paste-textarea").fill(loadFixture("sqlserver", "multi-statement-batch.xml"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("plan-result")).toBeVisible()
-  await page.getByRole("tab").nth(1).click()
+  await page.getByTestId("statement-picker-trigger").click()
+  await page.getByRole("listbox", { name: "Statements in this batch" }).getByRole("option").nth(1).click()
   await page.waitForTimeout(500)
 
   expect(requestsDuringAnalysis).toEqual([])

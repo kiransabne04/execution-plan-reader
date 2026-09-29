@@ -8,9 +8,10 @@ import { ShareLinkButton } from "./ShareLinkButton"
 import { RestoreSessionBanner } from "./RestoreSessionBanner"
 import { RecentPlansList } from "./RecentPlansList"
 import { analyzePlanText, type AnalyzedPlan } from "./analyzePlan"
-import { formatStatementDuration, statementSeverity, buildStatementTabRows, findDefaultStatementIndex } from "./statementTabSummary"
+import { findDefaultStatementIndex } from "./statementTabSummary"
 import { computeBatchHealth } from "./batchHealth"
 import { BatchStatementOverview } from "./BatchStatementOverview"
+import { StatementPicker } from "./StatementPicker"
 import { decodeShareLink } from "./shareLink"
 // Episode 19: the hero landing page this copy served is retired — the
 // three-column shell is now the app's only page, from first load, per the
@@ -26,7 +27,6 @@ import {
   DetailPanel,
   SearchPalette,
   WalkthroughOverlay,
-  SEVERITY_LABEL,
   QueryHealthCard,
   CANVAS_NODE_COUNT_THRESHOLD,
   type PlanGraphHandle,
@@ -800,79 +800,20 @@ export function PlanReaderPage() {
           )}
 
           {analyzed && analyzed.statements.length > 1 && (
-            <div className="plan-reader-page__statement-tabs" role="tablist" aria-label="Statements in this batch">
-              {buildStatementTabRows(
-                analyzed.statements.map((stmt) => stmt.root),
-                activeStatementIndex,
-                expandedStatementGroups,
-              ).map((row) => {
-                if (row.kind === "group") {
-                  // Story 20.3: the SAME row toggles both directions — an
-                  // expanded run keeps this control (right before the tabs
-                  // it revealed) instead of vanishing once clicked, which
-                  // previously left no way back to collapsed.
-                  return (
-                    <button
-                      key={`group-${row.start}`}
-                      type="button"
-                      className="plan-reader-page__statement-tab plan-reader-page__statement-tab--group"
-                      data-testid="statement-tab-group"
-                      aria-expanded={row.expanded}
-                      onClick={() =>
-                        setExpandedStatementGroups((prev) => {
-                          const next = new Set(prev)
-                          if (row.expanded) next.delete(row.start)
-                          else next.add(row.start)
-                          return next
-                        })
-                      }
-                    >
-                      {row.expanded
-                        ? `Collapse ${row.length} control-flow statement${row.length === 1 ? "" : "s"}`
-                        : `${row.length} control-flow statement${row.length === 1 ? "" : "s"} — expand`}
-                    </button>
-                  )
-                }
-                const index = row.index
-                const stmt = analyzed.statements[index]
-                const duration = formatStatementDuration(stmt.root)
-                const severity = statementSeverity(stmt.root)
-                return (
-                  <button
-                    key={stmt.label + index}
-                    type="button"
-                    role="tab"
-                    aria-selected={index === activeStatementIndex}
-                    className="plan-reader-page__statement-tab"
-                    onClick={() => switchToStatement(index)}
-                  >
-                    {/* Story 18.11 — additive to the existing tab label,
-                        never replacing it: a duration figure (never
-                        fabricated when neither actual time nor estimated
-                        cost is available) and a severity dot. The dot is
-                        never color alone — critical is a circle, warning a
-                        diamond (a real shape difference, not just hue,
-                        the same colorblind-safe reasoning the severity
-                        ring elsewhere in this codebase already follows),
-                        plus a screen-reader-only text label. */}
-                    <span className="plan-reader-page__statement-tab-label">{stmt.label}</span>
-                    {duration && (
-                      <span className="plan-reader-page__statement-tab-duration" data-testid="statement-tab-duration">
-                        {duration}
-                      </span>
-                    )}
-                    {severity && (
-                      <span
-                        className={`plan-reader-page__statement-tab-severity plan-reader-page__statement-tab-severity--${severity}`}
-                        data-testid="statement-tab-severity"
-                        aria-hidden="true"
-                      />
-                    )}
-                    {severity && <span className="plan-reader-page__sr-only">{SEVERITY_LABEL[severity]} severity</span>}
-                  </button>
-                )
-              })}
-            </div>
+            <StatementPicker
+              statements={analyzed.statements}
+              activeIndex={activeStatementIndex}
+              expandedGroups={expandedStatementGroups}
+              onToggleGroup={(start, wasExpanded) =>
+                setExpandedStatementGroups((prev) => {
+                  const next = new Set(prev)
+                  if (wasExpanded) next.delete(start)
+                  else next.add(start)
+                  return next
+                })
+              }
+              onSelect={switchToStatement}
+            />
           )}
 
           {analyzed && activeStatement && compareMode ? (

@@ -1396,8 +1396,7 @@
 @container (max-width: 619px) {
   .plan-shell__tab,
   .plan-shell__mode-toggle-button,
-  .plan-shell__app-bar-button,
-  .plan-reader-page__statement-tab {
+  .plan-shell__app-bar-button {
     min-height: 44px;
   }
 
@@ -1543,17 +1542,19 @@
   font-variant-numeric: tabular-nums;
 }
 
-.plan-reader-page__statement-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+/* Statement picker (multi-statement batches): one trigger + searchable
+   listbox replacing the old always-visible tab strip. */
+.statement-picker {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
 }
-
-.plan-reader-page__statement-tab {
+.statement-picker__trigger {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 8px;
+  max-width: 100%;
+  padding: 5px 10px;
   border-radius: 6px;
   border: 1px solid var(--pr-border);
   background: transparent;
@@ -1561,28 +1562,96 @@
   font-size: 12px;
   cursor: pointer;
 }
-
-.plan-reader-page__statement-tab[aria-selected="true"] {
-  background: var(--pr-accent);
-  border-color: var(--pr-accent);
-  color: white;
+.statement-picker__count {
+  flex: none;
+  color: var(--pr-text-muted);
+  font-variant-numeric: tabular-nums;
 }
-
-/* Story 20.1 — a collapsed run of trivial control-flow statements. Italic
-   + dashed border (same "this represents several things, not one"
-   language AccessiblePlanList's own `--collapsed` row uses) rather than
-   `aria-selected`'s solid-fill treatment, since this row is never itself
-   "the active statement." */
-.plan-reader-page__statement-tab--group {
-  font-style: italic;
-  border-style: dashed;
-  opacity: 0.85;
+.statement-picker__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-/* Story 18.11 — additive to the tab's own label, never replacing it. */
-.plan-reader-page__statement-tab-duration {
+.statement-picker__duration {
+  flex: none;
   opacity: 0.75;
   font-variant-numeric: tabular-nums;
+}
+.statement-picker__chevron {
+  flex: none;
+  color: var(--pr-text-muted);
+}
+.statement-picker__panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(560px, 92vw);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--pr-border);
+  border-radius: 8px;
+  background: var(--pr-surface, var(--pr-bg));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.statement-picker__search {
+  margin: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--pr-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pr-text);
+  font-size: 12px;
+}
+.statement-picker__list {
+  max-height: min(360px, 50vh);
+  margin: 0;
+  padding: 0 4px 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+.statement-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--pr-text);
+  cursor: pointer;
+}
+.statement-picker__option--highlight {
+  background: var(--pr-border);
+}
+.statement-picker__option--active {
+  box-shadow: inset 2px 0 0 var(--pr-accent);
+  font-weight: 600;
+}
+.statement-picker__option-index {
+  flex: none;
+  min-width: 2ch;
+  color: var(--pr-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* A collapsed run of trivial control-flow statements (Story 20.1) — italic
+   + dashed, "this represents several things, not one." */
+.statement-picker__option--group {
+  font-style: italic;
+  border: 1px dashed var(--pr-border);
+  opacity: 0.85;
+  margin: 2px 0;
+}
+.statement-picker__empty {
+  padding: 8px;
+  font-size: 12px;
+  color: var(--pr-text-muted);
+}
+@container (max-width: 619px) {
+  .statement-picker__trigger,
+  .statement-picker__option {
+    min-height: 44px;
+  }
 }
 
 /* Never color alone: critical is a circle, warning a diamond — a real
