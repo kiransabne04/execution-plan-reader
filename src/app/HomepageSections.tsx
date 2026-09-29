@@ -38,9 +38,7 @@ export function HomepageSections() {
         <div className="homepage-section__engines">
           {SUPPORTED_DATABASES.map((db) => (
             <div className="homepage-section__engine-card" key={db.engine}>
-              <h3>
-                <a href={db.href}>{db.engine}</a>
-              </h3>
+              <h3>{db.engine}</h3>
               <p>{db.format}</p>
             </div>
           ))}
