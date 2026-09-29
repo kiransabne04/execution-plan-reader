@@ -1091,3 +1091,19 @@ describe("PlanReaderPage — local persistence (Episode 17)", () => {
     })
   })
 })
+
+describe("PlanReaderPage — standalone STATISTICS IO comparison", () => {
+  it("opens from the empty state without any plan, compares two pastes, and goes back", () => {
+    render(<PlanReaderPage />)
+    fireEvent.click(screen.getByTestId("open-statistics-io"))
+
+    expect(screen.getByTestId("statistics-io-standalone")).toBeInTheDocument()
+    fireEvent.change(screen.getByTestId("sio-before"), { target: { value: "Table 'Orders'. Scan count 1, logical reads 100." } })
+    fireEvent.change(screen.getByTestId("sio-after"), { target: { value: "Table 'Orders'. Scan count 1, logical reads 10." } })
+    expect(screen.getByTestId("sio-headline")).toHaveTextContent("logical reads decreased by 90% (100 → 10)")
+
+    fireEvent.click(screen.getByTestId("close-statistics-io"))
+    expect(screen.queryByTestId("statistics-io-standalone")).toBeNull()
+    expect(screen.getByTestId("plan-shell-empty-placeholder")).toBeInTheDocument()
+  })
+})

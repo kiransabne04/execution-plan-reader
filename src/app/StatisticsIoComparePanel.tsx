@@ -46,7 +46,7 @@ function MetricRows({ metrics }: { metrics: MetricDelta[] }) {
  * plan comparison. Pure client-side parsing of two pasted text blocks —
  * nothing is saved, restored, or shared (same as the comparison plan).
  */
-export function StatisticsIoComparePanel() {
+export function StatisticsIoComparePanel({ defaultOpen = false }: { defaultOpen?: boolean }) {
   const [beforeText, setBeforeText] = useState("")
   const [afterText, setAfterText] = useState("")
 
@@ -64,7 +64,7 @@ export function StatisticsIoComparePanel() {
   )
 
   return (
-    <details className="sio-panel" data-testid="statistics-io-panel">
+    <details className="sio-panel" data-testid="statistics-io-panel" open={defaultOpen || undefined}>
       <summary>Compare STATISTICS IO readings (optional)</summary>
       <p className="sio-help">
         Run <code>SET STATISTICS IO ON; SET STATISTICS TIME ON;</code> before each query, then paste the Messages output for the

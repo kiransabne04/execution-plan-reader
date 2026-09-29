@@ -259,6 +259,8 @@ export function PlanReaderPage() {
   const [compareMode, setCompareMode] = useState(false)
   const [comparePlan, setComparePlan] = useState<AnalyzedPlan | null>(null)
   const [compareError, setCompareError] = useState<string | null>(null)
+  // Standalone STATISTICS IO comparison (no plan needed) on the empty state.
+  const [ioOnlyMode, setIoOnlyMode] = useState(false)
 
   // Episode 17 — local persistence state.
   const [restoreCandidate, setRestoreCandidate] = useState<{ text: string; savedAt: number } | null>(null)
@@ -1069,9 +1071,25 @@ export function PlanReaderPage() {
                 <main className="plan-shell__canvas plan-shell__canvas--empty" data-testid="plan-shell-canvas">
                   <h1 className="plan-shell__empty-heading">{EMPTY_STATE_HEADING}</h1>
                   <p className="plan-shell__empty-subheading">{EMPTY_STATE_SUBHEADING}</p>
-                  <p className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
-                    Paste a plan on the left to see it visualized here.
-                  </p>
+                  {ioOnlyMode ? (
+                    <div className="plan-shell__io-standalone" data-testid="statistics-io-standalone">
+                      <button type="button" className="compare-toggle" data-testid="close-statistics-io" onClick={() => setIoOnlyMode(false)}>
+                        Back
+                      </button>
+                      <StatisticsIoComparePanel defaultOpen />
+                    </div>
+                  ) : (
+                    <>
+                      <p className="plan-shell__empty-placeholder" data-testid="plan-shell-empty-placeholder">
+                        Paste a plan on the left to see it visualized here.
+                      </p>
+                      {/* Standalone entry point: STATISTICS IO comparison
+                          needs no plan at all — same panel compare mode uses. */}
+                      <button type="button" className="plan-shell__io-link" data-testid="open-statistics-io" onClick={() => setIoOnlyMode(true)}>
+                        Only have SQL Server STATISTICS IO output? Compare before/after readings
+                      </button>
+                    </>
+                  )}
                 </main>
               )}
 

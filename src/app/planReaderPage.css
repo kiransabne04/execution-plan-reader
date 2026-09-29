@@ -1630,3 +1630,27 @@
   border: 0;
 }
 
+
+/* Standalone STATISTICS IO comparison, shown in the empty canvas. */
+.plan-shell__io-link {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pr-text-muted);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.plan-shell__io-link:hover {
+  color: var(--color-text);
+}
+.plan-shell__io-standalone {
+  align-self: stretch;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+  text-align: left;
+}
