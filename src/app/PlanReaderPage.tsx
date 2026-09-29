@@ -3,6 +3,7 @@ import { CaretDown, CaretUp, CheckCircle, DownloadSimple, MagnifyingGlass, PlayC
 import { PasteBox } from "./PasteBox"
 import { Notice } from "./Notice"
 import { ComparePasteBox } from "./ComparePasteBox"
+import { StatisticsIoComparePanel } from "./StatisticsIoComparePanel"
 import { ShareLinkButton } from "./ShareLinkButton"
 import { RestoreSessionBanner } from "./RestoreSessionBanner"
 import { RecentPlansList } from "./RecentPlansList"
@@ -886,6 +887,8 @@ export function PlanReaderPage() {
                   {compareError}
                 </Notice>
               )}
+
+              {analyzed.engine === "sqlserver" && <StatisticsIoComparePanel />}
 
               {comparePlan && (
                 <>

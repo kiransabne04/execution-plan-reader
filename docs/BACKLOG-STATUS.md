@@ -366,6 +366,13 @@ Episode 6 Story 6.3's row above (line 41) is once again live — its "canvas-fir
 
 Keep this file current going forward — update the relevant row the moment a story starts or finishes, as part of the same PR/commit, not as a separate cleanup pass later.
 
+## Episode SQL-IO — STATISTICS IO before/after comparison
+| Story | Status | Notes |
+|---|---|---|
+| SQL-IO.1 — Parse `SET STATISTICS IO/TIME` output | done | `src/parsers/sqlserver/statisticsIo.ts` (`parseStatisticsIo`): per-table counters (scan count, logical/physical/page-server/read-ahead reads, LOB variants, columnstore segment reads/skipped), summed per table name across statements; TIME lines summed (execution + compile). Absent counters stay `undefined` (older versions omit `page server *`). Unrecognized input yields zero tables and never echoes pasted text. Fixtures: `src/fixtures/sqlserver/statistics-io-*.txt`. |
+| SQL-IO.2 — Before/after comparison | done | `src/comparison/statisticsIo.ts` (`compareStatisticsIo`): per-table + total metric deltas (absolute and %), table status (changed/unchanged/only in After/only in Before), TIME rows, headline "logical reads decreased by N% (a → b)". |
+| SQL-IO.3 — UI panel in compare mode | done | `src/app/StatisticsIoComparePanel.tsx`, rendered in the compare section for SQL Server plans only; two optional textareas (Before/After), unpersisted like the comparison plan. **Gap:** only reachable after a plan is analyzed and "Compare with another plan" is opened — no standalone STATISTICS-IO-only entry point yet. |
+
 ## Planned next (not yet broken into stories)
 
 User-specified sequence — a named theme only, not yet given individual story numbers/acceptance criteria (per `docs/STORY_TEMPLATE.md`), so intentionally not listed as a `not started` story-row table here until that breakdown actually happens:

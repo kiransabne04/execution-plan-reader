@@ -1,0 +1,3 @@
+Table 'FactSales'. Scan count 4, logical reads 0, physical reads 0, read-ahead reads 0, lob logical reads 5120, lob physical reads 12, lob read-ahead reads 4800, segment reads 8, segment skipped 22.
+Table 'FactSales'. Scan count 2, logical reads 10, physical reads 0, read-ahead reads 0.
+Table 'Worktable'. Scan count 0, logical reads 0, physical reads 0, read-ahead reads 0, lob logical reads 0, lob physical reads 0, lob read-ahead reads 0.

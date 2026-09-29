@@ -1,0 +1,89 @@
+.sio-panel {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+  font-size: 13px;
+}
+.sio-panel > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+.sio-panel code {
+  font-size: 12px;
+}
+.sio-help {
+  margin: 8px 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.sio-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.sio-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.sio-inputs textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  resize: vertical;
+}
+.sio-warning {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-warning-text);
+}
+.sio-headline {
+  margin: 12px 0 8px;
+  font-weight: 600;
+}
+.sio-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.sio-table th,
+.sio-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+.sio-table .sio-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sio-group th {
+  padding-top: 12px;
+  border-bottom-color: var(--color-border-strong);
+}
+.sio-status {
+  margin-left: 6px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+.sio-change--better {
+  color: var(--color-success);
+}
+.sio-change--worse {
+  color: var(--color-critical);
+}
+@media (max-width: 640px) {
+  .sio-inputs {
+    grid-template-columns: 1fr;
+  }
+}
