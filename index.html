@@ -192,9 +192,9 @@
       <div class="seo-sections">
         <section>
           <h2>Supported Databases</h2>
-          <p>PostgreSQL — EXPLAIN (ANALYZE, BUFFERS) output — JSON or plain text</p>
-          <p>SQL Server — Showplan XML (.sqlplan) — the Actual Execution Plan</p>
-          <p>Snowflake — GET_QUERY_OPERATOR_STATS() output or exported Query Profile JSON</p>
+          <p><a href="/postgresql-execution-plan-analyzer">PostgreSQL</a> — EXPLAIN (ANALYZE, BUFFERS) output — JSON or plain text</p>
+          <p><a href="/sql-server-execution-plan-analyzer">SQL Server</a> — Showplan XML (.sqlplan) — the Actual Execution Plan</p>
+          <p><a href="/snowflake-query-profile-analyzer">Snowflake</a> — GET_QUERY_OPERATOR_STATS() output or exported Query Profile JSON</p>
         </section>
         <section>
           <h2>What PlanReader Detects</h2>
@@ -214,10 +214,12 @@
           <h2>Why PlanReader</h2>
           <ul>
             <li>Free, no signup, no account</li>
-            <li>100% client-side — nothing you paste ever leaves your browser</li>
             <li>Plain-English explanations, not just raw operator names</li>
             <li>Interactive node-graph visualization of the whole plan</li>
             <li>One tool for PostgreSQL, SQL Server, and Snowflake</li>
+            <li>
+              Compare two plans, or SQL Server STATISTICS IO readings from before and after a tuning change
+            </li>
           </ul>
         </section>
         <section>
@@ -229,11 +231,11 @@
             </li>
             <li>
               <strong>Parsed and analyzed locally.</strong>
-              The rule engine flags scans, spills, bad estimates, and inefficient joins — entirely in your browser.
+              The rule engine flags scans, spills, bad estimates, and inefficient joins.
             </li>
             <li>
               <strong>Explore the graph.</strong>
-              Click any node for a plain-English breakdown, or copy a share link — nothing is stored on a server.
+              Click any node for a plain-English breakdown, or copy a share link.
             </li>
           </ol>
         </section>
@@ -270,8 +272,18 @@
             <dd>
               No. Parsing and analysis run 100% client-side in your browser; nothing you paste is ever transmitted.
             </dd>
-            <dt>Which databases are supported?</dt>
-            <dd>PostgreSQL, SQL Server, and Snowflake.</dd>
+            <dt>How do I get an execution plan to paste?</dt>
+            <dd>
+              PostgreSQL: run EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) before your query. SQL Server: in SSMS turn on
+              Include Actual Execution Plan, run the query, then save the .sqlplan file or copy the XML. Snowflake:
+              call GET_QUERY_OPERATOR_STATS() for your query ID, or export the Query Profile as JSON.
+            </dd>
+            <dt>Can I check whether a tuning change actually helped?</dt>
+            <dd>
+              Yes — after analyzing a plan, choose Compare with another plan. For SQL Server you can also paste SET
+              STATISTICS IO output from before and after the change to see the difference in logical reads for each
+              table.
+            </dd>
             <dt>Can I share a plan with a teammate?</dt>
             <dd>Yes — the share link encodes your plan directly in the URL. It's never stored on a server.</dd>
             <dt>Can PlanReader tell me why a query is sometimes fast and sometimes slow?</dt>

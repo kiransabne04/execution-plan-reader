@@ -13,12 +13,14 @@
 export interface SupportedDatabase {
   engine: string
   format: string
+  /** The engine's dedicated landing page (internal link). */
+  href: string
 }
 
 export const SUPPORTED_DATABASES: SupportedDatabase[] = [
-  { engine: "PostgreSQL", format: "EXPLAIN (ANALYZE, BUFFERS) output — JSON or plain text" },
-  { engine: "SQL Server", format: "Showplan XML (.sqlplan) — the Actual Execution Plan" },
-  { engine: "Snowflake", format: "GET_QUERY_OPERATOR_STATS() output or exported Query Profile JSON" },
+  { engine: "PostgreSQL", format: "EXPLAIN (ANALYZE, BUFFERS) output — JSON or plain text", href: "/postgresql-execution-plan-analyzer" },
+  { engine: "SQL Server", format: "Showplan XML (.sqlplan) — the Actual Execution Plan", href: "/sql-server-execution-plan-analyzer" },
+  { engine: "Snowflake", format: "GET_QUERY_OPERATOR_STATS() output or exported Query Profile JSON", href: "/snowflake-query-profile-analyzer" },
 ]
 
 // Reflects real rule-engine coverage (src/rules/) — see
@@ -35,10 +37,10 @@ export const WHAT_IT_DETECTS: string[] = [
 
 export const WHY_PLANREADER: string[] = [
   "Free, no signup, no account",
-  "100% client-side — nothing you paste ever leaves your browser",
   "Plain-English explanations, not just raw operator names",
   "Interactive node-graph visualization of the whole plan",
   "One tool for PostgreSQL, SQL Server, and Snowflake",
+  "Compare two plans, or SQL Server STATISTICS IO readings from before and after a tuning change",
 ]
 
 export interface HowItWorksStep {
@@ -50,11 +52,11 @@ export const HOW_IT_WORKS: HowItWorksStep[] = [
   { title: "Paste your plan", description: "EXPLAIN output, Showplan XML, or Snowflake operator stats." },
   {
     title: "Parsed and analyzed locally",
-    description: "The rule engine flags scans, spills, bad estimates, and inefficient joins — entirely in your browser.",
+    description: "The rule engine flags scans, spills, bad estimates, and inefficient joins.",
   },
   {
     title: "Explore the graph",
-    description: "Click any node for a plain-English breakdown, or copy a share link — nothing is stored on a server.",
+    description: "Click any node for a plain-English breakdown, or copy a share link.",
   },
 ]
 
@@ -98,7 +100,16 @@ export const FAQ_ITEMS: FaqItem[] = [
     question: "Is my execution plan sent to a server?",
     answer: "No. Parsing and analysis run 100% client-side in your browser; nothing you paste is ever transmitted.",
   },
-  { question: "Which databases are supported?", answer: "PostgreSQL, SQL Server, and Snowflake." },
+  {
+    question: "How do I get an execution plan to paste?",
+    answer:
+      "PostgreSQL: run EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) before your query. SQL Server: in SSMS turn on Include Actual Execution Plan, run the query, then save the .sqlplan file or copy the XML. Snowflake: call GET_QUERY_OPERATOR_STATS() for your query ID, or export the Query Profile as JSON.",
+  },
+  {
+    question: "Can I check whether a tuning change actually helped?",
+    answer:
+      "Yes — after analyzing a plan, choose Compare with another plan. For SQL Server you can also paste SET STATISTICS IO output from before and after the change to see the difference in logical reads for each table.",
+  },
   {
     question: "Can I share a plan with a teammate?",
     answer: "Yes — the share link encodes your plan directly in the URL. It's never stored on a server.",

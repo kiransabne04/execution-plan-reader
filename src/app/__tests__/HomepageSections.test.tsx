@@ -42,6 +42,13 @@ describe("HomepageSections — Story 02.2", () => {
     }
   })
 
+  it("links each engine to its dedicated landing page", () => {
+    render(<HomepageSections />)
+    for (const db of SUPPORTED_DATABASES) {
+      expect(screen.getByRole("link", { name: db.engine })).toHaveAttribute("href", db.href)
+    }
+  })
+
   it("lists every 'what it detects' and 'why PlanReader' bullet", () => {
     render(<HomepageSections />)
     for (const item of [...WHAT_IT_DETECTS, ...WHY_PLANREADER]) {

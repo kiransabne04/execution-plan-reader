@@ -139,3 +139,9 @@
   font-size: 14px;
   line-height: 1.6;
 }
+
+.homepage-section__engine-card h3 a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

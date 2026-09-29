@@ -1121,3 +1121,18 @@ describe("PlanReaderPage — light hero", () => {
     expect(screen.queryByTestId("light-hero")).toBeNull()
   })
 })
+
+describe("PlanReaderPage — 'What is PlanReader?' cue", () => {
+  it("scrolls to the first homepage section when clicked", () => {
+    render(<PlanReaderPage />)
+    const target = document.getElementById("homepage-supported-databases")
+    // HomepageSections is a sibling rendered by the page itself.
+    expect(target).not.toBeNull()
+    let scrolled = false
+    target!.scrollIntoView = () => {
+      scrolled = true
+    }
+    fireEvent.click(screen.getByTestId("scroll-to-about"))
+    expect(scrolled).toBe(true)
+  })
+})

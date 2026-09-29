@@ -1089,6 +1089,14 @@ export function PlanReaderPage() {
                       <button type="button" className="plan-shell__io-link" data-testid="open-statistics-io" onClick={() => setIoOnlyMode(true)}>
                         Only have SQL Server STATISTICS IO output? Compare before/after readings
                       </button>
+                      <button
+                        type="button"
+                        className="plan-shell__io-link"
+                        data-testid="scroll-to-about"
+                        onClick={() => document.getElementById("homepage-supported-databases")?.scrollIntoView({ behavior: "smooth" })}
+                      >
+                        What is PlanReader? ↓
+                      </button>
                     </>
                   )}
                 </main>

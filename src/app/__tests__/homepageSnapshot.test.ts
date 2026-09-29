@@ -51,7 +51,7 @@ describe("index.html's static homepage-sections snapshot (.seo-sections)", () =>
 
   it("names all 3 supported engines with their real accepted input format", () => {
     for (const db of SUPPORTED_DATABASES) {
-      expectContains(`${db.engine} — ${db.format}`)
+      expectContains(`<a href="${db.href}">${db.engine}</a> — ${db.format}`)
     }
   })
 
