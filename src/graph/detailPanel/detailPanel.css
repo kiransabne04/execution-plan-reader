@@ -548,12 +548,15 @@
    accent, not red): a helpful nudge, not another problem being flagged. */
 .detail-panel__funnel-callout {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
   background: var(--dp-callout-bg);
   border-left: 3px solid var(--dp-callout-border);
   border-radius: 4px;
   padding: 8px 10px;
+  position: relative;
+  padding-right: 30px;
 }
 
 .detail-panel__funnel-callout-link {
@@ -568,6 +571,9 @@
 }
 
 .detail-panel__funnel-callout-dismiss {
+  position: absolute;
+  top: 5px;
+  right: 6px;
   background: none;
   border: none;
   color: var(--dp-text-muted);

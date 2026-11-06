@@ -13,7 +13,7 @@
 - No signup, no account, no rate-limit wall for the rule-based path.
 - Mobile-usable landing page and clear positioning (see positioning brief) so the tool is unmistakable within seconds.
 - Explicit non-storage privacy statement above the paste box, not buried in a footer link.
-- Light funnel touchpoints: contextual callouts (not popups) pointing Postgres users to pgsuite and Snowflake users to QueryDoc when the free explanation hits its ceiling (e.g., "Want ongoing checks like this across your whole database? → pgsuite").
+- Light, dismissible handoffs after the overall findings summary and beside relevant node findings. PostgreSQL links to WalStack's production performance investigation; SQL Server and Snowflake link to their matching WalStack capability pages. A clean plan also gets an honest one-plan boundary note.
 - Basic analytics (privacy-respecting, aggregate only — no plan content ever logged) to learn which engines and problem types get the most use.
 - **Tolerant input parsing, not naive parsing.** Real-world plans routinely break naive parsers: Postgres has shipped JSON with duplicate keys (e.g. two `"Workers"` blocks) that silently loses data under a plain `JSON.parse()`; `psql`'s `\x on` mode and `auto_explain` log capture both wrap plan text in artifacts (`[ RECORD ]` markers, `LOG:`/timestamp prefixes) that a naive parser chokes on; SQL Server's `ShowPlanXML` element is frequently not the document root because Extended Events wraps it in additional XML. PlanReader needs a duplicate-key-tolerant JSON parser, a pre-processing cleanup pass that strips known copy-paste artifacts, and an XML parser that searches for `ShowPlanXML` rather than assuming it's the root — from day one, not as a bug-fix cycle after launch.
 - **Explicit labeling of parallel/looped timing figures.** Cumulated I/O and duration figures across parallel workers or repeated loops are a well-documented, still-unresolved source of confusion in existing tools (a query can display as 10x slower than it actually ran because per-worker times are summed rather than shown per-worker or as a max). Any node with `loops > 1` or parallel worker data must carry an explicit note distinguishing cumulated vs. per-execution time, as a named rule in the MVP rule set for all three engines.
@@ -43,7 +43,7 @@
 ## Could have (Phase 2+)
 - MySQL support (`EXPLAIN FORMAT=JSON`).
 - Additional engines as demand justifies (MariaDB, Oracle, CockroachDB — all use meaningfully different plan formats and would need dedicated parser work).
-- Historical plan tracking / regression detection (this starts to overlap with pganalyze's and pgMustard's paid territory — a natural place to say "that's what pgsuite/QueryDoc are for" rather than build it here).
+- Historical plan tracking / regression detection (outside a one-plan analyzer; persistent production problems can be investigated through WalStack).
 - Browser extension or CLI companion for piping `EXPLAIN` output straight in.
 - Auto-anonymization/obfuscation of literal values and identifiers before optional server-side LLM processing (differentiator, but real engineering effort — sequence this after the LLM mode ships and proves demand).
 - API endpoint so other tools (e.g., ORMs, CI pipelines) can call the rule engine programmatically.
@@ -51,7 +51,7 @@
 - **Side-by-side diff with synced interaction.** Building on the Should-have diff view: synchronized pan/zoom/expand-state between the two plans being compared, so scrolling one scrolls the other — nice-to-have polish on top of the core diff capability, not required for diffing to be useful.
 
 ## Out of scope for the foreseeable future
-- Live database connections of any kind (this stays strictly a paste-a-plan tool — connecting to a database is pgsuite's job, not PlanReader's, and it's also the single biggest trust/security liability a public no-signup tool could take on).
+- Live database connections of any kind (this stays strictly a paste-a-plan tool; production workload investigation is a separate WalStack service, and connectivity would be a major trust/security liability for a public no-signup tool).
 - Query rewriting or auto-fix suggestions (that's EverSQL's lane, not this tool's).
-- User accounts, saved history tied to identity, or any paid tier on planreader.dev itself — if this tool ever needs a business model, that's a sign the roadmap drifted from "funnel" toward "product," and the right response is to move that feature into pgsuite/QueryDoc instead.
+- User accounts, saved history tied to identity, or any paid tier on planreader.dev itself — the tool stays free and focused on explaining a pasted plan.
 - Team/collaboration features (shared workspaces, comments) — out of scope by design, since that pulls PlanReader toward being a standalone SaaS rather than a funnel.

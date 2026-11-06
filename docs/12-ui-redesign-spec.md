@@ -162,7 +162,7 @@ This was wrong in the first mockup pass; the rules below are the correction.
 ### `2c` Content stack
 - New `app/content/ContentStack.tsx` plus `app/content/posts.ts`: `{id, kind:"blog"|"video", title, url, minutes, operatorTypes[], ruleIds[]}`.
 - In-panel placement matches on the open node's `operatorType` or a fired `Warning.ruleId`; render nothing when there's no match.
-- Kept visually apart from the pgsuite/QueryDoc callout — that one is teal and a product nudge, this is neutral and editorial. Never stack the two adjacent.
+- Kept visually apart from the WalStack handoff — that one is teal and a service suggestion, this is neutral and editorial. Never stack the two adjacent.
 - Titles in the mockup are placeholders. Do not ship invented links; render the stack only once `posts.ts` has real entries.
 - External links open in a new tab with `rel="noopener"`. No analytics beacon on click — that would breach the no-network guarantee.
 

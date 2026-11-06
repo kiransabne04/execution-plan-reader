@@ -1,43 +1,57 @@
-// Episode 9, Story 9.1 — contextual, dismissible product callouts. See
-// docs/06-content-launch-plan.md §4 and docs/02-feature-prioritization-moscow.md
-// for the funnel design this implements: Postgres findings → pgsuite,
-// Snowflake findings → QueryDoc, never cross-wired, never a generic banner.
-
 import type { Engine } from "../../parsers/normalize"
 
 export interface FunnelCallout {
-  product: "pgsuite" | "querydoc"
+  product: "walstack-postgres" | "walstack-sqlserver" | "walstack-snowflake"
   text: string
-  /** Placeholder — swap for the real pgsuite/QueryDoc URL before launch.
-   * See Story 9.1's own note on this in docs/08-episodes-and-stories.md. */
+  cta: string
   url: string
 }
 
-// One generic message per engine, not tailored per rule ID (a deliberate
-// scope decision for this pass) — still satisfies "tied to a specific
-// finding, not a generic banner" per the acceptance criteria, since
-// WarningsSection only ever renders this alongside an actual fired warning
-// on the node currently open, never as a standalone/always-visible element.
-const CALLOUTS: Partial<Record<Engine, FunnelCallout>> = {
+// Fixed destinations only. Never derive a URL from plan data, findings,
+// location.href, or the share-link fragment (which contains the raw plan).
+export const WALSTACK_POSTGRES_URL =
+  "https://walstack.io/postgresql-performance-investigation?utm_source=planreader&utm_medium=tool&utm_campaign=postgres_plan_handoff"
+export const WALSTACK_SQLSERVER_URL =
+  "https://walstack.io/sql-server-performance?utm_source=planreader&utm_medium=tool&utm_campaign=sqlserver_plan_handoff"
+export const WALSTACK_SNOWFLAKE_URL =
+  "https://walstack.io/snowflake-performance?utm_source=planreader&utm_medium=tool&utm_campaign=snowflake_plan_handoff"
+export const WALSTACK_SAMPLE_REPORT_URL =
+  "https://walstack.io/sample-report?utm_source=planreader&utm_medium=tool&utm_campaign=postgres_plan_handoff"
+export const WALSTACK_CREATOR_URL =
+  "https://walstack.io/about?utm_source=planreader&utm_medium=tool&utm_campaign=creator_credit"
+
+const CALLOUTS: Record<Engine, FunnelCallout> = {
   postgres: {
-    product: "pgsuite",
-    text: "Want ongoing checks like this across your whole database?",
-    url: "https://pgsuite.example.com",
+    product: "walstack-postgres",
+    text: "A plan shows one execution. Persistent latency, CPU, locks, or connection pressure may need a production workload investigation.",
+    cta: "See the PostgreSQL investigation",
+    url: WALSTACK_POSTGRES_URL,
+  },
+  sqlserver: {
+    product: "walstack-sqlserver",
+    text: "If this SQL Server issue persists across the workload, WalStack can review the wider performance context.",
+    cta: "See SQL Server performance help",
+    url: WALSTACK_SQLSERVER_URL,
   },
   snowflake: {
-    product: "querydoc",
-    text: "Want deeper, AI-narrated diagnosis for Snowflake queries?",
-    url: "https://querydoc.example.com",
+    product: "walstack-snowflake",
+    text: "If query performance varies beyond this Snowflake plan, WalStack can review the wider workload.",
+    cta: "See Snowflake performance help",
+    url: WALSTACK_SNOWFLAKE_URL,
   },
 }
 
-/**
- * Keyed strictly off the node's OWN `engine` field — never off rule ID or
- * any plan-wide "detected engine" flag — so a Postgres finding can never
- * link to QueryDoc or vice versa (Story 9.1's cross-engine-mixup edge case).
- * SQL Server has no funnel product (PRD: it's a credibility/reach play, not
- * one of the two funnel-mapped engines) — undefined for it, by design.
- */
-export function getFunnelCallout(engine: Engine): FunnelCallout | undefined {
+export function getFunnelCallout(engine: Engine): FunnelCallout {
   return CALLOUTS[engine]
+}
+
+export function getSummaryHandoffText(engine: Engine, hasFindings: boolean): string {
+  if (engine === "postgres") {
+    return hasFindings
+      ? "A plan shows one execution. If latency, CPU, locks, or connection pressure persist, WalStack can investigate the workload and rank safe changes."
+      : "No rule fired in this plan, but a clean plan does not rule out a production problem. If latency, CPU, locks, or connection pressure persist, WalStack can investigate the workload and rank safe changes."
+  }
+  return hasFindings
+    ? CALLOUTS[engine].text
+    : `No rule fired in this plan, but a clean plan does not rule out a production problem. ${CALLOUTS[engine].text}`
 }

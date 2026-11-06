@@ -5,10 +5,11 @@
 // .claude/skills/graph-visualization/SKILL.md.
 
 import { useMemo, useState } from "react"
-import type { Warning } from "../../parsers/normalize"
+import type { Engine, Warning } from "../../parsers/normalize"
 import { collectFindingsAcrossStatements, type FindingsSource } from "../../rules/findings"
 import { FINDING_CATEGORY_ORDER, type FindingCategory } from "../../rules/findingCategory"
 import { NO_ISSUES_TEXT, OPENERS, type PlanSummary } from "../../rules/summarize"
+import { FindingsHandoff } from "./FindingsHandoff"
 import "./findingsList.css"
 
 export interface FindingsListProps {
@@ -19,6 +20,7 @@ export interface FindingsListProps {
    * Optional only so this component's existing tests/callers that don't
    * care about the summary aren't forced to pass one. */
   summary?: PlanSummary
+  engine?: Engine
   /** Story 20.4: every statement in the batch, not just the active one —
    * a large SQL Server stored-proc plan's findings were previously
    * scoped to whichever ONE statement happened to be selected, silently
@@ -50,7 +52,7 @@ const SEVERITY_LABEL: Record<Warning["severity"], string> = {
   info: "Info",
 }
 
-export function FindingsList({ summary, sources, activeStatementIndex, onSelectNode }: FindingsListProps) {
+export function FindingsList({ summary, engine, sources, activeStatementIndex, onSelectNode }: FindingsListProps) {
   const allFindings = useMemo(() => collectFindingsAcrossStatements(sources), [sources])
 
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
@@ -103,6 +105,8 @@ export function FindingsList({ summary, sources, activeStatementIndex, onSelectN
           </p>
         </div>
       )}
+
+      {summary && engine && <FindingsHandoff key={engine} engine={engine} hasFindings={allFindings.length > 0} />}
 
       <div className="findings-list__header">
         <h2 className="findings-list__title">

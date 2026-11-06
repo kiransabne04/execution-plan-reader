@@ -10,6 +10,7 @@
 // invented capability.
 
 import { PRIVACY_POINTS } from "./homepageContent"
+import { WALSTACK_POSTGRES_URL, WALSTACK_SAMPLE_REPORT_URL } from "../graph/detailPanel/funnelCallouts"
 
 export const PAGE_TITLE = "PostgreSQL EXPLAIN ANALYZE Visualizer & Execution Plan Analyzer | PlanReader"
 export const META_DESCRIPTION =
@@ -55,6 +56,14 @@ export const WHAT_IT_DETECTS: DetectedIssue[] = [
 export const EXAMPLE_FINDING_HEADING = "Example finding"
 export const EXAMPLE_FINDING_BODY =
   "A nested loop join estimated 12 rows but actually produced 6,104 — a 500x miss that made it the most expensive step in the query. PlanReader flags this as an exploding join, shows exactly where it happens in the graph, and explains in plain English what usually causes it (stale statistics or a bad selectivity estimate) instead of just showing you a row-count table."
+
+export const BEYOND_PLAN_HEADING = "When one plan is not enough"
+export const BEYOND_PLAN_BODY =
+  "A plan shows one execution. If latency, CPU, locks, or connection pressure persist, WalStack can investigate the production workload and rank safe changes. You choose separately what evidence to share."
+export const BEYOND_PLAN_CTA_TEXT = "See the PostgreSQL investigation"
+export const BEYOND_PLAN_CTA_HREF = WALSTACK_POSTGRES_URL
+export const SAMPLE_REPORT_CTA_TEXT = "View a sample report"
+export const SAMPLE_REPORT_CTA_HREF = WALSTACK_SAMPLE_REPORT_URL
 
 export const HOW_TO_GENERATE_HEADING = "How to generate EXPLAIN input"
 export const HOW_TO_GENERATE_JSON_LABEL = "For the JSON format (recommended — includes buffer stats):"

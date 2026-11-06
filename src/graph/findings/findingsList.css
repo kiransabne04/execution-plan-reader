@@ -89,6 +89,48 @@
   color: var(--fl-info-text);
 }
 
+.findings-handoff {
+  position: relative;
+  flex: none;
+  padding: 10px 30px 10px 11px;
+  border: 1px solid var(--fl-border);
+  border-left: 2px solid var(--fl-border);
+  border-radius: 5px;
+  color: var(--fl-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.findings-handoff--postgres {
+  border-left-color: var(--dp-callout-border);
+}
+
+.findings-handoff p {
+  margin: 0 0 5px;
+}
+
+.findings-handoff a {
+  color: var(--dp-callout-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.findings-handoff a:hover {
+  text-decoration: underline;
+}
+
+.findings-handoff button {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  border: 0;
+  background: none;
+  color: var(--fl-text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
 .findings-list__header {
   flex: none;
   display: flex;

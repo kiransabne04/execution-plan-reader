@@ -38,3 +38,18 @@ test("Analyzer CTA navigates to the real app; Try-sample link lands on the real 
   await expect(page).toHaveURL(/\/#sample-plans$/)
   await expect(page.getByTestId("sample-plan-list")).toBeInViewport()
 })
+
+test("one-plan boundary links to the investigation and sample report while the free analyzer remains primary", async ({ page }) => {
+  await page.goto("/postgresql-execution-plan-analyzer.html")
+  await expect(page.getByTestId("analyzer-cta")).toHaveText("Analyze your plan free")
+  const section = page.getByRole("region", { name: "When one plan is not enough" })
+  await expect(section).toContainText("You choose separately what evidence to share")
+  await expect(section.getByRole("link", { name: "See the PostgreSQL investigation" })).toHaveAttribute(
+    "href",
+    "https://walstack.io/postgresql-performance-investigation?utm_source=planreader&utm_medium=tool&utm_campaign=postgres_plan_handoff",
+  )
+  await expect(section.getByRole("link", { name: "View a sample report" })).toHaveAttribute(
+    "href",
+    "https://walstack.io/sample-report?utm_source=planreader&utm_medium=tool&utm_campaign=postgres_plan_handoff",
+  )
+})

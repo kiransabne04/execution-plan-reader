@@ -14,22 +14,22 @@ Every major database engine exposes an execution plan, and every plan format is 
 
 1. Give anyone — regardless of database experience — a free, immediate, plain-language explanation of a raw execution plan, for Postgres, SQL Server, and Snowflake at MVP.
 2. Pair that explanation with a node-graph visualization that makes the plan's shape and cost distribution legible at a glance.
-3. Establish planreader.dev as a credible, well-known top-of-funnel property for @scalingbackend, feeding qualified traffic into pgsuite (Postgres users) and QueryDoc (Snowflake users).
+3. Establish planreader.dev as a credible, useful tool built by Kiran Sabne at WalStack, with an optional handoff to WalStack's PostgreSQL production performance investigation and restrained SQL Server/Snowflake capability links.
 4. Do all of the above without asking for a signup, an email, or a credit card, and without requiring the user to trust a server with their query text unless they explicitly opt into the LLM narrative mode.
 
 ## 3. Non-goals
 
 - PlanReader is **not** a database monitoring tool — it never connects to a live database.
 - PlanReader is **not** a query rewriter or auto-tuner — it explains a plan, it doesn't rewrite the query that produced it.
-- PlanReader is **not** intended to become a standalone revenue product. If a feature request would turn it into one (accounts, paid tiers, team workspaces), the right answer is "that belongs in pgsuite/QueryDoc," not "build it here."
+- PlanReader is **not** intended to become a standalone revenue product. It remains a free, no-signup tool; production workload investigations belong with WalStack.
 - PlanReader does not aim to be the deepest possible tuning tool for expert DBAs (that's pgMustard's and pganalyze's territory) — it aims to be the most approachable one, with enough depth that experienced users still get value from the visualization even if they skip the plain-language layer.
-- PlanReader does not claim to diagnose parameter sensitivity (parameter sniffing on SQL Server, plan instability from Snowflake's dynamic cost-based optimizer) — a single pasted plan is a single snapshot of one execution, and no amount of parsing sophistication changes that structural fact. Where a parameterized query or an unusually-shaped plan is detected, PlanReader states this limitation directly to the user (e.g., "this reflects one specific run — if this query is sometimes fast and sometimes slow, a different plan may be used for different inputs, which a single pasted plan can't show you") rather than implying completeness it doesn't have. This is also a legitimate, low-pressure nudge toward pgsuite/QueryDoc's plan-history capabilities.
+- PlanReader does not claim to diagnose parameter sensitivity (parameter sniffing on SQL Server, plan instability from Snowflake's dynamic cost-based optimizer) — a single pasted plan is a single snapshot of one execution, and no amount of parsing sophistication changes that structural fact. Where a parameterized query or an unusually-shaped plan is detected, PlanReader states this limitation directly to the user (e.g., "this reflects one specific run — if this query is sometimes fast and sometimes slow, a different plan may be used for different inputs, which a single pasted plan can't show you") rather than implying completeness it doesn't have. Persistent production symptoms need workload evidence beyond one plan.
 
 ## 4. Target personas
 
 **Persona A — "The stuck junior/mid-level developer."** Comfortable writing SQL, has never had to seriously read a plan before, just got told by a senior engineer or a monitoring alert that a query is slow. Pastes the plan somewhere to make sense of it, googling terms like "seq scan bad?" along the way. Wants a plain-English summary first, detail second. This persona is the primary growth driver — they'll share the tool with teammates and reference it in PRs.
 
-**Persona B — "The polyglot backend/data engineer."** This is close to Kiran's own profile — works across Postgres, SQL Server, and Snowflake in the same week, doesn't want to context-switch between three different vendor tools with three different mental models. Values a consistent visualization language across engines more than deep advice on any single one. Natural upgrade path to pgsuite (ongoing Postgres observability) or QueryDoc (Snowflake-native diagnosis) once they need more than a one-off explanation.
+**Persona B — "The polyglot backend/data engineer."** This is close to Kiran's own profile — works across Postgres, SQL Server, and Snowflake in the same week, doesn't want to context-switch between three different vendor tools with three different mental models. Values a consistent visualization language across engines more than deep advice on any single one. For persistent production symptoms, WalStack offers a PostgreSQL investigation and engine-specific SQL Server/Snowflake performance capabilities.
 
 **Persona C — "The experienced DBA doing a quick sanity check."** Already knows how to read a plan, but wants a fast visual on an unfamiliar or unusually large plan, or wants to hand a clean visualization to a less experienced teammate instead of a wall of text. Lower priority for the plain-language layer, higher value from the node-graph and clarity of presentation. This persona is the primary reason the Expert-depth toggle and dense side-panel detail exist — Persona A gets the guided walkthrough and collapsed-by-default view, Persona C gets the expanded, technical, no-narration view, from the same underlying data.
 
@@ -39,12 +39,12 @@ Every major database engine exposes an execution plan, and every plan format is 
 - As a backend engineer who works across Postgres and Snowflake, I want a consistent visual language for plans regardless of engine, so I don't have to relearn a new tool's conventions every time I switch stacks.
 - As a team lead, I want to paste a teammate's plan into something I can screenshot and drop in Slack, so I can explain a performance issue without a screen-share.
 - As a privacy-conscious engineer, I want to know for certain that pasting a plan containing real table/column names and filter values doesn't send that data anywhere, so I can use the tool on production plans without going through a security review.
-- As a Postgres user who outgrows the free tool, I want a clear, non-pushy next step toward something that watches my database continuously, so I know pgsuite exists when I need it.
-- As a Snowflake user who wants AI-narrated, deeper diagnosis than the free rule engine gives, I want a clear path to QueryDoc, so I know where to go next.
+- As a Postgres user with persistent latency, CPU, locks, or connection pressure, I want a clear, non-pushy path to a production performance investigation, so I can seek workload-wide evidence and ranked safe changes.
+- As a SQL Server or Snowflake user with persistent performance symptoms, I want an engine-relevant capability link, so I can decide whether outside help fits my problem.
 
 ## 6. In-scope engines for MVP
 
-Postgres (`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` and TEXT), SQL Server (`.sqlplan` / Showplan XML), Snowflake (Query Profile JSON / `GET_QUERY_OPERATOR_STATS()` output). Rationale: these are Kiran's actual production stack, they cover three structurally different plan formats (tree-in-JSON, XML with a published schema, flat table with array/object attributes) which validates the normalization architecture early, and they map directly to the two existing funnel products (Postgres → pgsuite, Snowflake → QueryDoc), with SQL Server serving primarily as a credibility and reach play.
+Postgres (`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` and TEXT), SQL Server (`.sqlplan` / Showplan XML), Snowflake (Query Profile JSON / `GET_QUERY_OPERATOR_STATS()` output). Rationale: these are Kiran's actual production stack, and they cover three structurally different plan formats (tree-in-JSON, XML with a published schema, flat table with array/object attributes). PostgreSQL has the primary investigation handoff; the other engines have restrained, matching capability paths.
 
 MySQL and any further engines are explicitly Phase 2 (see Feature Prioritization doc).
 
@@ -70,7 +70,7 @@ Full acceptance criteria, testing approach, and edge cases for each of these liv
 
 - **Adoption**: unique plans submitted per week, trending upward month over month post-launch; ratio of returning visitors (bookmark/reuse signal) vs. one-time visitors.
 - **Engine mix**: distribution across Postgres/SQL Server/Snowflake, to validate or correct the MVP engine prioritization for Phase 2 planning.
-- **Funnel conversion**: click-through rate on pgsuite/QueryDoc callouts, and (where traceable) attributed signups/trials on those products originating from planreader.dev.
+- **Funnel conversion**: aggregate click-through to WalStack's investigation and capability pages, and inquiries attributed through fixed campaign tags. Never track plan content or individual findings.
 - **Content performance**: referral traffic from the existing execution-plan video series and blog post, and vice versa — whether PlanReader increases traffic to that existing content.
 - **Qualitative**: unprompted mentions/shares on Reddit, Hacker News, or Twitter/X — the kind of organic pickup Depesz and PEV2 got, which would validate that PlanReader has hit the "actually useful enough to recommend" bar.
 - **Non-metric but binding constraint**: zero incidents of plan content (containing real schema/data) leaving the browser without explicit, informed user opt-in.

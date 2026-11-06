@@ -75,6 +75,18 @@
   font-size: 11px;
 }
 
+.plan-reader-page__credit a,
+.plan-shell__canvas-credit a {
+  color: var(--pr-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.plan-reader-page__credit a:hover,
+.plan-shell__canvas-credit a:hover {
+  color: var(--pr-text);
+}
+
 .restore-session-banner {
   display: flex;
   align-items: center;
