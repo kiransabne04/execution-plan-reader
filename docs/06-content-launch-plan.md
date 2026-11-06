@@ -24,6 +24,7 @@ Per the PRD's non-goals, PlanReader must never feel like a lead-gen trap. The fu
 - Contextual, not interstitial — a small, dismissible handoff after the overall findings summary and alongside relevant node findings. The PostgreSQL offer is WalStack's production performance investigation, not ongoing monitoring. A clean plan still gets the one-plan boundary note because no rule firing does not rule out a production problem.
 - Never blocking — the free tool's core value (explanation + visualization) must be fully usable with every funnel callout ignored or an ad-blocker-style extension hiding them entirely.
 - Framed as an optional investigation of latency, CPU, locks, or connection pressure across the production workload. PostgreSQL is the prominent handoff; SQL Server and Snowflake have restrained links to their matching WalStack capability pages. All links use fixed campaign URLs only. The visitor separately chooses what evidence to share with a consultant; no plan text, finding, SQL, or share fragment is appended to a WalStack URL.
+- The PostgreSQL CTA names professional help explicitly (“Explore professional PostgreSQL help”) and leads to the investigation page. The analyzed-plan header also offers a compact, generic “Professional help” path to WalStack's homepage for users of any supported engine.
 
 ## 5. Post-launch content loop
 

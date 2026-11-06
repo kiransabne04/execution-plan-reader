@@ -60,7 +60,7 @@ export const EXAMPLE_FINDING_BODY =
 export const BEYOND_PLAN_HEADING = "When one plan is not enough"
 export const BEYOND_PLAN_BODY =
   "A plan shows one execution. If latency, CPU, locks, or connection pressure persist, WalStack can investigate the production workload and rank safe changes. You choose separately what evidence to share."
-export const BEYOND_PLAN_CTA_TEXT = "See the PostgreSQL investigation"
+export const BEYOND_PLAN_CTA_TEXT = "Explore professional PostgreSQL help"
 export const BEYOND_PLAN_CTA_HREF = WALSTACK_POSTGRES_URL
 export const SAMPLE_REPORT_CTA_TEXT = "View a sample report"
 export const SAMPLE_REPORT_CTA_HREF = WALSTACK_SAMPLE_REPORT_URL

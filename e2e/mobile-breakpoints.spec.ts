@@ -79,12 +79,12 @@ test("every tab control and the sheet's close button meet the 44px touch-target 
   expect(closeBox!.height).toBeGreaterThanOrEqual(44)
 })
 
-test("app-bar buttons (Beginner/Expert, Walk me through it, Export) meet the 44px touch-target floor", async ({ page }) => {
+test("app-bar controls (Beginner/Expert, Professional help, Walk me through it, Export) meet the 44px touch-target floor", async ({ page }) => {
   await page.goto("/")
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "simple-seq-scan.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
 
-  for (const testId of ["shell-mode-beginner", "shell-mode-expert", "walkthrough-open", "export-png-button"]) {
+  for (const testId of ["shell-mode-beginner", "shell-mode-expert", "walstack-header-help", "walkthrough-open", "export-png-button"]) {
     const box = await page.getByTestId(testId).boundingBox()
     expect(box).not.toBeNull()
     expect(box!.height).toBeGreaterThanOrEqual(44)

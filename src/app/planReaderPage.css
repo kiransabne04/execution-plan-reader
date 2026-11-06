@@ -826,6 +826,16 @@
   cursor: not-allowed;
 }
 
+.plan-shell__walstack-help {
+  color: var(--pr-text);
+  text-decoration: none;
+}
+
+.plan-shell__walstack-help:hover {
+  border-color: var(--pr-accent);
+  color: var(--pr-accent);
+}
+
 .plan-shell__app-bar-button-icon {
   flex: none;
   width: 13px;

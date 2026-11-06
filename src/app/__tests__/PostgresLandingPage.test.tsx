@@ -60,7 +60,7 @@ describe("PostgresLandingPage — Story 03.1", () => {
   it("keeps the free analyzer primary and links to the investigation and sample report", () => {
     render(<PostgresLandingPage />)
     expect(screen.getByTestId("analyzer-cta")).toHaveTextContent("Analyze your plan free")
-    expect(screen.getByRole("link", { name: "See the PostgreSQL investigation" })).toHaveAttribute("href", BEYOND_PLAN_CTA_HREF)
+    expect(screen.getByRole("link", { name: "Explore professional PostgreSQL help" })).toHaveAttribute("href", BEYOND_PLAN_CTA_HREF)
     expect(screen.getByRole("link", { name: "View a sample report" })).toHaveAttribute("href", SAMPLE_REPORT_CTA_HREF)
     expect(screen.getByText(/You choose separately what evidence to share/)).toBeInTheDocument()
   })

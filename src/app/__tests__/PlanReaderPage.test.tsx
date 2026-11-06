@@ -110,6 +110,11 @@ describe("PlanReaderPage", () => {
     expect(screen.getByTestId("plan-summary")).toBeInTheDocument()
     expect(screen.getAllByTestId("plan-node-card").length).toBeGreaterThan(0)
     expect(screen.queryByTestId("parse-error")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Professional database help at WalStack" })).toHaveAttribute(
+      "href",
+      "https://walstack.io/?utm_source=planreader&utm_medium=tool&utm_campaign=header_professional_help",
+    )
+    expect(screen.getByTestId("walstack-header-help")).toHaveTextContent("Professional help")
   })
 
   // Design review (header PNG reference): spec §2's app-bar filename slot.

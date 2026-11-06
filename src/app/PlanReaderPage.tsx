@@ -40,7 +40,7 @@ import { pickMetricValue, type MetricKey } from "../graph/encoding"
 import { loadExpertMode, saveExpertMode } from "./expertModePersistence"
 import { EMPTY_STATE_SUBHEADING } from "./emptyStateCopy"
 import { setShareLinkNoIndex } from "./robotsMeta"
-import { WALSTACK_CREATOR_URL } from "../graph/detailPanel/funnelCallouts"
+import { WALSTACK_CREATOR_URL, WALSTACK_HEADER_HELP_URL } from "../graph/detailPanel/funnelCallouts"
 import { HomepageSections } from "./HomepageSections"
 import {
   saveSession,
@@ -736,6 +736,17 @@ export function PlanReaderPage() {
                     Expert
                   </button>
                 </div>
+                <a
+                  className="plan-shell__app-bar-button plan-shell__walstack-help"
+                  data-testid="walstack-header-help"
+                  href={WALSTACK_HEADER_HELP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Professional database help at WalStack"
+                  title="Professional database help at WalStack"
+                >
+                  Professional help <span aria-hidden="true">↗</span>
+                </a>
                 <button
                   type="button"
                   className="plan-shell__app-bar-button"

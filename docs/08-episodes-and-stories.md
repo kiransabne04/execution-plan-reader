@@ -358,6 +358,26 @@ As a developer with persistent database symptoms, I want an honest path from one
 | A visitor dismisses a summary card then opens a node | Reappearing immediately feels intrusive | Share per-engine session dismissal across summary and node callouts |
 | Findings are for different engines | A wrong capability page is misleading | Key each link to the engine and test all three mappings |
 
+### Story 9.3 — Clear professional-help CTA and header path
+
+As a developer reading a plan, I want the WalStack link to say what kind of help it offers and be reachable from the app header, so I understand the next step before leaving PlanReader.
+
+**Acceptance criteria**
+- PostgreSQL handoffs use “Explore professional PostgreSQL help” on the summary card, node callout, landing page, and crawlable HTML snapshot; the destination stays the fixed PostgreSQL investigation URL from Story 9.2.
+- The analyzed-plan app header includes a restrained “Professional help” link in the Beginner/Expert control row, leading to WalStack's homepage with fixed campaign tags only.
+- The header link is keyboard accessible, opens in a new tab, and never carries plan content or a share-link fragment.
+
+**Testing approach**
+- Component and snapshot tests check the new CTA copy and header destination.
+- Browser tests check the header's mobile touch target and the fixed URL on a share-link visit.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| The plan is SQL Server or Snowflake | A PostgreSQL-specific header offer would be misleading | Use a generic WalStack homepage link in the header |
+| The visitor opens a share link | Its fragment contains the raw plan | Keep the header href constant, without the fragment |
+| The header is narrow on mobile | A new control could be too small to tap | Apply the existing 44px touch-target rule to the link |
+
 ---
 
 ## Episode 10 — LLM narrative mode (Should-have, fast-follow)

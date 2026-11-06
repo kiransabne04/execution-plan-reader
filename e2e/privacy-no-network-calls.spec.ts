@@ -115,6 +115,10 @@ test("Story 11.2: a real copied share link decodes/renders locally with the frag
   // Renders directly from the fragment — no re-paste, no re-click.
   await expect(page.getByTestId("plan-result")).toBeVisible()
   await expect(page.getByTestId("detected-engine-badge")).toHaveText("SQL Server")
+  await expect(page.getByTestId("walstack-header-help")).toHaveAttribute(
+    "href",
+    "https://walstack.io/?utm_source=planreader&utm_medium=tool&utm_campaign=header_professional_help",
+  )
   await page.waitForTimeout(500)
 
   for (const url of allRequestUrls) {
