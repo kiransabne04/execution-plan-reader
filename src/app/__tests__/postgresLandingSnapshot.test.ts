@@ -12,6 +12,9 @@ import { fileURLToPath } from "node:url"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import {
+  BEYOND_PLAN_BODY,
+  BEYOND_PLAN_CTA_HREF,
+  BEYOND_PLAN_CTA_TEXT,
   DEEP_LEARNING_LINK_HREF,
   DEEP_LEARNING_LINK_TEXT,
   EXAMPLE_FINDING_BODY,
@@ -19,6 +22,8 @@ import {
   HOW_TO_GENERATE_JSON_COMMAND,
   HOW_TO_GENERATE_TEXT_COMMAND,
   PRIVACY_POINTS,
+  SAMPLE_REPORT_CTA_HREF,
+  SAMPLE_REPORT_CTA_TEXT,
   SUPPORTED_INPUT_FORMATS,
   TRY_SAMPLE_CTA_HREF,
   WHAT_IT_DETECTS,
@@ -40,7 +45,7 @@ describe("postgresql-execution-plan-analyzer.html's static snapshot", () => {
     expect(match![1].trim().length).toBeGreaterThan(0)
   })
 
-  it("has the real H1 and all 8 section headings, in the story's own order", () => {
+  it("has the real H1 and all section headings in order", () => {
     expectContains(`<h1>${H1}</h1>`)
     const headings = [...html.matchAll(/<h2>([^<]+)<\/h2>/g)].map((m) => m[1])
     expect(headings).toEqual([
@@ -48,6 +53,7 @@ describe("postgresql-execution-plan-analyzer.html's static snapshot", () => {
       "Supported input formats",
       "What it detects",
       "Example finding",
+      "When one plan is not enough",
       "Privacy",
       "How to generate EXPLAIN input",
       "Try a sample plan",
@@ -58,6 +64,18 @@ describe("postgresql-execution-plan-analyzer.html's static snapshot", () => {
   it("contains the 'what PlanReader analyzes' and example-finding copy verbatim", () => {
     expectContains(WHAT_PLANREADER_ANALYZES)
     expectContains(EXAMPLE_FINDING_BODY)
+    expectContains(BEYOND_PLAN_BODY)
+  })
+
+  it("mirrors the fixed WalStack links and CTA copy without a share fragment", () => {
+    for (const [url, label] of [
+      [BEYOND_PLAN_CTA_HREF, BEYOND_PLAN_CTA_TEXT],
+      [SAMPLE_REPORT_CTA_HREF, SAMPLE_REPORT_CTA_TEXT],
+    ]) {
+      expect(html).toContain(`href="${url.replaceAll("&", "&amp;")}"`)
+      expectContains(label)
+      expect(new URL(url).hash).toBe("")
+    }
   })
 
   it("names both real input formats", () => {

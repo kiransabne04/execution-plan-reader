@@ -4,7 +4,7 @@
 
 ## What PlanReader is, in one paragraph
 
-A free, no-signup web tool that explains raw database execution plans (Postgres, SQL Server, Snowflake) in plain English with an interactive node-graph visualization, funneling qualified users toward two existing paid products (pgsuite for Postgres, QueryDoc for Snowflake). The rule-based explanation path is 100% client-side by architecture — no server ever sees a pasted plan by default.
+A free, no-signup web tool that explains raw database execution plans (Postgres, SQL Server, Snowflake) in plain English with an interactive node-graph visualization. The primary commercial handoff is WalStack's PostgreSQL production performance investigation; restrained SQL Server and Snowflake capability links are engine-specific. The rule-based explanation path is 100% client-side by architecture — no server ever sees a pasted plan by default.
 
 ## Doc index — what to read for what
 

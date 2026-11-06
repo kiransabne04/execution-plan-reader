@@ -15,22 +15,22 @@ describe("WarningsSection funnel callout (Story 9.1)", () => {
     sessionStorage.clear()
   })
 
-  it("shows the pgsuite callout alongside a real Postgres warning", () => {
+  it("shows the PostgreSQL investigation callout alongside a real Postgres warning", () => {
     render(<WarningsSection warnings={[warning]} expertMode={false} engine="postgres" />)
     const callout = screen.getByTestId("funnel-callout")
-    expect(callout).toHaveTextContent(/database/i)
-    expect(callout.querySelector("a")).toHaveAttribute("href", expect.stringContaining("pgsuite"))
+    expect(callout).toHaveTextContent(/production workload investigation/i)
+    expect(callout.querySelector("a")).toHaveAttribute("href", expect.stringContaining("/postgresql-performance-investigation?"))
   })
 
-  it("shows the QueryDoc callout alongside a real Snowflake warning", () => {
+  it("shows the Snowflake capability callout alongside a real Snowflake warning", () => {
     render(<WarningsSection warnings={[warning]} expertMode={false} engine="snowflake" />)
     const callout = screen.getByTestId("funnel-callout")
-    expect(callout.querySelector("a")).toHaveAttribute("href", expect.stringContaining("querydoc"))
+    expect(callout.querySelector("a")).toHaveAttribute("href", expect.stringContaining("/snowflake-performance?"))
   })
 
-  it("never shows a callout for SQL Server — no funnel product mapped, never a fallback", () => {
+  it("shows the SQL Server capability callout alongside a real SQL Server warning", () => {
     render(<WarningsSection warnings={[warning]} expertMode={false} engine="sqlserver" />)
-    expect(screen.queryByTestId("funnel-callout")).not.toBeInTheDocument()
+    expect(screen.getByTestId("funnel-callout").querySelector("a")).toHaveAttribute("href", expect.stringContaining("/sql-server-performance?"))
   })
 
   it("never shows a callout when there's no warning to tie it to — not a generic banner", () => {
@@ -48,7 +48,7 @@ describe("WarningsSection funnel callout (Story 9.1)", () => {
     expect(screen.queryByTestId("funnel-callout")).not.toBeInTheDocument()
   })
 
-  it("dismissing pgsuite doesn't dismiss querydoc — scoped per product, not globally", () => {
+  it("dismissing PostgreSQL doesn't dismiss Snowflake — scoped per product", () => {
     render(<WarningsSection warnings={[warning]} expertMode={false} engine="postgres" />)
     fireEvent.click(screen.getByRole("button", { name: /dismiss/i }))
 

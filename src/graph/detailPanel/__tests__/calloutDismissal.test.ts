@@ -7,17 +7,17 @@ describe("calloutDismissal", () => {
   })
 
   it("starts undismissed", () => {
-    expect(isCalloutDismissed("pgsuite")).toBe(false)
+    expect(isCalloutDismissed("walstack-postgres")).toBe(false)
   })
 
   it("persists a dismissal for that product", () => {
-    dismissCallout("pgsuite")
-    expect(isCalloutDismissed("pgsuite")).toBe(true)
+    dismissCallout("walstack-postgres")
+    expect(isCalloutDismissed("walstack-postgres")).toBe(true)
   })
 
-  it("scopes dismissal per product — dismissing pgsuite doesn't dismiss querydoc", () => {
-    dismissCallout("pgsuite")
-    expect(isCalloutDismissed("querydoc")).toBe(false)
+  it("scopes dismissal per product — dismissing PostgreSQL doesn't dismiss Snowflake", () => {
+    dismissCallout("walstack-postgres")
+    expect(isCalloutDismissed("walstack-snowflake")).toBe(false)
   })
 
   // Story 9.1's ad-blocker/privacy-extension edge case: sessionStorage
@@ -27,8 +27,8 @@ describe("calloutDismissal", () => {
     const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("blocked")
     })
-    expect(() => isCalloutDismissed("pgsuite")).not.toThrow()
-    expect(isCalloutDismissed("pgsuite")).toBe(false)
+    expect(() => isCalloutDismissed("walstack-postgres")).not.toThrow()
+    expect(isCalloutDismissed("walstack-postgres")).toBe(false)
     spy.mockRestore()
   })
 
@@ -36,7 +36,7 @@ describe("calloutDismissal", () => {
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("blocked")
     })
-    expect(() => dismissCallout("pgsuite")).not.toThrow()
+    expect(() => dismissCallout("walstack-postgres")).not.toThrow()
     spy.mockRestore()
   })
 })

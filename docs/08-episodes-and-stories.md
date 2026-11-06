@@ -313,17 +313,17 @@ As a first-time visitor from a Snowflake-specific search, I want to confirm with
 
 ---
 
-## Episode 9 — Funnel touchpoints (pgsuite / QueryDoc)
+## Episode 9 — Funnel touchpoints (WalStack)
 
 **Goal**: Contextual, non-pushy callouts tied to specific findings, per the content/launch plan's funnel design.
 
 ### Story 9.1 — Contextual, dismissible product callouts
-As a Postgres user who's outgrown the free tool, I want a clear, low-pressure next step toward pgsuite.
+As a Postgres user with a persistent production problem, I want a clear, low-pressure next step toward a WalStack investigation.
 
 **Acceptance criteria**
-- Callouts are tied to specific warning types (e.g. bloat/vacuum-related finding → pgsuite mention), not shown generically to every visitor.
+- Node callouts are tied to a finding on the selected node; Story 9.2 adds a quiet plan-wide card after the summary, including clean plans.
 - Fully dismissible; core tool functionality (explanation + visualization) remains 100% usable with all callouts dismissed or blocked.
-- Snowflake-specific findings link to QueryDoc, Postgres-specific findings link to pgsuite — never cross-wired.
+- PostgreSQL findings link to WalStack's PostgreSQL investigation; SQL Server and Snowflake findings link to the matching WalStack capability pages — never cross-wired.
 
 **Testing approach**
 - Unit tests: verify the correct callout (or none) renders for each warning-type fixture.
@@ -335,6 +335,28 @@ As a Postgres user who's outgrown the free tool, I want a clear, low-pressure ne
 |---|---|---|
 | A plan triggers both Postgres and non-Postgres-relevant warnings in edge cases (shouldn't happen given engine-scoping, but worth guarding) | Wrong-product callout would be confusing and undermine trust | Callout logic keyed strictly to the detected engine, tested explicitly against cross-engine mixups |
 | Ad blockers or privacy extensions hiding callout UI entirely | Common in this exact audience (privacy-conscious developers) | Core tool must degrade gracefully with zero functional loss if callout UI never renders |
+
+### Story 9.2 — WalStack production investigation handoff
+
+As a developer with persistent database symptoms, I want an honest path from one analyzed plan to a production investigation, so I can decide whether workload-wide evidence is needed.
+
+**Acceptance criteria**
+- Replace placeholder URLs with fixed, campaign-tagged WalStack destinations. PostgreSQL points to `/postgresql-performance-investigation`; SQL Server and Snowflake point to their matching capability pages. Remove QueryDoc.
+- A quiet, session-dismissible card follows the overall findings summary for every engine, including plans with zero rule findings; PostgreSQL explains that a clean plan does not rule out a production problem.
+- The PostgreSQL landing page and its crawlable HTML snapshot both include “When one plan is not enough” with investigation and sample-report links. “Analyze your plan free” remains the primary CTA.
+- The existing creator credit includes a “Built by Kiran Sabne at WalStack” link. No outbound URL contains plan text, SQL, identifiers, findings, or a PlanReader share fragment.
+
+**Testing approach**
+- Component tests cover all engine destinations, the no-findings state, session dismissal, and the fixed URL privacy boundary.
+- The PostgreSQL landing-page snapshot drift test checks both new links and copy.
+
+**Edge cases to handle**
+| Case | Why it matters | Handling |
+|---|---|---|
+| No warning fires | One execution may look clean while the production workload is unhealthy | Show a clean-plan boundary note after the summary |
+| A share link contains the raw plan in its fragment | Copying that fragment to a consultant URL would leak user data | Use constant, campaign-only destination URLs |
+| A visitor dismisses a summary card then opens a node | Reappearing immediately feels intrusive | Share per-engine session dismissal across summary and node callouts |
+| Findings are for different engines | A wrong capability page is misleading | Key each link to the engine and test all three mappings |
 
 ---
 
@@ -983,7 +1005,7 @@ As a user who opened a node and wants to learn more, I want a small, editorially
 **Acceptance criteria**
 - New `src/app/content/ContentStack.tsx` + `src/app/content/posts.ts` with the exact shape from spec §5 `2c`: `{id, kind:"blog"|"video", title, url, minutes, operatorTypes[], ruleIds[]}`.
 - Placement matches on the open node's `operatorType` or a fired `Warning.ruleId`; renders nothing when there's no match — additive, never a required section.
-- Visually distinct from the pgsuite/QueryDoc funnel callout (Episode 9: teal, a product nudge) — this is neutral/editorial styling, and the two are never rendered stacked adjacent to each other in the same panel.
+- Visually distinct from the WalStack handoff (Episode 9: teal, a service suggestion) — this is neutral/editorial styling, and the two are never rendered stacked adjacent to each other in the same panel.
 - `posts.ts` starts with **zero entries** — per spec §5 `2c`'s explicit instruction ("Do not ship invented links; render the stack only once `posts.ts` has real entries") and this project's existing rule against fabricated placeholder content (Episode 12.1's "do not fabricate placeholder links claiming to be real content"). The component itself is fully buildable and testable now; the content is a separate, later fill-in (tracked against Episode 12.1's same real-URL blocker) — this story is not blocked by that, only its content data is.
 - External links open in a new tab with `rel="noopener"`. No analytics/tracking call on click — a click-tracking beacon would breach the no-network-call guarantee (privacy-architecture skill) the same as any other outbound request would.
 

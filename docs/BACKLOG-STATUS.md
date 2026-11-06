@@ -54,7 +54,8 @@ _Last audited against `src/` and git history on 2026-08-28 (652/652 tests passin
 ## Episode 9 — Funnel touchpoints
 | Story | Status | Notes |
 |---|---|---|
-| 9.1 — Contextual, dismissible product callouts | done | `src/graph/detailPanel/funnelCallouts.ts` + `FunnelCallout.tsx`, keyed strictly by node engine, session-scoped per-product dismissal. **Uses placeholder URLs** (`pgsuite.example.com` / `querydoc.example.com`) — swap for real domains before launch |
+| 9.1 — Contextual, dismissible product callouts | done | Superseded/extended by 9.2: fixed WalStack destinations, engine-specific node callouts, session-scoped dismissal. |
+| 9.2 — WalStack production investigation handoff | done | [PR #31](https://github.com/kiransabne04/execution-plan-reader/pull/31). Summary card (including clean plans), PostgreSQL landing page + crawlable snapshot, SQL Server/Snowflake capability paths, creator credit, fixed campaign-only URLs and tests. |
 
 ## Episode 10 — LLM narrative mode
 | Story | Status | Notes |

@@ -7,6 +7,10 @@
 import {
   ANALYZER_CTA_HREF,
   ANALYZER_CTA_TEXT,
+  BEYOND_PLAN_BODY,
+  BEYOND_PLAN_CTA_HREF,
+  BEYOND_PLAN_CTA_TEXT,
+  BEYOND_PLAN_HEADING,
   DEEP_LEARNING_BODY,
   DEEP_LEARNING_HEADING,
   DEEP_LEARNING_LINK_HREF,
@@ -21,6 +25,8 @@ import {
   HOW_TO_GENERATE_TEXT_LABEL,
   INTRO,
   PRIVACY_POINTS,
+  SAMPLE_REPORT_CTA_HREF,
+  SAMPLE_REPORT_CTA_TEXT,
   SUPPORTED_INPUT_FORMATS,
   TRY_SAMPLE_BODY,
   TRY_SAMPLE_CTA_HREF,
@@ -70,6 +76,16 @@ export function PostgresLandingPage() {
       <section className="landing-section" aria-labelledby="landing-example-finding">
         <h2 id="landing-example-finding">{EXAMPLE_FINDING_HEADING}</h2>
         <p>{EXAMPLE_FINDING_BODY}</p>
+      </section>
+
+      <section className="landing-section" aria-labelledby="landing-beyond-plan">
+        <h2 id="landing-beyond-plan">{BEYOND_PLAN_HEADING}</h2>
+        <p>{BEYOND_PLAN_BODY}</p>
+        <p>
+          <a href={BEYOND_PLAN_CTA_HREF} target="_blank" rel="noopener noreferrer">{BEYOND_PLAN_CTA_TEXT}</a>
+          {" · "}
+          <a href={SAMPLE_REPORT_CTA_HREF} target="_blank" rel="noopener noreferrer">{SAMPLE_REPORT_CTA_TEXT}</a>
+        </p>
       </section>
 
       <section className="landing-section" aria-labelledby="landing-privacy">

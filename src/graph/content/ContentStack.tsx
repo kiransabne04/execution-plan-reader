@@ -1,6 +1,6 @@
 // Episode 18, Story 18.13, spec §5 `2c` — a small, editorially-distinct
 // panel linking to related @scalingbackend content. Visually apart from
-// the pgsuite/QueryDoc funnel callout (FunnelCallout.tsx, teal, a product
+// the WalStack handoff (FunnelCallout.tsx, teal, a service
 // nudge): neutral styling here, and the two are never rendered stacked
 // adjacent in the same panel — see DetailPanel.tsx's own placement
 // comment for how that's structurally guaranteed, not just visual

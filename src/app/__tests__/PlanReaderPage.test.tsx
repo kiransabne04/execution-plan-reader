@@ -75,6 +75,7 @@ describe("PlanReaderPage", () => {
   it("shows a footer connecting the tool to Kiran's existing content, for first-time-visitor credibility", () => {
     render(<PlanReaderPage />)
     expect(screen.getByText(/scalingbackend/i)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Built by Kiran Sabne at WalStack" })).toHaveAttribute("href", expect.stringContaining("https://walstack.io/about?utm_source=planreader"))
   })
 
   // Episode SEO-02, Story 02.2: same empty-state-only gate as the credit

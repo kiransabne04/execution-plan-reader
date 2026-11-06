@@ -21,9 +21,9 @@ Kiran already has a 3-part video series and a companion long-form blog post on r
 ## 4. Funnel messaging (non-pushy, by design)
 
 Per the PRD's non-goals, PlanReader must never feel like a lead-gen trap. The funnel touchpoints should be:
-- Contextual, not interstitial — a small, dismissible callout tied to a *specific* finding (e.g., next to a Postgres bloat/vacuum-related warning: "pgsuite checks for this automatically across your whole database →"), not a generic banner shown to everyone regardless of what they pasted.
+- Contextual, not interstitial — a small, dismissible handoff after the overall findings summary and alongside relevant node findings. The PostgreSQL offer is WalStack's production performance investigation, not ongoing monitoring. A clean plan still gets the one-plan boundary note because no rule firing does not rule out a production problem.
 - Never blocking — the free tool's core value (explanation + visualization) must be fully usable with every funnel callout ignored or an ad-blocker-style extension hiding them entirely.
-- Framed as "here's what handles this on an ongoing basis," not "upgrade now" — this matches how EverSQL and Postgres.ai anchor their own free-tool-to-paid-product transitions (per the competitive research): the free layer solves the one-off problem completely on its own; the paid product solves the *recurring* version of that same problem, which is a genuinely different value proposition rather than an artificially gated version of the same one.
+- Framed as an optional investigation of latency, CPU, locks, or connection pressure across the production workload. PostgreSQL is the prominent handoff; SQL Server and Snowflake have restrained links to their matching WalStack capability pages. All links use fixed campaign URLs only. The visitor separately chooses what evidence to share with a consultant; no plan text, finding, SQL, or share fragment is appended to a WalStack URL.
 
 ## 5. Post-launch content loop
 

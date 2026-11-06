@@ -38,11 +38,8 @@ export interface WarningsSectionProps {
  * duplicate it; the same `data-testid` moved onto the headline itself so
  * existing "rule id shown in Expert" coverage still holds.
  *
- * Also the one place Story 9.1's funnel callout renders: it only ever
- * appears alongside an actual fired warning on this specific node (never a
- * standalone banner), keyed off THIS node's own `engine` field (never a
- * plan-wide flag or rule ID) so a Postgres finding can never link to
- * QueryDoc or vice versa. */
+ * The node-specific handoff appears only with a finding and is keyed to
+ * this node's engine. A separate plan-wide handoff follows the summary. */
 function WarningsSectionInner({ warnings, expertMode, engine }: WarningsSectionProps) {
   if (warnings.length === 0) return null
   const callout = getFunnelCallout(engine)
@@ -99,7 +96,7 @@ function WarningsSectionInner({ warnings, expertMode, engine }: WarningsSectionP
           )}
         </div>
       ))}
-      {callout && <FunnelCallout callout={callout} />}
+      {callout && <FunnelCallout key={callout.product} callout={callout} />}
     </section>
   )
 }

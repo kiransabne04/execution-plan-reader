@@ -9,6 +9,8 @@ import { PostgresLandingPage } from "../PostgresLandingPage"
 import { ALL_RULES } from "../../rules"
 import {
   ANALYZER_CTA_HREF,
+  BEYOND_PLAN_CTA_HREF,
+  SAMPLE_REPORT_CTA_HREF,
   SUPPORTED_INPUT_FORMATS,
   TRY_SAMPLE_CTA_HREF,
   WHAT_IT_DETECTS,
@@ -27,6 +29,7 @@ describe("PostgresLandingPage — Story 03.1", () => {
       "Supported input formats",
       "What it detects",
       "Example finding",
+      "When one plan is not enough",
       "Privacy",
       "How to generate EXPLAIN input",
       "Try a sample plan",
@@ -52,6 +55,14 @@ describe("PostgresLandingPage — Story 03.1", () => {
   it("links to kiransabne.dev instead of recreating the deep EXPLAIN guide", () => {
     render(<PostgresLandingPage />)
     expect(screen.getByRole("link", { name: "kiransabne.dev" })).toHaveAttribute("href", "https://kiransabne.dev")
+  })
+
+  it("keeps the free analyzer primary and links to the investigation and sample report", () => {
+    render(<PostgresLandingPage />)
+    expect(screen.getByTestId("analyzer-cta")).toHaveTextContent("Analyze your plan free")
+    expect(screen.getByRole("link", { name: "See the PostgreSQL investigation" })).toHaveAttribute("href", BEYOND_PLAN_CTA_HREF)
+    expect(screen.getByRole("link", { name: "View a sample report" })).toHaveAttribute("href", SAMPLE_REPORT_CTA_HREF)
+    expect(screen.getByText(/You choose separately what evidence to share/)).toBeInTheDocument()
   })
 
   it("every referenced rule id is a real string literal somewhere in src/rules/ (never invented capability)", () => {

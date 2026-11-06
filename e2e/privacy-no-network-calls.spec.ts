@@ -28,6 +28,10 @@ test("zero outbound requests while analyzing a Postgres plan", async ({ page }) 
   await page.getByTestId("paste-textarea").fill(loadFixture("postgres", "multi-way-join.json"))
   await page.getByRole("button", { name: ANALYZE_BUTTON }).click()
   await expect(page.getByTestId("plan-result")).toBeVisible()
+  await expect(page.getByTestId("findings-handoff").getByRole("link")).toHaveAttribute(
+    "href",
+    "https://walstack.io/postgresql-performance-investigation?utm_source=planreader&utm_medium=tool&utm_campaign=postgres_plan_handoff",
+  )
   await page.waitForTimeout(500) // settle window for anything async
 
   expect(requestsDuringAnalysis).toEqual([])
