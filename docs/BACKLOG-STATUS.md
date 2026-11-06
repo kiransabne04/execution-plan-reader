@@ -55,7 +55,7 @@ _Last audited against `src/` and git history on 2026-08-28 (652/652 tests passin
 | Story | Status | Notes |
 |---|---|---|
 | 9.1 — Contextual, dismissible product callouts | done | Superseded/extended by 9.2: fixed WalStack destinations, engine-specific node callouts, session-scoped dismissal. |
-| 9.2 — WalStack production investigation handoff | done | Summary card (including clean plans), PostgreSQL landing page + crawlable snapshot, SQL Server/Snowflake capability paths, creator credit, fixed campaign-only URLs and tests. No PR link yet; add when a PR is opened. |
+| 9.2 — WalStack production investigation handoff | done | [PR #31](https://github.com/kiransabne04/execution-plan-reader/pull/31). Summary card (including clean plans), PostgreSQL landing page + crawlable snapshot, SQL Server/Snowflake capability paths, creator credit, fixed campaign-only URLs and tests. |
 
 ## Episode 10 — LLM narrative mode
 | Story | Status | Notes |
