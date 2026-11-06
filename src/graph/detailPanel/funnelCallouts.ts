@@ -19,12 +19,14 @@ export const WALSTACK_SAMPLE_REPORT_URL =
   "https://walstack.io/sample-report?utm_source=planreader&utm_medium=tool&utm_campaign=postgres_plan_handoff"
 export const WALSTACK_CREATOR_URL =
   "https://walstack.io/about?utm_source=planreader&utm_medium=tool&utm_campaign=creator_credit"
+export const WALSTACK_HEADER_HELP_URL =
+  "https://walstack.io/?utm_source=planreader&utm_medium=tool&utm_campaign=header_professional_help"
 
 const CALLOUTS: Record<Engine, FunnelCallout> = {
   postgres: {
     product: "walstack-postgres",
     text: "A plan shows one execution. Persistent latency, CPU, locks, or connection pressure may need a production workload investigation.",
-    cta: "See the PostgreSQL investigation",
+    cta: "Explore professional PostgreSQL help",
     url: WALSTACK_POSTGRES_URL,
   },
   sqlserver: {
