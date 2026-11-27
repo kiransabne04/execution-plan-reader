@@ -47,6 +47,7 @@ describe("Episode 8 positioning: index.html matches the brief exactly", () => {
     expect(schema).toEqual({
       "@context": "https://schema.org",
       "@type": "WebApplication",
+      "@id": "https://www.planreader.dev/#app",
       name: "PlanReader",
       applicationCategory: "DeveloperApplication",
       applicationSubCategory: "Database Performance Tool",
@@ -63,7 +64,8 @@ describe("Episode 8 positioning: index.html matches the brief exactly", () => {
         "No signup required",
         "Client-side, privacy-preserving parsing",
       ],
-      creator: { "@type": "Person", name: "Kiran Sabne" },
+      creator: { "@type": "Person", "@id": "https://walstack.io/#kiran", name: "Kiran Sabne", url: "https://walstack.io/about" },
+      publisher: { "@type": "Organization", "@id": "https://walstack.io/#practice", name: "WalStack", url: "https://walstack.io" },
     })
     const forbiddenKeys = ["aggregateRating", "review", "ratingValue", "interactionCount", "userInteractionCount"]
     for (const key of forbiddenKeys) expect(schema).not.toHaveProperty(key)

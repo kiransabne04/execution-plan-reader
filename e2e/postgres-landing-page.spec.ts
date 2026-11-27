@@ -22,6 +22,8 @@ test("PostgreSQL landing page has the real title, canonical, meta description, a
   const parsed = JSON.parse(jsonLd ?? "{}")
   expect(parsed["@type"]).toBe("WebPage")
   expect(parsed.url).toBe("https://www.planreader.dev/postgresql-execution-plan-analyzer")
+  expect(parsed.isPartOf["@id"]).toBe("https://www.planreader.dev/#app")
+  expect(parsed.creator["@id"]).toBe("https://walstack.io/#kiran")
 })
 
 test("Analyzer CTA navigates to the real app; Try-sample link lands on the real sample-plans anchor", async ({ page }) => {
