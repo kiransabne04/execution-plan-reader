@@ -15,7 +15,7 @@ export const WALSTACK_POSTGRES_URL =
 // is live but noindex on walstack.io since 24 Nov 2026; "/query-rescue" reviews
 // one slow PostgreSQL or SQL Server statement and is indexed. Change only this
 // line to switch. Snowflake stays on its own page.
-export const WALSTACK_SQLSERVER_PATH: "/sql-server-performance" | "/query-rescue" = "/sql-server-performance"
+export const WALSTACK_SQLSERVER_PATH: "/sql-server-performance" | "/query-rescue" = "/query-rescue"
 export const WALSTACK_SQLSERVER_URL =
   `https://walstack.io${WALSTACK_SQLSERVER_PATH}?utm_source=planreader&utm_medium=tool&utm_campaign=sqlserver_plan_handoff`
 export const WALSTACK_SNOWFLAKE_URL =
