@@ -1,12 +1,10 @@
 # PlanReader
 
+Free, client-side execution plan analyzer for PostgreSQL, SQL Server and Snowflake: [www.planreader.dev](https://www.planreader.dev)
+
 **Understand database execution plans without sending your queries anywhere.**
 
-PlanReader is a free, privacy-first execution plan analyzer for **PostgreSQL, SQL Server, and Snowflake**.
-
 Paste or upload an execution plan and PlanReader turns it into an interactive visualization with deterministic performance findings, Query Health, operator-level evidence, and plain-English explanations.
-
-🌐 **Live:** https://www.planreader.dev
 
 ---
 
@@ -636,8 +634,5 @@ before attaching execution plans to public issues.
 See the repository's `LICENSE` file for the current license terms.
 
 ---
-# PlanReader
-**Execution plans are complicated. Understanding them shouldn't be.**
-Analyze PostgreSQL, SQL Server and Snowflake execution plans at:
 
-https://www.planreader.dev
+Built by Kiran Sabne ([walstack.io/about](https://walstack.io/about)).
