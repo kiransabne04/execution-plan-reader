@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { getFunnelCallout, getSummaryHandoffText, WALSTACK_CREATOR_URL, WALSTACK_HEADER_HELP_URL, WALSTACK_POSTGRES_URL, WALSTACK_SAMPLE_REPORT_URL, WALSTACK_SQLSERVER_URL, WALSTACK_SNOWFLAKE_URL } from "../funnelCallouts"
+import { getFunnelCallout, getSummaryHandoffText, WALSTACK_CREATOR_URL, WALSTACK_HEADER_HELP_URL, WALSTACK_POSTGRES_URL, WALSTACK_SAMPLE_REPORT_URL, WALSTACK_SQLSERVER_PATH, WALSTACK_SQLSERVER_URL, WALSTACK_SNOWFLAKE_URL } from "../funnelCallouts"
 
 describe("getFunnelCallout", () => {
   it("maps Postgres to the production investigation with the exact fixed campaign URL", () => {
@@ -14,7 +14,7 @@ describe("getFunnelCallout", () => {
   it("maps SQL Server and Snowflake to their own capability pages", () => {
     expect(getFunnelCallout("sqlserver").url).toBe(WALSTACK_SQLSERVER_URL)
     expect(getFunnelCallout("snowflake").url).toBe(WALSTACK_SNOWFLAKE_URL)
-    expect(getFunnelCallout("sqlserver").url).toContain("/sql-server-performance?")
+    expect(getFunnelCallout("sqlserver").url).toContain(`${WALSTACK_SQLSERVER_PATH}?`)
     expect(getFunnelCallout("snowflake").url).toContain("/snowflake-performance?")
   })
 

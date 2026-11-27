@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { WarningsSection } from "../WarningsSection"
 import type { Warning } from "../../../parsers/normalize"
+import { WALSTACK_SQLSERVER_PATH } from "../funnelCallouts"
 
 const warning: Warning = {
   ruleId: "seq-scan-on-large-table",
@@ -30,7 +31,7 @@ describe("WarningsSection funnel callout (Story 9.1)", () => {
 
   it("shows the SQL Server capability callout alongside a real SQL Server warning", () => {
     render(<WarningsSection warnings={[warning]} expertMode={false} engine="sqlserver" />)
-    expect(screen.getByTestId("funnel-callout").querySelector("a")).toHaveAttribute("href", expect.stringContaining("/sql-server-performance?"))
+    expect(screen.getByTestId("funnel-callout").querySelector("a")).toHaveAttribute("href", expect.stringContaining(`${WALSTACK_SQLSERVER_PATH}?`))
   })
 
   it("never shows a callout when there's no warning to tie it to — not a generic banner", () => {

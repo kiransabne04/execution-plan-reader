@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { FindingsHandoff } from "../FindingsHandoff"
 import { FunnelCallout } from "../../detailPanel/FunnelCallout"
-import { getFunnelCallout, WALSTACK_POSTGRES_URL } from "../../detailPanel/funnelCallouts"
+import { getFunnelCallout, WALSTACK_POSTGRES_URL, WALSTACK_SQLSERVER_PATH } from "../../detailPanel/funnelCallouts"
 
 describe("FindingsHandoff", () => {
   beforeEach(() => {
@@ -26,7 +26,7 @@ describe("FindingsHandoff", () => {
 
   it("uses restrained engine-specific paths for SQL Server and Snowflake", () => {
     const { rerender } = render(<FindingsHandoff engine="sqlserver" hasFindings />)
-    expect(screen.getByRole("link").getAttribute("href")).toContain("/sql-server-performance?")
+    expect(screen.getByRole("link").getAttribute("href")).toContain(`${WALSTACK_SQLSERVER_PATH}?`)
     rerender(<FindingsHandoff key="snowflake" engine="snowflake" hasFindings={false} />)
     expect(screen.getByRole("link").getAttribute("href")).toContain("/snowflake-performance?")
     expect(screen.getByTestId("findings-handoff")).toHaveTextContent(/clean plan does not rule out/)

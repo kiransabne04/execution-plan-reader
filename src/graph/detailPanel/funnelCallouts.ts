@@ -11,8 +11,13 @@ export interface FunnelCallout {
 // location.href, or the share-link fragment (which contains the raw plan).
 export const WALSTACK_POSTGRES_URL =
   "https://walstack.io/postgresql-performance-investigation?utm_source=planreader&utm_medium=tool&utm_campaign=postgres_plan_handoff"
+// Owner decision: where the SQL Server hand-off lands. "/sql-server-performance"
+// is live but noindex on walstack.io since 24 Nov 2026; "/query-rescue" reviews
+// one slow PostgreSQL or SQL Server statement and is indexed. Change only this
+// line to switch. Snowflake stays on its own page.
+export const WALSTACK_SQLSERVER_PATH: "/sql-server-performance" | "/query-rescue" = "/sql-server-performance"
 export const WALSTACK_SQLSERVER_URL =
-  "https://walstack.io/sql-server-performance?utm_source=planreader&utm_medium=tool&utm_campaign=sqlserver_plan_handoff"
+  `https://walstack.io${WALSTACK_SQLSERVER_PATH}?utm_source=planreader&utm_medium=tool&utm_campaign=sqlserver_plan_handoff`
 export const WALSTACK_SNOWFLAKE_URL =
   "https://walstack.io/snowflake-performance?utm_source=planreader&utm_medium=tool&utm_campaign=snowflake_plan_handoff"
 export const WALSTACK_SAMPLE_REPORT_URL =
