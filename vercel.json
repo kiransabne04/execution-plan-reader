@@ -1,6 +1,12 @@
 {
   "cleanUrls": true,
   "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "execution-plan-reader.vercel.app" }],
+      "destination": "https://www.planreader.dev/:path*",
+      "statusCode": 301
+    },
     { "source": "/index.html", "destination": "/", "permanent": true }
   ],
   "headers": [
